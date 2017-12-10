@@ -37,6 +37,9 @@ class StereoCamera
 		void BufferRight(const sensor_msgs::ImageConstPtr& msg);
 		//services
 		bool updateDetector(front_end::setDetector::Request& req,front_end::setDetector::Response &res);
+		//image processing
+		cv::Ptr<cv::FeatureDetector> lDet,rDet;
+		boost::mutex mutexlDet,mutexrDet;
 		ros::ServiceServer detectorSrv;
 	public:
 		StereoRect cameraSettings_;

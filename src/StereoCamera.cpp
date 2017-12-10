@@ -51,6 +51,7 @@ void StereoCamera::BufferRight(const sensor_msgs::ImageConstPtr& msg)
 
 void StereoCamera::processLeftImage()
 {
+	cv::Mat imageBuffer;
 	while(ros::ok())
 	{
 		boost::mutex::scoped_lock lock(mutexLImg);
@@ -58,17 +59,21 @@ void StereoCamera::processLeftImage()
     {
 			leftImagesEmpty.wait(lock);
     }
-		std::cout<<"received new image--"<<leftImages.size()<<std::endl;
-		cv::Mat t;
-		leftImages.front().copyTo(t);//.clone();
+		leftImages.front().copyTo(imageBuffer);
 		leftImages.pop();
-		std::cout<<"received new Size--"<<leftImages.size()<<std::endl;
 		lock.unlock();
+
+		boost::mutex::scoped_lock lockDet(mutexlDet);
+		std::vector<cv::KeyPoint> out;
+		lDet->detect(imageBuffer,out);
+		lockDet.unlock();
+		std::cout<<"left  "<<out.size()<<std::endl;
 	}
 }
 
 void StereoCamera::processRightImage()
 {
+	cv::Mat imageBuffer;
 	while(ros::ok())
 	{
 		boost::mutex::scoped_lock lock(mutexRImg);
@@ -76,20 +81,97 @@ void StereoCamera::processRightImage()
     {
 			rightImagesEmpty.wait(lock);
     }
-		std::cout<<"received new image--"<<rightImages.size()<<std::endl;
-		cv::Mat t;
-		rightImages.front().copyTo(t);//.clone();
+		rightImages.front().copyTo(imageBuffer);
 		rightImages.pop();
-		std::cout<<"received new Size--"<<rightImages.size()<<std::endl;
+		std::vector<cv::KeyPoint> out;
 		lock.unlock();
+
+		boost::mutex::scoped_lock lockDet(mutexrDet);
+		rDet->detect(imageBuffer,out);
+		lockDet.unlock();
+		std::cout<<"right  "<<out.size()<<std::endl;
 	
 	}
 }
 
+/*void printParams( cv::Algorithm* algorithm ) {
+    std::vector<std::string> parameters;
+    algorithm->getParams(parameters);
+
+    for (int i = 0; i < (int) parameters.size(); i++) {
+        std::string param = parameters[i];
+        int type = algorithm->paramType(param);
+        std::string helpText = algorithm->paramHelp(param);
+        std::string typeText;
+
+        switch (type) {
+        case cv::Param::BOOLEAN:
+            typeText = "bool";
+            break;
+        case cv::Param::INT:
+            typeText = "int";
+            break;
+        case cv::Param::REAL:
+            typeText = "real (double)";
+            break;
+        case cv::Param::STRING:
+            typeText = "string";
+            break;
+        case cv::Param::MAT:
+            typeText = "Mat";
+            break;
+        case cv::Param::ALGORITHM:
+            typeText = "Algorithm";
+            break;
+        case cv::Param::MAT_VECTOR:
+            typeText = "Mat vector";
+            break;
+        }
+        std::cout << "Parameter '" << param << "' type=" << typeText << " help=" << helpText << std::endl;
+    }
+}
+*/
 
 
 bool StereoCamera::updateDetector(front_end::setDetector::Request& req,front_end::setDetector::Response &res)
 {
+	
+	std::string name=(req.Name.data);
+	
+	if(req.detection)
+	{
+		if(name=="ORB")	
+		{
+			boost::mutex::scoped_lock lockL(mutexlDet);
+			lDet=cv::FeatureDetector::create("ORB");
+			lDet->set("WTA_K",static_cast<int>(req.orbConfig.wta.data));
+			lDet->set("nFeatures",static_cast<int>(req.orbConfig.maxFeatures.data));
+			lDet->set("edgeThreshold",static_cast<int>(req.orbConfig.edge.data));
+			lDet->set("firstLevel",0);
+			lDet->set("nLevels",static_cast<int>(req.orbConfig.level.data));
+			lDet->set("patchSize",static_cast<int>(req.orbConfig.patch.data));
+			lDet->set("scaleFactor",static_cast<float>(req.orbConfig.scale.data));
+			lDet->set("scoreType",static_cast<int>(req.orbConfig.score.data));
+			lockL.unlock();
+
+			boost::mutex::scoped_lock lockR(mutexrDet);
+
+			rDet=cv::FeatureDetector::create("ORB");
+			rDet->set("WTA_K",static_cast<int>(req.orbConfig.wta.data));
+			rDet->set("nFeatures",static_cast<int>(req.orbConfig.maxFeatures.data));
+			rDet->set("edgeThreshold",static_cast<int>(req.orbConfig.edge.data));
+			rDet->set("firstLevel",0);
+			rDet->set("nLevels",static_cast<int>(req.orbConfig.level.data));
+			rDet->set("patchSize",static_cast<int>(req.orbConfig.patch.data));
+			rDet->set("scaleFactor",static_cast<float>(req.orbConfig.scale.data));
+			rDet->set("scoreType",static_cast<int>(req.orbConfig.score.data));
+			lockR.unlock();
+		}
+	}
+	else
+	{
+
+	}
 	return true;
 }
 
