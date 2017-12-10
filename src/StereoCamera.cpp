@@ -16,6 +16,7 @@ StereoCamera::StereoCamera(std::string cameraFile)
 
 	boost::thread leftThread(boost::bind(&StereoCamera::processLeftImage,this));
 	boost::thread rightThread(boost::bind(&StereoCamera::processRightImage,this));
+	boost::thread stereoThread(boost::bind(&StereoCamera::processStereo,this));
 }
 
 StereoCamera::~StereoCamera()
@@ -67,7 +68,14 @@ void StereoCamera::processLeftImage()
 		std::vector<cv::KeyPoint> out;
 		lDet->detect(imageBuffer,out);
 		lockDet.unlock();
-		std::cout<<"left  "<<out.size()<<std::endl;
+		//push features 
+		boost::mutex::scoped_lock lockFeat(mutexLfeat);
+		bool const was_empty=leftFeatures.empty();
+  	leftFeatures.push(out);
+  	if(was_empty)
+		{
+			leftFeaturesEmpty.notify_one();
+		}
 	}
 }
 
@@ -89,8 +97,45 @@ void StereoCamera::processRightImage()
 		boost::mutex::scoped_lock lockDet(mutexrDet);
 		rDet->detect(imageBuffer,out);
 		lockDet.unlock();
-		std::cout<<"right  "<<out.size()<<std::endl;
-	
+		//push features 
+		boost::mutex::scoped_lock lockFeat(mutexRfeat);
+		bool const was_empty=rightFeatures.empty();
+  	rightFeatures.push(out);
+  	if(was_empty)
+		{
+			rightFeaturesEmpty.notify_one();
+		}		
+	}
+}
+
+void StereoCamera::processStereo()
+{
+	std::vector<cv::KeyPoint> currentLeft,currentRight;
+	int frames=0;
+	while(ros::ok())
+	{
+		//get left features from queue
+		//wait for both queues to have atleast one set of features before processing
+		boost::mutex::scoped_lock lockLf(mutexLfeat);
+		while(leftFeatures.empty())
+		{
+			leftFeaturesEmpty.wait(lockLf);
+		}
+		currentLeft=leftFeatures.front();
+		leftFeatures.pop();
+		lockLf.unlock();
+		//get right features from queue
+		boost::mutex::scoped_lock lockRf(mutexRfeat);
+		while(rightFeatures.empty())
+		{
+			rightFeaturesEmpty.wait(lockRf);
+		}
+		currentRight=rightFeatures.front();
+		rightFeatures.pop();
+		lockRf.unlock();		
+		//epipolar filter the points
+		frames++;
+		std::cout<<"frames Processed -> "<<frames<<std::endl;
 	}
 }
 

@@ -24,15 +24,32 @@ namespace stereo
 class StereoCamera 
 {
 	private:
+		//thread info and mutexes for the image buffer
+		//subscribes to an image topic, left and right, and attempts to
+		//copy the image into a queue leftImages and rightImages respectively
+		//------------------
+		//condition_variable reduces the polling required by the thread by sleeping
+		//when certain conditions are met. In this case, if the imageQueue is empty,
+		//the thread sleeps until an image is pushed onto the queue
 		std::queue<cv::Mat> leftImages,rightImages;
 		boost::condition_variable leftImagesEmpty,rightImagesEmpty;
 		boost::mutex mutexLImg,mutexRImg;
+
+		//----------------------
+		//image processing mutexes and buffers
+		//each thread processes a single leftImages queue and extracts features according to  lDet and rDet
+		std::queue<std::vector<cv::KeyPoint> > leftFeatures,rightFeatures;
+		boost::condition_variable leftFeaturesEmpty,rightFeaturesEmpty;
+		boost::mutex mutexLfeat,mutexRfeat;
+
 		ros::NodeHandle n;
-		image_transport::ImageTransport *it;//(&n);
+		image_transport::ImageTransport *it;
 		image_transport::Subscriber leftSub;
 		image_transport::Subscriber rightSub;
 		void processLeftImage();
 		void processRightImage();
+		void processStereo();
+		
 		void BufferLeft(const sensor_msgs::ImageConstPtr& msg);
 		void BufferRight(const sensor_msgs::ImageConstPtr& msg);
 		//services
@@ -43,17 +60,9 @@ class StereoCamera
 		ros::ServiceServer detectorSrv;
 	public:
 		StereoRect cameraSettings_;
-		cv::Mat lundistort_,rundistort_;
-		cv::Mat lroi_,rroi_;
-		//cv::Ptr<cv::Feature2d> detector;
 		StereoCamera(std::string cameraFile);
 		~StereoCamera();
 
-
-		//StereoCamera(cv::Ptr<DetectorSettings> dl,cv::Ptr<DetectorSettings> dr,
-		//			 cv::Ptr<DetectorSettings> del,cv::Ptr<DetectorSettings> der,
-		//			 std::string stereoInputDir);
-		//void extractStereoFrame(cv::Mat leftIn,cv::Mat rightIn,StereoFrame &outFrame);
 };
 	
 	
