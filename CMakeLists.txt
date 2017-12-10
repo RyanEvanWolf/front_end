@@ -24,7 +24,6 @@ find_package(catkin REQUIRED COMPONENTS
 
 ## System dependencies are found with CMake's conventions
 find_package(Boost REQUIRED)
-find_package(MRPT REQUIRED)
 
 
 
@@ -35,20 +34,10 @@ else()
 	find_package(OpenCV REQUIRED)
 	set(OpenCV_LIBS opencv_tegra)
 	set(CUDA_USE_STATIC_CUDA_RUNTIME OFF)
+	find_package(MRPT REQUIRED)
+  find_package(BasicSLAMStructures REQUIRED CONFIG)
+  include(${CMAKE_SOURCE_DIR}/cmake/RelativePoseEstimationConfig.cmake)
 endif()
-
-
-
-
-	
-find_package(BasicSLAMStructures REQUIRED CONFIG)
-
-
-
-
-include(${CMAKE_SOURCE_DIR}/cmake/RelativePoseEstimationConfig.cmake)
-
-MESSAGE(STATUS "${STRUCTURES_LIBS}")
 
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
@@ -185,11 +174,6 @@ link_directories(
 
 MESSAGE(STATUS "Opencv includes  ${OpenCV_INCLUDE_DIRS}")
 MESSAGE(STATUS "cuda static - ${CUDA_USE_STATIC_CUDA_RUNTIME}")
-
-##create Tests
-
-
-message(STATUS "${BUILD_ONLY_INTERFACES}")
 
 if(${BUILD_ONLY_INTERFACES} STREQUAL "OFF")
 	add_subdirectory(src)	
