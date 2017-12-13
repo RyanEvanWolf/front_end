@@ -71,7 +71,10 @@ endif()
 ## Generate messages in the 'msg' folder
 add_message_files(
    FILES
-   ORB.msg
+		ORB.msg
+		Feature.msg
+		StereoMatch.msg
+		StereoFrame.msg
 )
 
 ## Generate services in the 'srv' folder
@@ -95,7 +98,8 @@ add_service_files(
 ## Generate added messages and services with any dependencies listed here
 generate_messages(
    DEPENDENCIES
-   std_msgs
+   	std_msgs
+		sensor_msgs
 )
 
 ################################################

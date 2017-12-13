@@ -1,0 +1,2 @@
+sensor_msgs/Image descriptor
+geometry_msgs/Point32 imageCoord

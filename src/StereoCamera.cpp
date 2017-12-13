@@ -7,7 +7,26 @@ StereoCamera::StereoCamera(std::string cameraFile)
 	cv::FileStorage in(cameraFile,cv::FileStorage::READ);
 	in["StereoRect"]>>cameraSettings_;
 	in.release();
+	
 
+	ROIlpub=n.advertise<sensor_msgs::RegionOfInterest>("front_end/ROIleft",10,true);
+	ROIrpub=n.advertise<sensor_msgs::RegionOfInterest>("front_end/ROIright",10,true);
+	stereoPub=n.advertise<front_end::StereoFrame>("front_end/stereo",20);
+
+
+	sensor_msgs::RegionOfInterest leftR,rightR;
+	leftR.x_offset=cameraSettings_.l_ROI_.x;
+	leftR.y_offset=cameraSettings_.l_ROI_.y;
+	leftR.height=cameraSettings_.l_ROI_.height;
+	leftR.width=cameraSettings_.l_ROI_.width;
+
+	rightR.x_offset=cameraSettings_.r_ROI_.x;
+	rightR.y_offset=cameraSettings_.r_ROI_.y;
+	rightR.height=cameraSettings_.r_ROI_.height;
+	rightR.width=cameraSettings_.r_ROI_.width;
+
+	ROIlpub.publish(leftR);
+	ROIrpub.publish(rightR);
 	it= new image_transport::ImageTransport(n);
 
 	leftSub=it->subscribe("bumblebee/leftROI", 5, &StereoCamera::BufferLeft, this);
@@ -63,15 +82,19 @@ void StereoCamera::processLeftImage()
 		leftImages.front().copyTo(imageBuffer);
 		leftImages.pop();
 		lock.unlock();
+		cv::Mat outDesc;
+		std::vector<cv::KeyPoint> out;
 
 		boost::mutex::scoped_lock lockDet(mutexlDet);
-		std::vector<cv::KeyPoint> out;
+
 		lDet->detect(imageBuffer,out);
+		lDesc->compute(imageBuffer,out,outDesc);
 		lockDet.unlock();
 		//push features 
 		boost::mutex::scoped_lock lockFeat(mutexLfeat);
 		bool const was_empty=leftFeatures.empty();
   	leftFeatures.push(out);
+		leftDescriptors.push(outDesc.clone());
   	if(was_empty)
 		{
 			leftFeaturesEmpty.notify_one();
@@ -91,16 +114,19 @@ void StereoCamera::processRightImage()
     }
 		rightImages.front().copyTo(imageBuffer);
 		rightImages.pop();
-		std::vector<cv::KeyPoint> out;
 		lock.unlock();
+		cv::Mat outDesc;
+		std::vector<cv::KeyPoint> out;
 
 		boost::mutex::scoped_lock lockDet(mutexrDet);
 		rDet->detect(imageBuffer,out);
+		rDesc->compute(imageBuffer,out,outDesc);
 		lockDet.unlock();
 		//push features 
 		boost::mutex::scoped_lock lockFeat(mutexRfeat);
 		bool const was_empty=rightFeatures.empty();
   	rightFeatures.push(out);
+		rightDescriptors.push(outDesc.clone());
   	if(was_empty)
 		{
 			rightFeaturesEmpty.notify_one();
@@ -110,10 +136,13 @@ void StereoCamera::processRightImage()
 
 void StereoCamera::processStereo()
 {
-	std::vector<cv::KeyPoint> currentLeft,currentRight;
+
 	int frames=0;
 	while(ros::ok())
 	{
+		std::vector<cv::KeyPoint> currentLeft,currentRight;
+		cv::Mat currentLeftDesc,currentRightDesc;
+		front_end::StereoFrame output;
 		//get left features from queue
 		//wait for both queues to have atleast one set of features before processing
 		boost::mutex::scoped_lock lockLf(mutexLfeat);
@@ -122,7 +151,9 @@ void StereoCamera::processStereo()
 			leftFeaturesEmpty.wait(lockLf);
 		}
 		currentLeft=leftFeatures.front();
+		leftDescriptors.front().copyTo(currentLeftDesc);
 		leftFeatures.pop();
+		leftDescriptors.pop();
 		lockLf.unlock();
 		//get right features from queue
 		boost::mutex::scoped_lock lockRf(mutexRfeat);
@@ -131,9 +162,84 @@ void StereoCamera::processStereo()
 			rightFeaturesEmpty.wait(lockRf);
 		}
 		currentRight=rightFeatures.front();
+		rightDescriptors.front().copyTo(currentRightDesc);
 		rightFeatures.pop();
+		rightDescriptors.pop();
 		lockRf.unlock();		
 		//epipolar filter the points
+		//build epipolar distance matrix
+		output.nLeft.data=currentLeft.size();
+		output.nRight.data=currentRight.size();
+
+		std::cout<<currentLeftDesc.size()<<std::endl;
+		std::cout<<currentRightDesc.size()<<std::endl;
+		std::cout<<currentLeft.size()<<std::endl;
+		std::cout<<currentRight.size()<<std::endl;
+		std::cout<<currentLeftDesc.type()<<std::endl;
+		cv::Mat maskTable=cv::Mat(currentLeft.size(),currentRight.size(),CV_8U);
+		for(int leftIndex=0;leftIndex<currentLeft.size();leftIndex++)
+		{
+			for(int rightIndex=0;rightIndex<currentRight.size();rightIndex++)
+			{
+				if(abs(2*((currentLeft.at(leftIndex).pt.y+cameraSettings_.l_ROI_.y)-(currentRight.at(rightIndex).pt.y+cameraSettings_.r_ROI_.y)))<=2.0)
+				{
+					maskTable.at<uchar>(leftIndex,rightIndex)=1;
+				}
+				else
+				{
+					maskTable.at<uchar>(leftIndex,rightIndex)=0;
+				}
+			}
+		}
+		//match with mask as filter
+		cv::BFMatcher m(cv::NORM_HAMMING,false);
+		std::vector< std::vector<cv::DMatch> > initialMatches;		
+		std::cout<<"preMatch\n";
+		m.knnMatch(currentLeftDesc,currentRightDesc,initialMatches,2,maskTable);
+		//only retain the two closest matches
+		//filter with lowe ratio
+		output.loweRatio.data=initialMatches.size();
+		std::vector<cv::DMatch> goodMatches;
+		int ID=0;
+		std::cout<<"after Matching\n"<<initialMatches.size()<<std::endl<<std::endl;
+		for(int index=0;index<initialMatches.size();index++)
+		{
+			if(initialMatches.at(index).size()>=2)
+			{
+				if(initialMatches.at(index).at(0).distance<0.8*initialMatches.at(index).at(1).distance)
+				{
+					front_end::StereoMatch current;
+					cv::Mat ld,rd;//descriptor buffer
+					cv::KeyPoint lkp,rkp;//keypoint buffer
+					lkp=currentLeft.at(initialMatches.at(index).at(0).queryIdx);
+					currentLeftDesc.row(initialMatches.at(index).at(0).queryIdx).copyTo(ld);
+					current.leftFeature.imageCoord.x=lkp.pt.x;
+					current.leftFeature.imageCoord.y=lkp.pt.y;
+//CV_8U
+			//todo cast to the right message type CV_8U in the case of ORB, add check over here based on descriptor		
+					//current.leftFeature.descriptor=ld-<
+					rkp=currentLeft.at(initialMatches.at(index).at(0).trainIdx);
+					currentRightDesc.row(initialMatches.at(index).at(0).trainIdx).copyTo(rd);
+					current.rightFeature.imageCoord.x=rkp.pt.x;
+					current.rightFeature.imageCoord.y=rkp.pt.y;
+					current.ID.data=ID;
+					ID++;
+					
+			//		front_end/Feature leftFeature
+//front_end/Feature rightFeature
+//std_msgs/Int32 ID
+					//goodMatches.push_back(initialMatches.at(index).at(0));
+				}
+			}
+			else
+			{
+				if(initialMatches.at(index).size()==1)
+				{
+					//goodMatches.push_back(initialMatches.at(index).at(0));
+				}
+			}
+		}
+		
 		frames++;
 		std::cout<<"frames Processed -> "<<frames<<std::endl;
 	}
@@ -185,6 +291,7 @@ bool StereoCamera::updateDetector(front_end::setDetector::Request& req,front_end
 	
 	if(req.detection)
 	{
+		//set the feature detector
 		if(name=="ORB")	
 		{
 			boost::mutex::scoped_lock lockL(mutexlDet);
@@ -215,6 +322,34 @@ bool StereoCamera::updateDetector(front_end::setDetector::Request& req,front_end
 	}
 	else
 	{
+		//set the descriptor extractor
+		if(name=="ORB")
+		{
+			boost::mutex::scoped_lock lockL(mutexlDesc);
+			lDesc=cv::DescriptorExtractor::create("ORB");
+			lDesc->set("WTA_K",static_cast<int>(req.orbConfig.wta.data));
+			lDesc->set("nFeatures",static_cast<int>(req.orbConfig.maxFeatures.data));
+			lDesc->set("edgeThreshold",static_cast<int>(req.orbConfig.edge.data));
+			lDesc->set("firstLevel",0);
+			lDesc->set("nLevels",static_cast<int>(req.orbConfig.level.data));
+			lDesc->set("patchSize",static_cast<int>(req.orbConfig.patch.data));
+			lDesc->set("scaleFactor",static_cast<float>(req.orbConfig.scale.data));
+			lDesc->set("scoreType",static_cast<int>(req.orbConfig.score.data));
+			lockL.unlock();
+
+			boost::mutex::scoped_lock lockR(mutexrDesc);
+
+			rDesc=cv::DescriptorExtractor::create("ORB");
+			rDesc->set("WTA_K",static_cast<int>(req.orbConfig.wta.data));
+			rDesc->set("nFeatures",static_cast<int>(req.orbConfig.maxFeatures.data));
+			rDesc->set("edgeThreshold",static_cast<int>(req.orbConfig.edge.data));
+			rDesc->set("firstLevel",0);
+			rDesc->set("nLevels",static_cast<int>(req.orbConfig.level.data));
+			rDesc->set("patchSize",static_cast<int>(req.orbConfig.patch.data));
+			rDesc->set("scaleFactor",static_cast<float>(req.orbConfig.scale.data));
+			rDesc->set("scoreType",static_cast<int>(req.orbConfig.score.data));
+			lockR.unlock();
+		}
 
 	}
 	return true;

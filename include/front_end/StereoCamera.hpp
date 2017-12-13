@@ -15,6 +15,12 @@
 #include <boost/bind.hpp>
 
 #include <front_end/setDetector.h>
+#include <front_end/Feature.h>
+#include <front_end/StereoFrame.h>
+
+
+#include <sensor_msgs/RegionOfInterest.h>
+
 
 #include <queue>
 
@@ -39,6 +45,7 @@ class StereoCamera
 		//image processing mutexes and buffers
 		//each thread processes a single leftImages queue and extracts features according to  lDet and rDet
 		std::queue<std::vector<cv::KeyPoint> > leftFeatures,rightFeatures;
+		std::queue<cv::Mat> leftDescriptors,rightDescriptors;
 		boost::condition_variable leftFeaturesEmpty,rightFeaturesEmpty;
 		boost::mutex mutexLfeat,mutexRfeat;
 
@@ -46,6 +53,9 @@ class StereoCamera
 		image_transport::ImageTransport *it;
 		image_transport::Subscriber leftSub;
 		image_transport::Subscriber rightSub;
+		ros::Publisher ROIlpub,ROIrpub;
+		ros::Publisher stereoPub;
+
 		void processLeftImage();
 		void processRightImage();
 		void processStereo();
@@ -56,7 +66,9 @@ class StereoCamera
 		bool updateDetector(front_end::setDetector::Request& req,front_end::setDetector::Response &res);
 		//image processing
 		cv::Ptr<cv::FeatureDetector> lDet,rDet;
+		cv::Ptr<cv::DescriptorExtractor> lDesc,rDesc;
 		boost::mutex mutexlDet,mutexrDet;
+		boost::mutex mutexlDesc,mutexrDesc;
 		ros::ServiceServer detectorSrv;
 	public:
 		StereoRect cameraSettings_;
