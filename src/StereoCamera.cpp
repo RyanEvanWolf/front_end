@@ -142,7 +142,7 @@ void StereoCamera::processStereo()
 	{
 		std::vector<cv::KeyPoint> currentLeft,currentRight;
 		cv::Mat currentLeftDesc,currentRightDesc;
-		front_end::StereoFrame output;
+		front_end::StereoFrame outMessage;
 		//get left features from queue
 		//wait for both queues to have atleast one set of features before processing
 		boost::mutex::scoped_lock lockLf(mutexLfeat);
@@ -168,14 +168,10 @@ void StereoCamera::processStereo()
 		lockRf.unlock();		
 		//epipolar filter the points
 		//build epipolar distance matrix
-		output.nLeft.data=currentLeft.size();
-		output.nRight.data=currentRight.size();
+		outMessage.nLeft.data=currentLeft.size();
+		outMessage.nRight.data=currentRight.size();
 
-		std::cout<<currentLeftDesc.size()<<std::endl;
-		std::cout<<currentRightDesc.size()<<std::endl;
-		std::cout<<currentLeft.size()<<std::endl;
-		std::cout<<currentRight.size()<<std::endl;
-		std::cout<<currentLeftDesc.type()<<std::endl;
+
 		cv::Mat maskTable=cv::Mat(currentLeft.size(),currentRight.size(),CV_8U);
 		for(int leftIndex=0;leftIndex<currentLeft.size();leftIndex++)
 		{
@@ -194,14 +190,12 @@ void StereoCamera::processStereo()
 		//match with mask as filter
 		cv::BFMatcher m(cv::NORM_HAMMING,false);
 		std::vector< std::vector<cv::DMatch> > initialMatches;		
-		std::cout<<"preMatch\n";
 		m.knnMatch(currentLeftDesc,currentRightDesc,initialMatches,2,maskTable);
 		//only retain the two closest matches
 		//filter with lowe ratio
-		output.loweRatio.data=initialMatches.size();
-		std::vector<cv::DMatch> goodMatches;
+		outMessage.loweRatio.data=initialMatches.size();
+
 		int ID=0;
-		std::cout<<"after Matching\n"<<initialMatches.size()<<std::endl<<std::endl;
 		for(int index=0;index<initialMatches.size();index++)
 		{
 			if(initialMatches.at(index).size()>=2)
@@ -215,32 +209,60 @@ void StereoCamera::processStereo()
 					currentLeftDesc.row(initialMatches.at(index).at(0).queryIdx).copyTo(ld);
 					current.leftFeature.imageCoord.x=lkp.pt.x;
 					current.leftFeature.imageCoord.y=lkp.pt.y;
-//CV_8U
-			//todo cast to the right message type CV_8U in the case of ORB, add check over here based on descriptor		
-					//current.leftFeature.descriptor=ld-<
+
+					cv_bridge::CvImage leftDescriptConversion(std_msgs::Header(),descriptorEncoding,ld);
+					leftDescriptConversion.toImageMsg(current.leftFeature.descriptor);
+
 					rkp=currentLeft.at(initialMatches.at(index).at(0).trainIdx);
 					currentRightDesc.row(initialMatches.at(index).at(0).trainIdx).copyTo(rd);
 					current.rightFeature.imageCoord.x=rkp.pt.x;
 					current.rightFeature.imageCoord.y=rkp.pt.y;
+
+					cv_bridge::CvImage rightDescriptConversion(std_msgs::Header(),descriptorEncoding,rd);
+					rightDescriptConversion.toImageMsg(current.rightFeature.descriptor);
+	
 					current.ID.data=ID;
+					current.distance.data=initialMatches.at(index).at(0).distance;
 					ID++;
-					
-			//		front_end/Feature leftFeature
-//front_end/Feature rightFeature
-//std_msgs/Int32 ID
-					//goodMatches.push_back(initialMatches.at(index).at(0));
+					outMessage.matches.push_back(current);
 				}
 			}
 			else
 			{
 				if(initialMatches.at(index).size()==1)
 				{
-					//goodMatches.push_back(initialMatches.at(index).at(0));
+					front_end::StereoMatch current;
+					cv::Mat ld,rd;//descriptor buffer
+					cv::KeyPoint lkp,rkp;//keypoint buffer
+					lkp=currentLeft.at(initialMatches.at(index).at(0).queryIdx);
+					currentLeftDesc.row(initialMatches.at(index).at(0).queryIdx).copyTo(ld);
+					current.leftFeature.imageCoord.x=lkp.pt.x;
+					current.leftFeature.imageCoord.y=lkp.pt.y;
+
+					cv_bridge::CvImage leftDescriptConversion(std_msgs::Header(),descriptorEncoding,ld);
+					leftDescriptConversion.toImageMsg(current.leftFeature.descriptor);
+
+					rkp=currentLeft.at(initialMatches.at(index).at(0).trainIdx);
+					currentRightDesc.row(initialMatches.at(index).at(0).trainIdx).copyTo(rd);
+					current.rightFeature.imageCoord.x=rkp.pt.x;
+					current.rightFeature.imageCoord.y=rkp.pt.y;
+
+					cv_bridge::CvImage rightDescriptConversion(std_msgs::Header(),descriptorEncoding,rd);
+					rightDescriptConversion.toImageMsg(current.rightFeature.descriptor);
+	
+					current.ID.data=ID;
+					current.distance.data=initialMatches.at(index).at(0).distance;
+					ID++;
+					outMessage.matches.push_back(current);
 				}
 			}
 		}
-		
+		std::cout<<outMessage.nLeft.data<<std::endl;
+		std::cout<<outMessage.nRight.data<<std::endl;
+		std::cout<<outMessage.loweRatio.data<<std::endl;
+		std::cout<<outMessage.matches.size()<<std::endl;
 		frames++;
+		stereoPub.publish(outMessage);
 		std::cout<<"frames Processed -> "<<frames<<std::endl;
 	}
 }
@@ -349,6 +371,8 @@ bool StereoCamera::updateDetector(front_end::setDetector::Request& req,front_end
 			rDesc->set("scaleFactor",static_cast<float>(req.orbConfig.scale.data));
 			rDesc->set("scoreType",static_cast<int>(req.orbConfig.score.data));
 			lockR.unlock();
+
+			descriptorEncoding="8UC1";
 		}
 
 	}
