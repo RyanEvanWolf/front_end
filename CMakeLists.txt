@@ -134,7 +134,7 @@ generate_messages(
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES
-DataStructures
+BasicSLAMStructures
 boost_filesystem
 boost_system
 ${MRPT_LIBS}
@@ -156,13 +156,13 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 	${MRPT_INCLUDE_DIRS}
 	${RelativePoseEstimation_INCLUDE_DIRS}
-	${Structures_INCLUDE_DIRS}
+	${BasicSLAMStructures_INCLUDE_DIRS}
 	${OpenCV_INCLUDE_DIRS}
 )
 
 link_directories(
 	${RelativePoseEstimation_LIBRARIES_DIR}
-	${Structures_LIBRARIES_DIR}
+	${BasicSLAMStructures_LIBRARIES_DIR}
 )
 
 ## Declare a C++ library

@@ -2,7 +2,7 @@ add_executable(front_end_node front_end_node.cpp StereoCamera.cpp)
 target_link_libraries(front_end_node 
 	${catkin_LIBRARIES}
 	${OpenCV_LIBS}
-	${Structures_LIBS}
+	${BasicSLAMStructures_LIBS}
 )	
 
 

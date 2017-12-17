@@ -166,13 +166,17 @@ void StereoCamera::processStereo()
 		rightFeatures.pop();
 		rightDescriptors.pop();
 		lockRf.unlock();		
+
+cv::waitKey(100);
 		//epipolar filter the points
 		//build epipolar distance matrix
 		outMessage.nLeft.data=currentLeft.size();
 		outMessage.nRight.data=currentRight.size();
-
+		
 
 		cv::Mat maskTable=cv::Mat(currentLeft.size(),currentRight.size(),CV_8U);
+
+		//cv::Mat combined=cv::Mat::(1024*2,768,)
 		for(int leftIndex=0;leftIndex<currentLeft.size();leftIndex++)
 		{
 			for(int rightIndex=0;rightIndex<currentRight.size();rightIndex++)
@@ -213,7 +217,7 @@ void StereoCamera::processStereo()
 					cv_bridge::CvImage leftDescriptConversion(std_msgs::Header(),descriptorEncoding,ld);
 					leftDescriptConversion.toImageMsg(current.leftFeature.descriptor);
 
-					rkp=currentLeft.at(initialMatches.at(index).at(0).trainIdx);
+					rkp=currentRight.at(initialMatches.at(index).at(0).trainIdx);
 					currentRightDesc.row(initialMatches.at(index).at(0).trainIdx).copyTo(rd);
 					current.rightFeature.imageCoord.x=rkp.pt.x;
 					current.rightFeature.imageCoord.y=rkp.pt.y;
@@ -242,7 +246,7 @@ void StereoCamera::processStereo()
 					cv_bridge::CvImage leftDescriptConversion(std_msgs::Header(),descriptorEncoding,ld);
 					leftDescriptConversion.toImageMsg(current.leftFeature.descriptor);
 
-					rkp=currentLeft.at(initialMatches.at(index).at(0).trainIdx);
+					rkp=currentRight.at(initialMatches.at(index).at(0).trainIdx);
 					currentRightDesc.row(initialMatches.at(index).at(0).trainIdx).copyTo(rd);
 					current.rightFeature.imageCoord.x=rkp.pt.x;
 					current.rightFeature.imageCoord.y=rkp.pt.y;
@@ -378,54 +382,5 @@ bool StereoCamera::updateDetector(front_end::setDetector::Request& req,front_end
 	}
 	return true;
 }
-
-
-/*
-StereoCamera::StereoCamera(cv::Ptr<DetectorSettings> dl,cv::Ptr<DetectorSettings> dr,
-					 cv::Ptr<DetectorSettings> del,cv::Ptr<DetectorSettings> der,
-					 std::string stereoInputDir)
-{
-	ldet=dl;
-	rdet=dr;
-	ldesc=del;
-	rdesc=der;
-	
-	cv::FileStorage c(stereoInputDir,cv::FileStorage::READ);
-	if(!c.isOpened())
-	{
-		std::cerr<<"Stereo Configuration file not found\n";
-	}
-	c["StereoRect"]>>cameraSettings_;
-	c.release();
-	
-	lundistort_=cv::Mat(cameraSettings_.L_fMapx_.size(),CV_8UC1);
-	rundistort_=cv::Mat(cameraSettings_.R_fMapx_.size(),CV_8UC1);
-	
-	lroi_=lundistort_(cameraSettings_.l_ROI_);
-	rroi_=rundistort_(cameraSettings_.r_ROI_);
-}
-
-void StereoCamera::extractStereoFrame(cv::Mat leftIn, cv::Mat rightIn, StereoFrame& outFrame)
-{
-	cv::remap(leftIn,lundistort_,cameraSettings_.L_fMapx_,cameraSettings_.L_fMapy_,cv::INTER_LINEAR);
-	cv::remap(rightIn,rundistort_,cameraSettings_.R_fMapx_,cameraSettings_.R_fMapy_,cv::INTER_LINEAR);
-	
-	ldet->detect(lroi_,outFrame.leftFeatures_);
-	rdet->detect(rroi_,outFrame.rightFeatures_);
-	
-	ldet->extract(lroi_,outFrame.leftFeatures_,outFrame.leftDescrip_);
-	rdet->extract(rroi_,outFrame.rightFeatures_,outFrame.rightDescrip_);
-	
-	outFrame.inliersMask_.clear();
-	for(int index=0;index<outFrame.leftFeatures_.size();index++)
-	{
-		outFrame.inliersMask_.push_back(1);
-	}*/
-	
-
-
-
-
-	
 	
 }
