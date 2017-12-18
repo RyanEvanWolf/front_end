@@ -18,6 +18,8 @@
 #include <front_end/Feature.h>
 #include <front_end/StereoFrame.h>
 
+#include <bumblebee/getOffset.h>
+
 
 #include <sensor_msgs/RegionOfInterest.h>
 
@@ -53,7 +55,6 @@ class StereoCamera
 		image_transport::ImageTransport *it;
 		image_transport::Subscriber leftSub;
 		image_transport::Subscriber rightSub;
-		ros::Publisher ROIlpub,ROIrpub;
 		ros::Publisher stereoPub;
 
 		void processLeftImage();
@@ -71,6 +72,7 @@ class StereoCamera
 		boost::mutex mutexlDesc,mutexrDesc;
 		ros::ServiceServer detectorSrv;
 		std::string descriptorEncoding;
+		cv::Rect lroi,rroi;
 	public:
 		StereoRect cameraSettings_;
 		StereoCamera(std::string cameraFile);

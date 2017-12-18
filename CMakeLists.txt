@@ -2,41 +2,49 @@ cmake_minimum_required(VERSION 2.8.3)
 project(front_end)
 
 
-
 execute_process(COMMAND uname -m COMMAND tr -d '\n' OUTPUT_VARIABLE ARCHITECTURE)
 message( STATUS "Architecture: ${ARCHITECTURE}" )
 
-set(CMAKE_PREFIX_PATH ${CMAKE_SOURCE_DIR}/cmake;${CMAKE_PREFIX_PATH})
+
 ## Compile as C++11, supported in ROS Kinetic and newer
-# add_compile_options(-std=c++11)
+add_compile_options(-std=c++11)
+
+
+## System dependencies are found with CMake's conventions
+
+
+
 
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
-  roscpp
-  rospy
-  std_msgs
+	roscpp
+	rospy
+	std_msgs
 	cv_bridge
 	image_transport
 	message_generation
 )
 
-## System dependencies are found with CMake's conventions
+
+set(CMAKE_PREFIX_PATH ${CMAKE_SOURCE_DIR}/cmake;${CMAKE_PREFIX_PATH})
 find_package(Boost REQUIRED)
+find_package(OpenCV REQUIRED)
+find_package(BasicSLAMStructures REQUIRED CONFIG)
 
 
+MESSAGE(STATUS "Opencv includes  ${OpenCV_INCLUDE_DIRS}")
+MESSAGE(STATUS "Structures Include DIRS - ${Structures_INCLUDE_DIRS}") 
 
 if(${ARCHITECTURE} STREQUAL "x86_64")
 	set(BUILD_ONLY_INTERFACES ON)
 else()
 	set(BUILD_ONLY_INTERFACES OFF)
-	find_package(OpenCV REQUIRED)
 	set(OpenCV_LIBS opencv_tegra)
 	set(CUDA_USE_STATIC_CUDA_RUNTIME OFF)
 	find_package(MRPT REQUIRED)
-  find_package(BasicSLAMStructures REQUIRED CONFIG)
-  include(${CMAKE_SOURCE_DIR}/cmake/RelativePoseEstimationConfig.cmake)
+    include(${CMAKE_SOURCE_DIR}/cmake/RelativePoseEstimationConfig.cmake)
 endif()
 
 ## Uncomment this if the package has a setup.py. This macro ensures
@@ -81,12 +89,9 @@ add_message_files(
 add_service_files(
 	FILES
 		setDetector.srv
+		detectCurrent.srv
 )	
 
-
-#   Service1.srv
-#   Service2.srv
-# )
 
 ## Generate actions in the 'action' folder
 # add_action_files(
@@ -99,7 +104,7 @@ add_service_files(
 generate_messages(
    DEPENDENCIES
    	std_msgs
-		sensor_msgs
+	sensor_msgs
 )
 
 ################################################
@@ -176,11 +181,12 @@ link_directories(
 # add_dependencies(${PROJECT_NAME} ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 
-MESSAGE(STATUS "Opencv includes  ${OpenCV_INCLUDE_DIRS}")
-MESSAGE(STATUS "cuda static - ${CUDA_USE_STATIC_CUDA_RUNTIME}")
 
-if(${BUILD_ONLY_INTERFACES} STREQUAL "OFF")
-	add_subdirectory(src)	
+
+add_subdirectory(src)
+
+#if(${BUILD_ONLY_INTERFACES} STREQUAL "OFF")
+#	add_subdirectory(src)	
 	#message(STATUS "here")
 	#file(GLOB files "src/*.cpp")
 	#foreach(file ${files})
@@ -194,7 +200,7 @@ if(${BUILD_ONLY_INTERFACES} STREQUAL "OFF")
 	#	${Structures_LIBS}
 	#)
 	#endforeach()
-endif()
+#endif()
 
 
 ## Declare a C++ executable
