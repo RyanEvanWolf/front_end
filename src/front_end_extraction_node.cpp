@@ -2,7 +2,7 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/core.hpp>
 
-#include <opencv2/xfeatures2d/nonfree.hpp>
+
 #include <opencv2/features2d/features2d.hpp>
 #include <front_end/setDetector.h>
 #include <front_end/detectCurrent.h>
@@ -13,7 +13,7 @@
 #include <opencv2/highgui.hpp>
 
 #include <chrono>
-cv::Ptr<cv::Feature2D> Det;
+cv::Ptr<cv::FeatureDetector> Det;
 image_transport::ImageTransport *it;
 image_transport::Subscriber leftSub;
 cv::Mat leftImage;
@@ -28,15 +28,17 @@ bool updateDetector(front_end::setDetector::Request& req,front_end::setDetector:
 		int maxfeatures,level,edge,wta,score,patch;
 		float scale;
 
-		Det=cv::ORB::create(static_cast<int>(req.orbConfig.maxFeatures.data),
-							static_cast<float>(req.orbConfig.scale.data),
-							static_cast<int>(req.orbConfig.level.data),
-							static_cast<int>(req.orbConfig.edge.data),
-							0,
-							static_cast<int>(req.orbConfig.wta.data),
-							static_cast<int>(req.orbConfig.score.data),
-							static_cast<int>(req.orbConfig.patch.data));
-		//Det=cv::FastFeatureDetector::create();
+			Det=cv::FeatureDetector::create("ORB");
+			Det->set("WTA_K",static_cast<int>(req.orbConfig.wta.data));
+			Det->set("nFeatures",static_cast<int>(req.orbConfig.maxFeatures.data));
+			Det->set("edgeThreshold",static_cast<int>(req.orbConfig.edge.data));
+			Det->set("firstLevel",0);
+			Det->set("nLevels",static_cast<int>(req.orbConfig.level.data));
+			Det->set("patchSize",static_cast<int>(req.orbConfig.patch.data));
+			Det->set("scaleFactor",static_cast<float>(req.orbConfig.scale.data));
+			Det->set("scoreType",static_cast<int>(req.orbConfig.score.data));
+
+
 		
 	}
 
@@ -47,6 +49,7 @@ bool detect(front_end::detectCurrent::Request& req,front_end::detectCurrent::Res
 {
 	std::vector<cv::KeyPoint> output;
 	auto start=std::chrono::steady_clock::now();
+	std::cout<<leftImage.size()<<std::endl;
 	Det->detect(leftImage,output);
 	auto end=std::chrono::steady_clock::now();
 	res.Time.data=std::chrono::duration<double,std::milli>(end-start).count();

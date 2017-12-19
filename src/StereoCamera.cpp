@@ -2,31 +2,21 @@
 namespace stereo
 {
 
-StereoCamera::StereoCamera(std::string cameraFile)
+StereoCamera::StereoCamera()
 {
-	cv::FileStorage in(cameraFile,cv::FileStorage::READ);
-	in["StereoRect"]>>cameraSettings_;
-	in.release();
-	
-
-	ROIlpub=n.advertise<sensor_msgs::RegionOfInterest>("front_end/ROIleft",10,true);
-	ROIrpub=n.advertise<sensor_msgs::RegionOfInterest>("front_end/ROIright",10,true);
 	stereoPub=n.advertise<front_end::StereoFrame>("front_end/stereo",20);
+	offset_client=n.serviceClient<bumblebee::getOffset>("/bumblebee_configuration/getOffset");
+	bumblebee::getOffset cameraoffset;
+	offset_client.call(cameraoffset);
+	lroi=cv::Rect(cameraoffset.response.left.x_offset,
+								cameraoffset.response.left.y_offset,
+								cameraoffset.response.left.width,
+								cameraoffset.response.left.height);
 
-
-	sensor_msgs::RegionOfInterest leftR,rightR;
-	leftR.x_offset=cameraSettings_.l_ROI_.x;
-	leftR.y_offset=cameraSettings_.l_ROI_.y;
-	leftR.height=cameraSettings_.l_ROI_.height;
-	leftR.width=cameraSettings_.l_ROI_.width;
-
-	rightR.x_offset=cameraSettings_.r_ROI_.x;
-	rightR.y_offset=cameraSettings_.r_ROI_.y;
-	rightR.height=cameraSettings_.r_ROI_.height;
-	rightR.width=cameraSettings_.r_ROI_.width;
-
-	ROIlpub.publish(leftR);
-	ROIrpub.publish(rightR);
+	rroi=cv::Rect(cameraoffset.response.right.x_offset,
+								cameraoffset.response.right.y_offset,
+								cameraoffset.response.right.width,
+								cameraoffset.response.right.height);
 	it= new image_transport::ImageTransport(n);
 
 	leftSub=it->subscribe("bumblebee/leftROI", 5, &StereoCamera::BufferLeft, this);
@@ -181,7 +171,7 @@ cv::waitKey(100);
 		{
 			for(int rightIndex=0;rightIndex<currentRight.size();rightIndex++)
 			{
-				if(abs(2*((currentLeft.at(leftIndex).pt.y+cameraSettings_.l_ROI_.y)-(currentRight.at(rightIndex).pt.y+cameraSettings_.r_ROI_.y)))<=2.0)
+				if(abs(2*((currentLeft.at(leftIndex).pt.y+lroi.y)-(currentRight.at(rightIndex).pt.y+rroi.y)))<=2.0)
 				{
 					maskTable.at<uchar>(leftIndex,rightIndex)=1;
 				}

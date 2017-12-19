@@ -71,11 +71,11 @@ class StereoCamera
 		boost::mutex mutexlDet,mutexrDet;
 		boost::mutex mutexlDesc,mutexrDesc;
 		ros::ServiceServer detectorSrv;
+		ros::ServiceClient offset_client;
 		std::string descriptorEncoding;
 		cv::Rect lroi,rroi;
 	public:
-		StereoRect cameraSettings_;
-		StereoCamera(std::string cameraFile);
+		StereoCamera();
 		~StereoCamera();
 
 };

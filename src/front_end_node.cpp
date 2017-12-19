@@ -10,8 +10,7 @@
 int main(int argc,char *argv[])
 {
 	ros::init(argc,argv,"front_end");
-	ros::NodeHandle n;
-	stereo::StereoCamera bumble(DEFAULT_RECTIFICATION_FILE);
+	stereo::StereoCamera bumble;
 	ros::spin();
 	
 	return 0;
