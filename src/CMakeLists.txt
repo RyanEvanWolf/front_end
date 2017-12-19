@@ -1,12 +1,4 @@
 if(${BUILD_ONLY_INTERFACES} STREQUAL "ON")
-add_executable(front_end_extraction_node front_end_extraction_node.cpp)
-add_dependencies(front_end_extraction_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries(front_end_extraction_node 
-	${catkin_LIBRARIES}
-	${OpenCV_LIBS}
-	${BasicSLAMStructures_LIBS}
-)
-
 else()
 add_executable(front_end_node front_end_node.cpp StereoCamera.cpp)
 add_dependencies(front_end_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
@@ -15,15 +7,6 @@ target_link_libraries(front_end_node
 	${OpenCV_LIBS}
 	${BasicSLAMStructures_LIBS}
 )
-
-add_executable(front_end_extraction_node front_end_extraction_node.cpp)
-add_dependencies(front_end_extraction_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries(front_end_extraction_node 
-	${catkin_LIBRARIES}
-	${OpenCV_LIBS}
-	${BasicSLAMStructures_LIBS}
-)
-
 endif()
 
 
