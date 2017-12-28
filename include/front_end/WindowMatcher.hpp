@@ -9,6 +9,7 @@
 #include <front_end/setDetector.h>
 #include <front_end/Feature.h>
 #include <front_end/StereoFrame.h>
+#include <front_end/FrameTracks.h>
 
 #include <bumblebee/getOffset.h>
 
@@ -33,7 +34,7 @@ class WindowMatcher
 		ros::Subscriber normSub;
 		ros::Subscriber encodingSub;
 		ros::Publisher windowPub;
-		image_transport::Publisher maskPub;
+		//image_transport::Publisher maskPub;
 		ros::ServiceClient offset_client;
 		ros::NodeHandle n;
 		void newStereo(const front_end::StereoFrame::ConstPtr& msg);
@@ -45,6 +46,7 @@ class WindowMatcher
 		std::string encodingType;
 		void updateNorm(const std_msgs::Int8::ConstPtr& msg);
 		void updateEncoding(const std_msgs::String::ConstPtr& msg);
+		int debug;
 	public:
 		WindowMatcher(int windowSize);
 };

@@ -2,14 +2,15 @@
 
 WindowMatcher::WindowMatcher(int windowsize)
 {
+	debug=0;
 	nWindow=windowsize;
 	stereoSub=n.subscribe("front_end/stereo",10,&WindowMatcher::newStereo,this);	
 	normSub=n.subscribe("front_end/normType",10,&WindowMatcher::updateNorm,this);
 	encodingSub=n.subscribe("front_end/descriptor_encoding",10,&WindowMatcher::updateEncoding,this);
-	windowPub=n.advertise<std_msgs::String>("front_end_window/window",20);
+	windowPub=n.advertise<front_end::FrameTracks>("front_end_window/FrameTracks",20);
 
 	it= new image_transport::ImageTransport(n);
-	maskPub=it->advertise("front_end_window/leftMask",5);
+	//maskPub=it->advertise("front_end_window/leftMask",5);
 
 	offset_client=n.serviceClient<bumblebee::getOffset>("/bumblebee_configuration/getOffset");
 	bumblebee::getOffset cameraoffset;
@@ -43,6 +44,7 @@ void WindowMatcher::newStereo(const front_end::StereoFrame::ConstPtr& msg)
 {
 	if(windowData.size()>=1)
 	{
+			front_end::FrameTracks output;
 			int previousMatchesSize,currentMatchesSize;
 			previousMatchesSize=windowData.back().size();
 			currentMatchesSize=msg->matches.size();
@@ -112,82 +114,101 @@ void WindowMatcher::newStereo(const front_end::StereoFrame::ConstPtr& msg)
 				rightPrevDescr.push_back(rightD);
 			}
 			cv::BFMatcher m(normType.data,false);
-			std::vector< std::vector<cv::DMatch> > initialLeftMatches,initialRightMatches;		
+			std::vector< std::vector<cv::DMatch> > initialLeftMatches,initialRightMatches;
+			std::vector<cv::DMatch> leftInliers,rightInliers;
+			std::vector<cv::DMatch> combinedInliers;
 			m.knnMatch(leftCurrentDescr,leftPrevDescr,initialLeftMatches,2,leftMaskTable);
 			m.knnMatch(rightCurrentDescr,rightPrevDescr,initialRightMatches,2,rightMaskTable);
+
+
 			//lowe ratio
-		/*	int ID=0;
-		for(int index=0;index<initialMatches.size();index++)
-		{
-			if(initialMatches.at(index).size()>=2)
+			for(int index=0;index<initialLeftMatches.size();index++)
 			{
-				if(initialMatches.at(index).at(0).distance<0.8*initialMatches.at(index).at(1).distance)
+				if(initialLeftMatches.at(index).size()>=2)		
 				{
-					front_end::StereoMatch current;
-					cv::Mat ld,rd;//descriptor buffer
-					cv::KeyPoint lkp,rkp;//keypoint buffer
-					lkp=currentLeft.at(initialMatches.at(index).at(0).queryIdx);
-					currentLeftDesc.row(initialMatches.at(index).at(0).queryIdx).copyTo(ld);
-					current.leftFeature.imageCoord.x=lkp.pt.x;
-					current.leftFeature.imageCoord.y=lkp.pt.y;
-
-					cv_bridge::CvImage leftDescriptConversion(std_msgs::Header(),descriptorEncoding,ld);
-					leftDescriptConversion.toImageMsg(current.leftFeature.descriptor);
-
-					rkp=currentRight.at(initialMatches.at(index).at(0).trainIdx);
-					currentRightDesc.row(initialMatches.at(index).at(0).trainIdx).copyTo(rd);
-					current.rightFeature.imageCoord.x=rkp.pt.x;
-					current.rightFeature.imageCoord.y=rkp.pt.y;
-
-					cv_bridge::CvImage rightDescriptConversion(std_msgs::Header(),descriptorEncoding,rd);
-					rightDescriptConversion.toImageMsg(current.rightFeature.descriptor);
-	
-					current.ID.data=ID;
-					current.distance.data=initialMatches.at(index).at(0).distance;
-					ID++;
-					outMessage.matches.push_back(current);
+					if(initialLeftMatches.at(index).at(0).distance<0.8*initialLeftMatches.at(index).at(1).distance)
+					{
+						//inlier
+						leftInliers.push_back(initialLeftMatches.at(index).at(0));
+						std_msgs::Int32 prvInd,crrInd;
+						crrInd.data=initialLeftMatches.at(index).at(0).queryIdx;
+						prvInd.data=initialLeftMatches.at(index).at(0).trainIdx;
+					
+						output.previousFrameIndexes.push_back(prvInd);
+						output.currentFrameIndexes.push_back(crrInd);
+					}
+				}
+				else
+				{
+					if(initialLeftMatches.at(index).size()==1)
+					{
+												//inlier
+						leftInliers.push_back(initialLeftMatches.at(index).at(0));
+						std_msgs::Int32 prvInd,crrInd;
+						crrInd.data=initialLeftMatches.at(index).at(0).queryIdx;
+						prvInd.data=initialLeftMatches.at(index).at(0).trainIdx;
+					
+						output.previousFrameIndexes.push_back(prvInd);
+						output.currentFrameIndexes.push_back(crrInd);
+					}
 				}
 			}
-			else
+
+			for(int index=0;index<initialRightMatches.size();index++)
 			{
-				if(initialMatches.at(index).size()==1)
+				if(initialRightMatches.at(index).size()>=2)		
 				{
-					front_end::StereoMatch current;
-					cv::Mat ld,rd;//descriptor buffer
-					cv::KeyPoint lkp,rkp;//keypoint buffer
-					lkp=currentLeft.at(initialMatches.at(index).at(0).queryIdx);
-					currentLeftDesc.row(initialMatches.at(index).at(0).queryIdx).copyTo(ld);
-					current.leftFeature.imageCoord.x=lkp.pt.x;
-					current.leftFeature.imageCoord.y=lkp.pt.y;
-
-					cv_bridge::CvImage leftDescriptConversion(std_msgs::Header(),descriptorEncoding,ld);
-					leftDescriptConversion.toImageMsg(current.leftFeature.descriptor);
-
-					rkp=currentRight.at(initialMatches.at(index).at(0).trainIdx);
-					currentRightDesc.row(initialMatches.at(index).at(0).trainIdx).copyTo(rd);
-					current.rightFeature.imageCoord.x=rkp.pt.x;
-					current.rightFeature.imageCoord.y=rkp.pt.y;
-
-					cv_bridge::CvImage rightDescriptConversion(std_msgs::Header(),descriptorEncoding,rd);
-					rightDescriptConversion.toImageMsg(current.rightFeature.descriptor);
-	
-					current.ID.data=ID;
-					current.distance.data=initialMatches.at(index).at(0).distance;
-					ID++;
-					outMessage.matches.push_back(current);
+					if(initialRightMatches.at(index).at(0).distance<0.8*initialRightMatches.at(index).at(1).distance)
+					{
+						//inlier
+						rightInliers.push_back(initialRightMatches.at(index).at(0));
+						//std_msgs::Int32 prvInd,crrInd;
+						//crrInd.data=initialLeftMatches.at(index).at(0).queryIdx;
+						//prvInd.data=initialLeftMatches.at(index).at(0).trainIdx;
+					
+						//output.previousFrameIndexes.push_back(prvInd);
+						//output.currentFrameIndexes.push_back(crrInd);
+					}
+				}
+				else
+				{
+					if(initialRightMatches.at(index).size()==1)
+					{
+												//inlier
+						rightInliers.push_back(initialRightMatches.at(index).at(0));
+						//std_msgs::Int32 prvInd,crrInd;
+						//crrInd.data=initialLeftMatches.at(index).at(0).queryIdx;
+						//prvInd.data=initialLeftMatches.at(index).at(0).trainIdx;
+					
+						//output.previousFrameIndexes.push_back(prvInd);
+						//output.currentFrameIndexes.push_back(crrInd);
+					}
 				}
 			}
-		}
-			
-*/
-			//epiPolar rejection
+			std::cout<<leftInliers.size()<<"\t"<<rightInliers.size()<<std::endl;
+			//correspondence rejection
+			for(int leftIndex=0;leftIndex<leftInliers.size();leftIndex++)
+			{
+				//check if both have same index found
+				int previousStereoIndex=leftInliers.at(leftIndex).trainIdx;
+				for(int rightIndex=0;rightIndex<rightInliers.size();rightIndex++)
+				{	
+					//std::cout<<bool(previousStereoIndex==rightInliers.at(rightIndex).trainIdx);
+					if(previousStereoIndex==rightInliers.at(rightIndex).trainIdx)
+					{
+						std_msgs::Int32 prvInd,crrInd;
+						crrInd.data=leftInliers.at(leftIndex).queryIdx;
+						prvInd.data=leftInliers.at(leftIndex).trainIdx;
 
-			//publish Matches
+						output.previousFrameIndexes.push_back(prvInd);
+						output.currentFrameIndexes.push_back(crrInd);
+					}
+				}
+			}
 
+			std::cout<<output.previousFrameIndexes.size()<<std::endl;
+			windowPub.publish(output);
 
-
-			sensor_msgs::ImagePtr messageL=cv_bridge::CvImage(std_msgs::Header(),"8UC1",leftMaskTable).toImageMsg();
-			maskPub.publish(messageL);
 	}
 	
 	if(windowData.size()+1>nWindow)
@@ -195,9 +216,7 @@ void WindowMatcher::newStereo(const front_end::StereoFrame::ConstPtr& msg)
 		windowData.pop_front();
 	}
 	windowData.push_back(msg->matches);
-	std::cout<<windowData.size()<<std::endl;
-	std_msgs::String output;
-	output.data="yes";
-	windowPub.publish(output);
+	std::cout<<debug<<std::endl;
+	debug++;
 }
 

@@ -44,7 +44,8 @@ else()
 	set(OpenCV_LIBS opencv_tegra)
 	set(CUDA_USE_STATIC_CUDA_RUNTIME OFF)
 	find_package(MRPT REQUIRED)
-    include(${CMAKE_SOURCE_DIR}/cmake/RelativePoseEstimationConfig.cmake)
+	find_package(RelativePoseEstimation REQUIRED CONFIG)
+#    include(${CMAKE_SOURCE_DIR}/cmake/RelativePoseEstimationConfig.cmake)
 endif()
 
 ## Uncomment this if the package has a setup.py. This macro ensures
