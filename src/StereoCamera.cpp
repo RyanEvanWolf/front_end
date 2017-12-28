@@ -5,6 +5,8 @@ namespace stereo
 StereoCamera::StereoCamera()
 {
 	stereoPub=n.advertise<front_end::StereoFrame>("front_end/stereo",20);
+	normPub=n.advertise<std_msgs::Int8>("front_end/normType",20,true);
+	encodingPub=n.advertise<std_msgs::String>("front_end/descriptor_encoding",20,true);
 	offset_client=n.serviceClient<bumblebee::getOffset>("/bumblebee_configuration/getOffset");
 	bumblebee::getOffset cameraoffset;
 	offset_client.call(cameraoffset);
@@ -35,6 +37,8 @@ StereoCamera::~StereoCamera()
 		free(it);
 	}
 }
+
+
 
 void StereoCamera::BufferLeft(const sensor_msgs::ImageConstPtr& msg)
 {
@@ -81,6 +85,7 @@ void StereoCamera::processLeftImage()
 		lDesc->compute(imageBuffer,out,outDesc);
 		lockDet.unlock();
 		//push features 
+		std::cout<<outDesc.size()<<std::endl;
 		boost::mutex::scoped_lock lockFeat(mutexLfeat);
 		bool const was_empty=leftFeatures.empty();
   	leftFeatures.push(out);
@@ -182,7 +187,7 @@ cv::waitKey(100);
 			}
 		}
 		//match with mask as filter
-		cv::BFMatcher m(cv::NORM_HAMMING,false);
+		cv::BFMatcher m(normType.data,false);
 		std::vector< std::vector<cv::DMatch> > initialMatches;		
 		m.knnMatch(currentLeftDesc,currentRightDesc,initialMatches,2,maskTable);
 		//only retain the two closest matches
@@ -367,6 +372,19 @@ bool StereoCamera::updateDetector(front_end::setDetector::Request& req,front_end
 			lockR.unlock();
 
 			descriptorEncoding="8UC1";
+			if(static_cast<int>(req.orbConfig.wta.data)>2)
+			{
+				normType.data=cv::NORM_HAMMING2;
+			}
+			else
+			{	
+				normType.data=cv::NORM_HAMMING;
+			}
+
+			std_msgs::String msg;
+			msg.data=descriptorEncoding;
+			encodingPub.publish(msg);
+			normPub.publish(normType);
 		}
 
 	}

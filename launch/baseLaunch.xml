@@ -1,0 +1,5 @@
+<launch>
+	<node name="bumblebee" type="bumblebee_node" pkg="bumblebee" output="screen"/>
+	<node name="front_end_node" type="front_end_node" pkg="front_end" output="screen"/>
+</launch>
+	

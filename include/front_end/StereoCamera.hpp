@@ -19,9 +19,10 @@
 #include <front_end/StereoFrame.h>
 
 #include <bumblebee/getOffset.h>
-
+#include <std_msgs/Int8.h>
 
 #include <sensor_msgs/RegionOfInterest.h>
+#include <std_msgs/String.h>
 
 
 #include <queue>
@@ -56,6 +57,8 @@ class StereoCamera
 		image_transport::Subscriber leftSub;
 		image_transport::Subscriber rightSub;
 		ros::Publisher stereoPub;
+		ros::Publisher normPub;
+		ros::Publisher encodingPub;
 
 		void processLeftImage();
 		void processRightImage();
@@ -74,6 +77,7 @@ class StereoCamera
 		ros::ServiceClient offset_client;
 		std::string descriptorEncoding;
 		cv::Rect lroi,rroi;
+		std_msgs::Int8 normType;
 	public:
 		StereoCamera();
 		~StereoCamera();

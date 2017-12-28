@@ -83,6 +83,7 @@ add_message_files(
 		Feature.msg
 		StereoMatch.msg
 		StereoFrame.msg
+		FrameTracks.msg
 )
 
 ## Generate services in the 'srv' folder
