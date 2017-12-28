@@ -194,7 +194,6 @@ cv::waitKey(100);
 		//filter with lowe ratio
 		outMessage.loweRatio.data=initialMatches.size();
 
-		int ID=0;
 		for(int index=0;index<initialMatches.size();index++)
 		{
 			if(initialMatches.at(index).size()>=2)
@@ -220,9 +219,7 @@ cv::waitKey(100);
 					cv_bridge::CvImage rightDescriptConversion(std_msgs::Header(),descriptorEncoding,rd);
 					rightDescriptConversion.toImageMsg(current.rightFeature.descriptor);
 	
-					current.ID.data=ID;
 					current.distance.data=initialMatches.at(index).at(0).distance;
-					ID++;
 					outMessage.matches.push_back(current);
 				}
 			}
@@ -248,10 +245,7 @@ cv::waitKey(100);
 
 					cv_bridge::CvImage rightDescriptConversion(std_msgs::Header(),descriptorEncoding,rd);
 					rightDescriptConversion.toImageMsg(current.rightFeature.descriptor);
-	
-					current.ID.data=ID;
 					current.distance.data=initialMatches.at(index).at(0).distance;
-					ID++;
 					outMessage.matches.push_back(current);
 				}
 			}
