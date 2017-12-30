@@ -25,6 +25,11 @@
 
 #include <std_msgs/Int8.h>
 #include <std_msgs/String.h>
+//motion extraction
+#include <five-point-nister/five-point.hpp>
+#include <Structures/Transforms/Isometry.hpp>
+
+
 
 class WindowMatcher
 {
@@ -34,19 +39,16 @@ class WindowMatcher
 		ros::Subscriber normSub;
 		ros::Subscriber encodingSub;
 		ros::Publisher windowPub;
-		//image_transport::Publisher maskPub;
-		ros::ServiceClient offset_client;
+		ros::Publisher leftTracks,rightTracks;
 		ros::NodeHandle n;
 		void newStereo(const front_end::StereoFrame::ConstPtr& msg);
 		std::list<std::vector<front_end::StereoMatch> > windowData;
-		cv::Rect lroi,rroi;
 		cv::Rect searchRegion;
 		image_transport::ImageTransport *it;
 		std_msgs::Int8 normType;
 		std::string encodingType;
 		void updateNorm(const std_msgs::Int8::ConstPtr& msg);
 		void updateEncoding(const std_msgs::String::ConstPtr& msg);
-		int debug;
 	public:
 		WindowMatcher(int windowSize);
 };

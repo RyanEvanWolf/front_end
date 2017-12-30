@@ -85,6 +85,7 @@ void StereoCamera::processLeftImage()
 		lDesc->compute(imageBuffer,out,outDesc);
 		lockDet.unlock();
 		//push features 
+
 		std::cout<<outDesc.size()<<std::endl;
 		boost::mutex::scoped_lock lockFeat(mutexLfeat);
 		bool const was_empty=leftFeatures.empty();
@@ -170,7 +171,6 @@ cv::waitKey(100);
 		
 
 		cv::Mat maskTable=cv::Mat(currentLeft.size(),currentRight.size(),CV_8U);
-
 		//cv::Mat combined=cv::Mat::(1024*2,768,)
 		for(int leftIndex=0;leftIndex<currentLeft.size();leftIndex++)
 		{
@@ -186,6 +186,7 @@ cv::waitKey(100);
 				}
 			}
 		}
+		
 		//match with mask as filter
 		cv::BFMatcher m(normType.data,false);
 		std::vector< std::vector<cv::DMatch> > initialMatches;		
@@ -205,16 +206,16 @@ cv::waitKey(100);
 					cv::KeyPoint lkp,rkp;//keypoint buffer
 					lkp=currentLeft.at(initialMatches.at(index).at(0).queryIdx);
 					currentLeftDesc.row(initialMatches.at(index).at(0).queryIdx).copyTo(ld);
-					current.leftFeature.imageCoord.x=lkp.pt.x;
-					current.leftFeature.imageCoord.y=lkp.pt.y;
+					current.leftFeature.imageCoord.x=lkp.pt.x +lroi.x;
+					current.leftFeature.imageCoord.y=lkp.pt.y +lroi.y;
 
 					cv_bridge::CvImage leftDescriptConversion(std_msgs::Header(),descriptorEncoding,ld);
 					leftDescriptConversion.toImageMsg(current.leftFeature.descriptor);
 
 					rkp=currentRight.at(initialMatches.at(index).at(0).trainIdx);
 					currentRightDesc.row(initialMatches.at(index).at(0).trainIdx).copyTo(rd);
-					current.rightFeature.imageCoord.x=rkp.pt.x;
-					current.rightFeature.imageCoord.y=rkp.pt.y;
+					current.rightFeature.imageCoord.x=rkp.pt.x+rroi.x;
+					current.rightFeature.imageCoord.y=rkp.pt.y+rroi.y;
 
 					cv_bridge::CvImage rightDescriptConversion(std_msgs::Header(),descriptorEncoding,rd);
 					rightDescriptConversion.toImageMsg(current.rightFeature.descriptor);
@@ -232,16 +233,16 @@ cv::waitKey(100);
 					cv::KeyPoint lkp,rkp;//keypoint buffer
 					lkp=currentLeft.at(initialMatches.at(index).at(0).queryIdx);
 					currentLeftDesc.row(initialMatches.at(index).at(0).queryIdx).copyTo(ld);
-					current.leftFeature.imageCoord.x=lkp.pt.x;
-					current.leftFeature.imageCoord.y=lkp.pt.y;
+					current.leftFeature.imageCoord.x=lkp.pt.x +lroi.x;
+					current.leftFeature.imageCoord.y=lkp.pt.y +lroi.y;
 
 					cv_bridge::CvImage leftDescriptConversion(std_msgs::Header(),descriptorEncoding,ld);
 					leftDescriptConversion.toImageMsg(current.leftFeature.descriptor);
 
 					rkp=currentRight.at(initialMatches.at(index).at(0).trainIdx);
 					currentRightDesc.row(initialMatches.at(index).at(0).trainIdx).copyTo(rd);
-					current.rightFeature.imageCoord.x=rkp.pt.x;
-					current.rightFeature.imageCoord.y=rkp.pt.y;
+					current.rightFeature.imageCoord.x=rkp.pt.x+rroi.x;
+					current.rightFeature.imageCoord.y=rkp.pt.y+rroi.y;
 
 					cv_bridge::CvImage rightDescriptConversion(std_msgs::Header(),descriptorEncoding,rd);
 					rightDescriptConversion.toImageMsg(current.rightFeature.descriptor);
