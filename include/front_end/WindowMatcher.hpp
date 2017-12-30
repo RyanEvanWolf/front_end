@@ -49,6 +49,17 @@ class WindowMatcher
 		std::string encodingType;
 		void updateNorm(const std_msgs::Int8::ConstPtr& msg);
 		void updateEncoding(const std_msgs::String::ConstPtr& msg);
+		cv::Mat getSearchMask(std::vector<front_end::StereoMatch> currentMatches,std::vector<front_end::StereoMatch> previousMatches);
+		std::vector< std::vector<cv::DMatch> > knnWindowMatch(std::vector<front_end::StereoMatch> currentMatches,
+																													std::vector<front_end::StereoMatch> previousMatches,	
+																													cv::Mat mask);
+		std::vector<cv::DMatch> loweRejection(std::vector< std::vector<cv::DMatch> > initial);
+		front_end::FrameTracks convertToMessage(std::vector<front_end::StereoMatch> currentMatches,
+																													std::vector<front_end::StereoMatch> previousMatches,	
+																													std::vector<cv::DMatch>);
+		front_end::FrameTracks extractMotion(std::vector<front_end::StereoMatch> currentMatches,
+																													std::vector<front_end::StereoMatch> previousMatches,	
+																													std::vector<cv::DMatch> matches);
 	public:
 		WindowMatcher(int windowSize);
 };

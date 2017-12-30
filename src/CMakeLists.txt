@@ -14,6 +14,7 @@ target_link_libraries(front_end_window_node
 	${catkin_LIBRARIES}
 	${OpenCV_LIBS}
 	${BasicSLAMStructures_LIBS}
+	${RelativePoseEstimation_LIBS}
 )
 endif()
 
