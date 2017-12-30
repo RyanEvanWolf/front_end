@@ -23,6 +23,7 @@ find_package(catkin REQUIRED COMPONENTS
 	rospy
 	std_msgs
 	cv_bridge
+	geometry_msgs
 	image_transport
 	message_generation
 )
@@ -85,6 +86,7 @@ add_message_files(
 		StereoMatch.msg
 		StereoFrame.msg
 		FrameTracks.msg
+		Window.msg
 )
 
 ## Generate services in the 'srv' folder
@@ -106,7 +108,8 @@ add_service_files(
 generate_messages(
    DEPENDENCIES
    	std_msgs
-	sensor_msgs
+		sensor_msgs
+		geometry_msgs
 )
 
 ################################################

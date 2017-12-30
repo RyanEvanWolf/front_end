@@ -7,9 +7,7 @@ WindowMatcher::WindowMatcher(int windowsize)
 	normSub=n.subscribe("front_end/normType",10,&WindowMatcher::updateNorm,this);
 	encodingSub=n.subscribe("front_end/descriptor_encoding",10,&WindowMatcher::updateEncoding,this);
 	windowPub=n.advertise<front_end::FrameTracks>("front_end_window/FrameTracks",20);
-	leftTracks=n.advertise<front_end::FrameTracks>("front_end_window/FrameTracksleft",20);
-	rightTracks=n.advertise<front_end::FrameTracks>("front_end_window/FrameTracksright",20);
-
+	statePub=n.advertise<front_end::Window>("front_end_window/State",20);
 
 	it= new image_transport::ImageTransport(n);
 
@@ -141,6 +139,12 @@ int totalAverageSamples=0;
 		return convertToMessage(currentMatches,previousMatches,motionInliers);
 }
 
+void WindowMatcher::publishCurrentState()
+{
+		front_end::Window message;
+		statePub.publish(message);
+}
+
 
 void WindowMatcher::newStereo(const front_end::StereoFrame::ConstPtr& msg)
 {
@@ -163,7 +167,7 @@ void WindowMatcher::newStereo(const front_end::StereoFrame::ConstPtr& msg)
 			initialTracks=convertToMessage(msg->matches,
 															windowData.back(),
 															leftInliers);	
-			leftTracks.publish(initialTracks);
+			//leftTracks.publish(initialTracks);
 			output=extractMotion(msg->matches,
 													windowData.back(),
 													leftInliers);
@@ -305,8 +309,12 @@ void WindowMatcher::newStereo(const front_end::StereoFrame::ConstPtr& msg)
 	}*/
 
 
-		//	std::cout<<"Ntracks = "<<output.previousFrameIndexes.size()<<std::endl;
-		//	std::cout<<"inlierRatio = "<<float(output.previousFrameIndexes.size())/float(previousPts.rows)<<std::endl;
+			//std::cout<<"inlierRatio = "<<float(output.previousFrameIndexes.size())/float(previousPts.rows)<<std::endl;
+			if(motionData.size()+1>(nWindow-1))
+			{
+				motionData.pop_front();
+			}
+			motionData.push_back(output);
 	}
 	windowPub.publish(output);
 	if(windowData.size()+1>nWindow)
@@ -314,6 +322,8 @@ void WindowMatcher::newStereo(const front_end::StereoFrame::ConstPtr& msg)
 		windowData.pop_front();
 	}
 	windowData.push_back(msg->matches);
+	publishCurrentState();
+
 }
 
 

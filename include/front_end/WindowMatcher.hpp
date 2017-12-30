@@ -10,6 +10,7 @@
 #include <front_end/Feature.h>
 #include <front_end/StereoFrame.h>
 #include <front_end/FrameTracks.h>
+#include <front_end/Window.h>
 
 #include <bumblebee/getOffset.h>
 
@@ -39,10 +40,12 @@ class WindowMatcher
 		ros::Subscriber normSub;
 		ros::Subscriber encodingSub;
 		ros::Publisher windowPub;
+		ros::Publisher statePub;
 		ros::Publisher leftTracks,rightTracks;
 		ros::NodeHandle n;
 		void newStereo(const front_end::StereoFrame::ConstPtr& msg);
 		std::list<std::vector<front_end::StereoMatch> > windowData;
+		std::list<front_end::FrameTracks> motionData;
 		cv::Rect searchRegion;
 		image_transport::ImageTransport *it;
 		std_msgs::Int8 normType;
@@ -60,6 +63,7 @@ class WindowMatcher
 		front_end::FrameTracks extractMotion(std::vector<front_end::StereoMatch> currentMatches,
 																													std::vector<front_end::StereoMatch> previousMatches,	
 																													std::vector<cv::DMatch> matches);
+		void publishCurrentState();
 	public:
 		WindowMatcher(int windowSize);
 };
