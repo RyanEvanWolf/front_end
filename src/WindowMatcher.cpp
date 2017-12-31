@@ -31,14 +31,14 @@ front_end::FrameTracks WindowMatcher::convertToMessage(std::vector<front_end::St
 																													std::vector<cv::DMatch> matches)
 {
 	front_end::FrameTracks output;
-	for(int matchesIndex=0;matchesIndex<matches.size();matchesIndex++)
+	/*for(int matchesIndex=0;matchesIndex<matches.size();matchesIndex++)
 	{
 		std_msgs::Int32 prvInd,crrInd;
 		crrInd.data=matches.at(matchesIndex).queryIdx;
 		prvInd.data=matches.at(matchesIndex).trainIdx;
 		output.previousFrameIndexes.push_back(prvInd);
 		output.currentFrameIndexes.push_back(crrInd);	
-	}
+	}*/
 	return output;
 }
 
@@ -47,7 +47,7 @@ front_end::FrameTracks WindowMatcher::extractMotion(std::vector<front_end::Stere
 																													std::vector<cv::DMatch> matches)
 {
 		front_end::FrameTracks output;
-		cv::Mat currentPts,previousPts;
+	/*	cv::Mat currentPts,previousPts;
 		//organize into cv::Mat format
 		for(int index=0;index<matches.size();index++)
 		{
@@ -79,6 +79,18 @@ front_end::FrameTracks WindowMatcher::extractMotion(std::vector<front_end::Stere
 				motionInliers.push_back(matches.at(index));
 			}
 		}
+		if(rotation.size()+1>(nWindow-1))
+		{
+			rotation.pop_front();
+		}
+		rotation.push_back(outR);
+		if(translation.size()+1>(nWindow-1))
+		{
+			translation.pop_front();
+		}
+		translation.push_back(outT);*/
+
+
 /*
 int totalAverageSamples=0;
 
@@ -136,12 +148,52 @@ int totalAverageSamples=0;
 		std::cout<<"no Inliers detected"<<std::endl;
 	}*/
 		
-		return convertToMessage(currentMatches,previousMatches,motionInliers);
+		return output;//convertToMessage(currentMatches,previousMatches,motionInliers);
 }
 
 void WindowMatcher::publishCurrentState()
 {
 		front_end::Window message;
+		/*std::vector<cv::Mat> triangulateMask;
+		//add motion messages
+		std::list<cv::Mat>::iterator it;
+		for (it =  rotation.begin(); it !=  rotation.end(); ++it){
+			cv_bridge::CvImage R(std_msgs::Header(),"64FC1",(*it));
+			sensor_msgs::Image Rmess;
+			R.toImageMsg(Rmess);
+			message.rotation.push_back(Rmess);
+		}
+		for (it =  translation.begin(); it !=  translation.end(); ++it){
+			cv_bridge::CvImage T(std_msgs::Header(),"64FC1",(*it));
+			sensor_msgs::Image Tmess;
+			T.toImageMsg(Tmess);
+			message.translation.push_back(Tmess);
+		}
+		//add interframe tracks
+
+		std::list<front_end::FrameTracks>::iterator itTrack;
+		for(itTrack=initialData.begin();itTrack!=initialData.end();++itTrack)
+		{
+			message.lowe.push_back((*itTrack));
+		}
+
+		for(itTrack=motionData.begin();itTrack!=motionData.end();++itTrack)
+		{
+			message.inliers.push_back((*itTrack));
+		}
+		//calculate size of masks
+		std::list<std::vector<front_end::StereoMatch>>::iterator itFrame;
+		for(itFrame=windowData.begin();itFrame!=windowData.end();++itFrame)
+		{
+			for(int index=0;index<(*itFrame).size();index++)
+			{
+				message.window.push_back((*itFrame).at(index));
+			}
+		//	message.window.push_back((*itFrame));
+			//cv::Mat frameMask=cv::Mat::zeros(0,(*itFrame).size(),CV_8U);
+			//triangulateMask.push_back(frameMask.clone());
+		}
+*/
 		statePub.publish(message);
 }
 
@@ -151,7 +203,7 @@ void WindowMatcher::newStereo(const front_end::StereoFrame::ConstPtr& msg)
 	front_end::FrameTracks output;
 	if(windowData.size()>=1)
 	{
-			int previousMatchesSize,currentMatchesSize;
+		/*	int previousMatchesSize,currentMatchesSize;
 			previousMatchesSize=windowData.back().size();
 			currentMatchesSize=msg->matches.size();
 			//build distance table left image
@@ -170,7 +222,7 @@ void WindowMatcher::newStereo(const front_end::StereoFrame::ConstPtr& msg)
 			//leftTracks.publish(initialTracks);
 			output=extractMotion(msg->matches,
 													windowData.back(),
-													leftInliers);
+													leftInliers);*/
 		/*	cv::Mat previousPts,currentPts;
 			for(int index=0;index<initialLeftMatches.size();index++)
 			{
@@ -310,18 +362,23 @@ void WindowMatcher::newStereo(const front_end::StereoFrame::ConstPtr& msg)
 
 
 			//std::cout<<"inlierRatio = "<<float(output.previousFrameIndexes.size())/float(previousPts.rows)<<std::endl;
-			if(motionData.size()+1>(nWindow-1))
-			{
-				motionData.pop_front();
-			}
-			motionData.push_back(output);
+			//if(motionData.size()+1>(nWindow-1))
+			//{
+			//	motionData.pop_front();
+		//	}
+			//motionData.push_back(output);
+			//if(initialData.size()+1>(nWindow-1))
+			//{
+			//	initialData.pop_front();
+			//}
+			//initialData.push_back(initialTracks);
 	}
-	windowPub.publish(output);
-	if(windowData.size()+1>nWindow)
-	{
-		windowData.pop_front();
-	}
-	windowData.push_back(msg->matches);
+	//windowPub.publish(output);
+	//if(windowData.size()+1>nWindow)
+	//{
+	//	windowData.pop_front();
+	//}
+	//windowData.push_back(msg->matches);
 	publishCurrentState();
 
 }

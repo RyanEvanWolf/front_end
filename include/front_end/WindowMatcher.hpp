@@ -11,6 +11,9 @@
 #include <front_end/StereoFrame.h>
 #include <front_end/FrameTracks.h>
 #include <front_end/Window.h>
+#include <front_end/WindowFrame.h>
+#include <front_end/Landmark.h>
+#include <front_end/InterWindowFrame.h>
 
 #include <bumblebee/getOffset.h>
 
@@ -29,7 +32,7 @@
 //motion extraction
 #include <five-point-nister/five-point.hpp>
 #include <Structures/Transforms/Isometry.hpp>
-
+#include <sensor_msgs/Image.h>
 
 
 class WindowMatcher
@@ -45,7 +48,9 @@ class WindowMatcher
 		ros::NodeHandle n;
 		void newStereo(const front_end::StereoFrame::ConstPtr& msg);
 		std::list<std::vector<front_end::StereoMatch> > windowData;
-		std::list<front_end::FrameTracks> motionData;
+		std::list<front_end::FrameTracks> motionData,initialData;
+		std::list<cv::Mat> rotation;
+		std::list<cv::Mat> translation;
 		cv::Rect searchRegion;
 		image_transport::ImageTransport *it;
 		std_msgs::Int8 normType;

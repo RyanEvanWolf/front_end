@@ -87,6 +87,9 @@ add_message_files(
 		StereoFrame.msg
 		FrameTracks.msg
 		Window.msg
+		WindowFrame.msg
+		InterWindowFrame.msg
+		Landmark.msg
 )
 
 ## Generate services in the 'srv' folder

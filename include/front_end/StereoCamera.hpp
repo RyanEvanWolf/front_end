@@ -25,6 +25,8 @@
 #include <std_msgs/String.h>
 
 
+#include <unistd.h>
+
 #include <queue>
 
 namespace stereo 

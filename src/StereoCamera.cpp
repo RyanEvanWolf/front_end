@@ -65,9 +65,10 @@ void StereoCamera::BufferRight(const sensor_msgs::ImageConstPtr& msg)
 
 void StereoCamera::processLeftImage()
 {
-	cv::Mat imageBuffer;
+	
 	while(ros::ok())
 	{
+		cv::Mat imageBuffer;
 		boost::mutex::scoped_lock lock(mutexLImg);
     while(leftImages.empty())
     {
@@ -80,13 +81,15 @@ void StereoCamera::processLeftImage()
 		std::vector<cv::KeyPoint> out;
 
 		boost::mutex::scoped_lock lockDet(mutexlDet);
-
+		
 		lDet->detect(imageBuffer,out);
-		lDesc->compute(imageBuffer,out,outDesc);
 		lockDet.unlock();
-		//push features 
 
-		std::cout<<outDesc.size()<<std::endl;
+		boost::mutex::scoped_lock lockDesc(mutexlDesc);
+		lDesc->compute(imageBuffer,out,outDesc);
+		lockDesc.unlock();
+
+		//push features 
 		boost::mutex::scoped_lock lockFeat(mutexLfeat);
 		bool const was_empty=leftFeatures.empty();
   	leftFeatures.push(out);
@@ -95,14 +98,17 @@ void StereoCamera::processLeftImage()
 		{
 			leftFeaturesEmpty.notify_one();
 		}
+		out.clear();
+		
 	}
 }
 
 void StereoCamera::processRightImage()
 {
-	cv::Mat imageBuffer;
+
 	while(ros::ok())
 	{
+		cv::Mat imageBuffer;
 		boost::mutex::scoped_lock lock(mutexRImg);
     while(rightImages.empty())
     {
@@ -116,8 +122,11 @@ void StereoCamera::processRightImage()
 
 		boost::mutex::scoped_lock lockDet(mutexrDet);
 		rDet->detect(imageBuffer,out);
-		rDesc->compute(imageBuffer,out,outDesc);
 		lockDet.unlock();
+
+		boost::mutex::scoped_lock lockDesc(mutexrDesc);
+		rDesc->compute(imageBuffer,out,outDesc);
+		lockDesc.unlock();
 		//push features 
 		boost::mutex::scoped_lock lockFeat(mutexRfeat);
 		bool const was_empty=rightFeatures.empty();
@@ -126,9 +135,10 @@ void StereoCamera::processRightImage()
   	if(was_empty)
 		{
 			rightFeaturesEmpty.notify_one();
-		}		
+		}	
 	}
 }
+
 
 void StereoCamera::processStereo()
 {
@@ -163,7 +173,6 @@ void StereoCamera::processStereo()
 		rightDescriptors.pop();
 		lockRf.unlock();		
 
-cv::waitKey(100);
 		//epipolar filter the points
 		//build epipolar distance matrix
 		outMessage.nLeft.data=currentLeft.size();
@@ -171,7 +180,6 @@ cv::waitKey(100);
 		
 
 		cv::Mat maskTable=cv::Mat(currentLeft.size(),currentRight.size(),CV_8U);
-		//cv::Mat combined=cv::Mat::(1024*2,768,)
 		for(int leftIndex=0;leftIndex<currentLeft.size();leftIndex++)
 		{
 			for(int rightIndex=0;rightIndex<currentRight.size();rightIndex++)
@@ -302,16 +310,19 @@ cv::waitKey(100);
 
 bool StereoCamera::updateDetector(front_end::setDetector::Request& req,front_end::setDetector::Response &res)
 {
-	
 	std::string name=(req.Name.data);
-	
+	std::cout<<"set"<<std::endl;
 	if(req.detection)
 	{
 		//set the feature detector
 		if(name=="ORB")	
 		{
 			boost::mutex::scoped_lock lockL(mutexlDet);
-			lDet=cv::FeatureDetector::create("ORB");
+			if(lDet.empty())
+			{
+				lDet=cv::FeatureDetector::create("ORB");
+			}
+			
 			lDet->set("WTA_K",static_cast<int>(req.orbConfig.wta.data));
 			lDet->set("nFeatures",static_cast<int>(req.orbConfig.maxFeatures.data));
 			lDet->set("edgeThreshold",static_cast<int>(req.orbConfig.edge.data));
@@ -323,8 +334,13 @@ bool StereoCamera::updateDetector(front_end::setDetector::Request& req,front_end
 			lockL.unlock();
 
 			boost::mutex::scoped_lock lockR(mutexrDet);
+			if(rDet.empty())
+			{
+				rDet=cv::FeatureDetector::create("ORB");
+			}
 
-			rDet=cv::FeatureDetector::create("ORB");
+			
+
 			rDet->set("WTA_K",static_cast<int>(req.orbConfig.wta.data));
 			rDet->set("nFeatures",static_cast<int>(req.orbConfig.maxFeatures.data));
 			rDet->set("edgeThreshold",static_cast<int>(req.orbConfig.edge.data));
@@ -342,7 +358,11 @@ bool StereoCamera::updateDetector(front_end::setDetector::Request& req,front_end
 		if(name=="ORB")
 		{
 			boost::mutex::scoped_lock lockL(mutexlDesc);
-			lDesc=cv::DescriptorExtractor::create("ORB");
+			if(lDesc.empty())
+			{
+				lDesc=cv::DescriptorExtractor::create("ORB");
+			}
+			
 			lDesc->set("WTA_K",static_cast<int>(req.orbConfig.wta.data));
 			lDesc->set("nFeatures",static_cast<int>(req.orbConfig.maxFeatures.data));
 			lDesc->set("edgeThreshold",static_cast<int>(req.orbConfig.edge.data));
@@ -354,8 +374,11 @@ bool StereoCamera::updateDetector(front_end::setDetector::Request& req,front_end
 			lockL.unlock();
 
 			boost::mutex::scoped_lock lockR(mutexrDesc);
-
-			rDesc=cv::DescriptorExtractor::create("ORB");
+			if(rDesc.empty())
+			{
+				rDesc=cv::DescriptorExtractor::create("ORB");
+			}
+			
 			rDesc->set("WTA_K",static_cast<int>(req.orbConfig.wta.data));
 			rDesc->set("nFeatures",static_cast<int>(req.orbConfig.maxFeatures.data));
 			rDesc->set("edgeThreshold",static_cast<int>(req.orbConfig.edge.data));
