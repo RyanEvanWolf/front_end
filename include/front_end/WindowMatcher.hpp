@@ -20,6 +20,7 @@
 #include <front_end/Landmark.h>
 #include <front_end/InterWindowFrame.h>
 #include <sensor_msgs/Image.h>
+#include <sensor_msgs/CameraInfo.h>
 
 
 
@@ -49,6 +50,7 @@ class WindowMatcher
 		ros::Subscriber stereoSub;
 		ros::Subscriber normSub;
 		ros::Subscriber encodingSub;
+		ros::Subscriber cameraSub;
 		ros::Publisher windowPub;
 		ros::Publisher statePub;
 		ros::Publisher leftTracks,rightTracks;
@@ -58,19 +60,14 @@ class WindowMatcher
 		std::vector<front_end::InterWindowFrame> interFrame;
 		std::vector<front_end::WindowFrame> window;
 		cv::Mat Q;
+		cv::Mat P;//left projection
 		cv::Rect searchRegion;
 		image_transport::ImageTransport *it;
 		std_msgs::Int8 normType;
 		std::string encodingType;
 		void updateNorm(const std_msgs::Int8::ConstPtr& msg);
 		void updateEncoding(const std_msgs::String::ConstPtr& msg);
-		std::vector<cv::DMatch> loweRejection(std::vector< std::vector<cv::DMatch> > initial);
-		front_end::FrameTracks convertToMessage(std::vector<front_end::StereoMatch> currentMatches,
-																													std::vector<front_end::StereoMatch> previousMatches,	
-																													std::vector<cv::DMatch>);
-		front_end::FrameTracks extractMotion(std::vector<front_end::StereoMatch> currentMatches,
-																													std::vector<front_end::StereoMatch> previousMatches,	
-																													std::vector<cv::DMatch> matches);
+		void newCamera(const sensor_msgs::CameraInfo::ConstPtr& msg);
 		void publishCurrentState();
 		void triangulate(front_end::Landmark &in);
 		float loweRejectionRatio=0.8;

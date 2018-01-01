@@ -4,10 +4,13 @@ WindowMatcher::WindowMatcher(int windowsize)
 {
 	debug=0;
 	nWindow=windowsize;
+
 	stereoSub=n.subscribe("front_end/stereo",10,&WindowMatcher::newStereo,this);	
 	normSub=n.subscribe("front_end/normType",10,&WindowMatcher::updateNorm,this);
 	encodingSub=n.subscribe("front_end/descriptor_encoding",10,&WindowMatcher::updateEncoding,this);
 	getQmapClient=n.serviceClient<bumblebee::getQ>("/bumblebee_configuration/getQ");
+	cameraSub=n.subscribe("/bumblebee_configuration/left/info",10,&WindowMatcher::newCamera,this);
+
 
 	bumblebee::getQ message;
 	getQmapClient.call(message);
@@ -37,13 +40,14 @@ void WindowMatcher::triangulate(front_end::Landmark &in)
 	
 	inputPoint.at<double>(0,0)=in.stereo.leftFeature.imageCoord.x;
 	inputPoint.at<double>(1,0)=in.stereo.leftFeature.imageCoord.y;
-	inputPoint.at<double>(2,0)=in.stereo.rightFeature.imageCoord.x-in.stereo.leftFeature.imageCoord.x;
+	inputPoint.at<double>(2,0)=in.stereo.leftFeature.imageCoord.x-in.stereo.rightFeature.imageCoord.x;
+	inputPoint.at<double>(3,0)=1.0;
 
 	homogPoint=Q*inputPoint;
 		
-	in.distance.x=homogPoint.at<double>(0,0)/homogPoint.at<double>(3,0);
-	in.distance.y=homogPoint.at<double>(1,0)/homogPoint.at<double>(3,0);
-	in.distance.z=homogPoint.at<double>(2,0)/homogPoint.at<double>(3,0);
+	in.distance.x=homogPoint.at<double>(0,0)/(1000*homogPoint.at<double>(3,0));//in meters
+	in.distance.y=homogPoint.at<double>(1,0)/(1000*homogPoint.at<double>(3,0));
+	in.distance.z=homogPoint.at<double>(2,0)/(1000*homogPoint.at<double>(3,0));
 } 
 
 void WindowMatcher::updateNorm(const std_msgs::Int8::ConstPtr& msg)
@@ -56,22 +60,17 @@ void WindowMatcher::updateEncoding(const std_msgs::String::ConstPtr& msg)
 	encodingType=msg->data;
 }
 
-front_end::FrameTracks WindowMatcher::convertToMessage(std::vector<front_end::StereoMatch> currentMatches,
-																													std::vector<front_end::StereoMatch> previousMatches,	
-																													std::vector<cv::DMatch> matches)
+void WindowMatcher::newCamera(const sensor_msgs::CameraInfo::ConstPtr& msg)
 {
-	front_end::FrameTracks output;
-	/*for(int matchesIndex=0;matchesIndex<matches.size();matchesIndex++)
-	{
-		std_msgs::Int32 prvInd,crrInd;
-		crrInd.data=matches.at(matchesIndex).queryIdx;
-		prvInd.data=matches.at(matchesIndex).trainIdx;
-		output.previousFrameIndexes.push_back(prvInd);
-		output.currentFrameIndexes.push_back(crrInd);	
-	}*/
-	return output;
+		P=cv::Mat(3,4,CV_64F);
+		for(int row=0;row<3;row++)
+		{
+			for(int col=0;col<4;col++)
+			{
+				P.at<double>(row,col)=msg->P[row*4+col];
+			}
+		}
 }
-
 
 void WindowMatcher::newStereo(const front_end::StereoFrame::ConstPtr& msg)
 {
@@ -248,16 +247,65 @@ void WindowMatcher::newStereo(const front_end::StereoFrame::ConstPtr& msg)
 		start=std::chrono::steady_clock::now();		
 		cv::Mat motionInlierMask;
 		cv::Mat outR,outT,E;
-		cv::Point2d pp(540.168,415.058);
-		float fx=646.844;
+		cv::Point2d pp(P.at<double>(0,2),P.at<double>(1,2));
+		float fx=P.at<double>(0,0);
 		E = findEssentialMat(currentPts, previousPts, fx, pp, CV_RANSAC, 0.99, 1, motionInlierMask ); 
 		recoverPose(E,currentPts,previousPts,outR,outT,fx,pp,motionInlierMask);
+		//TODO calculate average scale for translation
+		int totalAverageSamples=0;
+		cv::Mat average=cv::Mat::zeros(3,1,CV_64F);//correctlyScaledTransform
+		cv::Mat K=P(cv::Rect(0,0,3,3));
+
+		for(int index=0;index<latestInter.currentInlierIndexes.size();index++)
+		{
+
+			if(motionInlierMask.at<bool>(0,index))
+			{
+				cv::Mat xnew,xold;
+				//compute scale from projection 
+				//projection pixel in previous frame
+				xold=cv::Mat(3,1,CV_64F);
+				xold.at<double>(0,0)=previous.inliers.at(latestInter.previousInlierIndexes.at(index)).distance.x;
+				xold.at<double>(1,0)=previous.inliers.at(latestInter.previousInlierIndexes.at(index)).distance.y;
+				xold.at<double>(2,0)=previous.inliers.at(latestInter.previousInlierIndexes.at(index)).distance.z;
+
+				xnew=cv::Mat(3,1,CV_64F);
+				xnew.at<double>(0,0)=current.inliers.at(latestInter.currentInlierIndexes.at(index)).distance.x;
+				xnew.at<double>(1,0)=current.inliers.at(latestInter.currentInlierIndexes.at(index)).distance.y;
+				xnew.at<double>(2,0)=current.inliers.at(latestInter.currentInlierIndexes.at(index)).distance.z;
+				average+=((K.inv()*xold-outR*xnew)*outT.inv(cv::DECOMP_SVD))*outT;
+				totalAverageSamples++;
+				if(totalAverageSamples==15)
+				{
+					index=latestInter.currentInlierIndexes.size();
+				}
+			}
+		}
 		end=std::chrono::steady_clock::now();
 		timeTaken=std::chrono::duration<double,std::milli>(end-start).count();
 		latestInter.timings.push_back(timeTaken);
 		latestInter.timingDescription.push_back("MotionExtraction");
-		//TODO calculate scale for translation
 
+	if(totalAverageSamples>0)
+	{
+		average=average/double(totalAverageSamples); 
+		//store and send back output in a ros message
+		for(int row=0;row<3;row++)
+		{
+			for(int column=0;column<3;column++)
+			{
+				latestInter.R[3*row +column]=outR.at<double>(row,column);
+			}
+		}
+		latestInter.T[0]=average.at<double>(0,0);
+		latestInter.T[1]=average.at<double>(1,0);
+		latestInter.T[2]=average.at<double>(2,0);
+	}
+	else
+	{
+
+		std::cout<<"no Inliers detected"<<std::endl;
+	}
 		//populate messages 
 		for(int index=0;index<latestInter.currentInlierIndexes.size();index++)
 		{
@@ -271,16 +319,7 @@ void WindowMatcher::newStereo(const front_end::StereoFrame::ConstPtr& msg)
 			}
 		}
 
-		for(int row=0;row<3;row++)
-		{
-			for(int column=0;column<3;column++)
-			{
-				latestInter.R[3*row +column]=outR.at<double>(row,column);
-			}
-		}
-		latestInter.T[0]=outT.at<double>(0,0);
-		latestInter.T[1]=outT.at<double>(1,0);
-		latestInter.T[2]=outT.at<double>(2,0);
+
 
 
 
@@ -294,116 +333,6 @@ void WindowMatcher::newStereo(const front_end::StereoFrame::ConstPtr& msg)
 	debug++;
 	publishCurrentState();
 
-}
-
-
-front_end::FrameTracks WindowMatcher::extractMotion(std::vector<front_end::StereoMatch> currentMatches,
-																													std::vector<front_end::StereoMatch> previousMatches,	
-																													std::vector<cv::DMatch> matches)
-{
-		front_end::FrameTracks output;
-	/*	cv::Mat currentPts,previousPts;
-		//organize into cv::Mat format
-		for(int index=0;index<matches.size();index++)
-		{
-				int currentIndex=matches.at(index).queryIdx;
-				int previousIndex=matches.at(index).trainIdx;
-				cv::Mat previous=cv::Mat(1,2,CV_64F);
-				cv::Mat current=cv::Mat(1,2,CV_64F);
-						
-				current.at<double>(0,0)=currentMatches.at(currentIndex).leftFeature.imageCoord.x;
-				current.at<double>(0,1)=currentMatches.at(currentIndex).leftFeature.imageCoord.y;
-				currentPts.push_back(current);
-				previous.at<double>(0,0)=previousMatches.at(previousIndex).leftFeature.imageCoord.x;
-				previous.at<double>(0,1)=previousMatches.at(previousIndex).leftFeature.imageCoord.y;
-				previousPts.push_back(previous);
-		}
-		//establish motion
-		//organize into required format
-		cv::Mat motionInlierMask;
-		cv::Mat outR,outT,E;
-		cv::Point2d pp(540.168,415.058);
-		float fx=646.844;
-		E = findEssentialMat(currentPts, previousPts, fx, pp, CV_RANSAC, 0.9, 0.1, motionInlierMask ); 
-		recoverPose(E,currentPts,previousPts,outR,outT,fx,pp,motionInlierMask);
-		std::vector<cv::DMatch> motionInliers;
-		for(int index=0;index<matches.size();index++)
-		{
-			if(motionInlierMask.at<bool>(0,index))
-			{
-				motionInliers.push_back(matches.at(index));
-			}
-		}
-		if(rotation.size()+1>(nWindow-1))
-		{
-			rotation.pop_front();
-		}
-		rotation.push_back(outR);
-		if(translation.size()+1>(nWindow-1))
-		{
-			translation.pop_front();
-		}
-		translation.push_back(outT);*/
-
-
-/*
-int totalAverageSamples=0;
-
-	cv::Mat average=cv::Mat::zeros(3,1,CV_64F);
-
-	for(int index=0;index<req.current.left.landmarks.size();index++)
-	{
-
-		if(mask.at<bool>(0,index))
-		{
-			cv::Mat xnew,xold;
-			//compute scale from projection 
-			//projection pixel in previous frame
-			xold=cv::Mat(3,1,CV_64F);
-			xold.at<double>(0,0)=req.previous.right.features.at(index).x;
-			xold.at<double>(1,0)=req.previous.right.features.at(index).y;
-			xold.at<double>(2,0)=req.previous.right.features.at(index).z;
-
-			xnew=cv::Mat(3,1,CV_64F);
-			xnew.at<double>(0,0)=req.current.left.landmarks.at(index).x;
-			xnew.at<double>(1,0)=req.current.left.landmarks.at(index).y;
-			xnew.at<double>(2,0)=req.current.left.landmarks.at(index).z;
-			average+=((k.inv()*xold-outR*xnew)*outT.inv(cv::DECOMP_SVD))*outT;
-			totalAverageSamples++;
-			if(totalAverageSamples==3)
-			{
-				index=req.current.left.landmarks.size();
-			}
-		}
-	}
-
-	if(totalAverageSamples>0)
-	{
-		average=average/double(totalAverageSamples); 
-		//store and send back output in a ros message
-		for(int row=0;row<3;row++)
-		{
-			for(int column=0;column<3;column++)
-			{
-				res.R.data[3*row +column]=outR.at<double>(row,column);
-			}
-		}
-		res.T.x=average.at<double>(0,0);
-		res.T.y=average.at<double>(1,0);
-		res.T.z=average.at<double>(2,0);
-		
-		for(int index=0;index<mask.cols;index++)
-		{
-			res.mask.push_back(mask.at<bool>(0,index));	
-		}
-	}
-	else
-	{
-
-		std::cout<<"no Inliers detected"<<std::endl;
-	}*/
-		
-		return output;//convertToMessage(currentMatches,previousMatches,motionInliers);
 }
 
 void WindowMatcher::publishCurrentState()
