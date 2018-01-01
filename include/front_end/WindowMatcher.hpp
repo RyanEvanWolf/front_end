@@ -6,7 +6,12 @@
 #include <boost/thread.hpp>
 #include <boost/bind.hpp>
 
+
+//services includes
+#include <bumblebee/getOffset.h>
 #include <front_end/setDetector.h>
+#include <bumblebee/getQ.h>
+//messages includes
 #include <front_end/Feature.h>
 #include <front_end/StereoFrame.h>
 #include <front_end/FrameTracks.h>
@@ -14,8 +19,8 @@
 #include <front_end/WindowFrame.h>
 #include <front_end/Landmark.h>
 #include <front_end/InterWindowFrame.h>
+#include <sensor_msgs/Image.h>
 
-#include <bumblebee/getOffset.h>
 
 
 #include <opencv2/imgproc.hpp>
@@ -32,8 +37,10 @@
 //motion extraction
 #include <five-point-nister/five-point.hpp>
 #include <Structures/Transforms/Isometry.hpp>
-#include <sensor_msgs/Image.h>
 
+
+
+#include <chrono>
 
 class WindowMatcher
 {
@@ -45,22 +52,18 @@ class WindowMatcher
 		ros::Publisher windowPub;
 		ros::Publisher statePub;
 		ros::Publisher leftTracks,rightTracks;
+		ros::ServiceClient getQmapClient;
 		ros::NodeHandle n;
 		void newStereo(const front_end::StereoFrame::ConstPtr& msg);
-		std::list<std::vector<front_end::StereoMatch> > windowData;
-		std::list<front_end::FrameTracks> motionData,initialData;
-		std::list<cv::Mat> rotation;
-		std::list<cv::Mat> translation;
+		std::vector<front_end::InterWindowFrame> interFrame;
+		std::vector<front_end::WindowFrame> window;
+		cv::Mat Q;
 		cv::Rect searchRegion;
 		image_transport::ImageTransport *it;
 		std_msgs::Int8 normType;
 		std::string encodingType;
 		void updateNorm(const std_msgs::Int8::ConstPtr& msg);
 		void updateEncoding(const std_msgs::String::ConstPtr& msg);
-		cv::Mat getSearchMask(std::vector<front_end::StereoMatch> currentMatches,std::vector<front_end::StereoMatch> previousMatches);
-		std::vector< std::vector<cv::DMatch> > knnWindowMatch(std::vector<front_end::StereoMatch> currentMatches,
-																													std::vector<front_end::StereoMatch> previousMatches,	
-																													cv::Mat mask);
 		std::vector<cv::DMatch> loweRejection(std::vector< std::vector<cv::DMatch> > initial);
 		front_end::FrameTracks convertToMessage(std::vector<front_end::StereoMatch> currentMatches,
 																													std::vector<front_end::StereoMatch> previousMatches,	
@@ -69,6 +72,9 @@ class WindowMatcher
 																													std::vector<front_end::StereoMatch> previousMatches,	
 																													std::vector<cv::DMatch> matches);
 		void publishCurrentState();
+		void triangulate(front_end::Landmark &in);
+		float loweRejectionRatio=0.8;
+		int debug;
 	public:
 		WindowMatcher(int windowSize);
 };
