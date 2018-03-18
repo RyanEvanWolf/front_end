@@ -203,12 +203,123 @@ void StereoCamera::processStereo()
 		//filter with lowe ratio
 		outMessage.loweRatio.data=initialMatches.size();
 
+		std::vector<cv::DMatch>inlierMatches;
+
 		for(int index=0;index<initialMatches.size();index++)
+		{
+			if(initialMatches.at(index).size()>=2)		
+			{
+				if(initialMatches.at(index).at(0).distance<0.8*initialMatches.at(index).at(1).distance)
+				{
+					bool found=false;
+					//check it is unique in inlierMatches
+					int inlierIndex=0;
+					while(inlierIndex<inlierMatches.size()&&(!found))
+					{
+						if(initialMatches.at(index).at(0).queryIdx==inlierMatches.at(inlierIndex).queryIdx)
+						{
+							found=true;
+							//find the lowest score
+							if(initialMatches.at(index).at(0).distance<inlierMatches.at(inlierIndex).distance)
+							{
+								//swop them
+								inlierMatches.at(inlierIndex)=initialMatches.at(index).at(0);
+							}
+						}
+						inlierIndex++;
+					}
+					if(!found)
+					{
+						inlierMatches.push_back(initialMatches.at(index).at(0)); 
+					}
+				}
+			}
+			else
+			{
+				if(initialMatches.at(index).size()==1)
+				{
+					bool found=false;
+					//check it is unique in inlierMatches
+					int inlierIndex=0;
+					while(inlierIndex<inlierMatches.size()&&(!found))
+					{
+						if(initialMatches.at(index).at(0).queryIdx==inlierMatches.at(inlierIndex).queryIdx)
+						{
+							found=true;
+							//find the lowest score
+							if(initialMatches.at(index).at(0).distance<inlierMatches.at(inlierIndex).distance)
+							{
+								//swop them
+								inlierMatches.at(inlierIndex)=initialMatches.at(index).at(0);
+							}
+						}
+						inlierIndex++;
+					}
+					if(!found)
+					{
+						inlierMatches.push_back(initialMatches.at(index).at(0)); 
+					}
+				}
+			}
+		}
+		std::cout<<"here\n";
+		for(int index=0;index<inlierMatches.size();index++)
+		{
+			front_end::StereoMatch current;
+			cv::Mat ld,rd;//descriptor buffer
+			cv::KeyPoint lkp,rkp;//keypoint buffer
+			lkp=currentLeft.at(inlierMatches.at(index).queryIdx);
+			currentLeftDesc.row(inlierMatches.at(index).queryIdx).copyTo(ld);
+			current.leftFeature.imageCoord.x=lkp.pt.x +lroi.x;
+			current.leftFeature.imageCoord.y=lkp.pt.y +lroi.y;
+
+			cv_bridge::CvImage leftDescriptConversion(std_msgs::Header(),descriptorEncoding,ld);
+			leftDescriptConversion.toImageMsg(current.leftFeature.descriptor);
+
+			rkp=currentRight.at(inlierMatches.at(index).trainIdx);
+			currentRightDesc.row(inlierMatches.at(index).trainIdx).copyTo(rd);
+			current.rightFeature.imageCoord.x=rkp.pt.x+rroi.x;
+			current.rightFeature.imageCoord.y=rkp.pt.y+rroi.y;
+
+			cv_bridge::CvImage rightDescriptConversion(std_msgs::Header(),descriptorEncoding,rd);
+			rightDescriptConversion.toImageMsg(current.rightFeature.descriptor);
+	
+			current.distance.data=inlierMatches.at(index).distance;
+			outMessage.matches.push_back(current);
+			
+		}
+
+
+
+
+
+	/*	for(int index=0;index<initialMatches.size();index++)
 		{
 			if(initialMatches.at(index).size()>=2)
 			{
 				if(initialMatches.at(index).at(0).distance<0.8*initialMatches.at(index).at(1).distance)
 				{
+					bool found=false;
+					int inlierIndex=0;
+					while(inlierIndex<inlierMatches.size()&&(!found))
+					{
+						if(initialmatches.at(index).at(0).queryIdx==inlierMatches.at(inlierIndex).queryIdx)
+						{
+							found=true;
+							//find the lowest score
+							if(initialmatches.at(index).at(0).distance<inlierMatches.at(inlierIndex).distance)
+							{
+								//swop them
+								inlierMatches.at(inlierIndex)=initialmatches.at(index).at(0);
+							}
+						}
+						inlierIndex++;
+					}
+					if(!found)
+					{
+						inlierMatches.push_back(initialmatches.at(index).at(0)); 
+					}
+			
 					front_end::StereoMatch current;
 					cv::Mat ld,rd;//descriptor buffer
 					cv::KeyPoint lkp,rkp;//keypoint buffer
@@ -258,7 +369,7 @@ void StereoCamera::processStereo()
 					outMessage.matches.push_back(current);
 				}
 			}
-		}
+		}*/
 		std::cout<<outMessage.nLeft.data<<std::endl;
 		std::cout<<outMessage.nRight.data<<std::endl;
 		std::cout<<outMessage.loweRatio.data<<std::endl;
