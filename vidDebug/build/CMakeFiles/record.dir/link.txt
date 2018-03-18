@@ -1,0 +1,1 @@
+/usr/bin/c++   -D_FILE_OFFSET_BITS=64  -rdynamic CMakeFiles/record.dir/buffer.cpp.o  -o record -ldc1394 -lpthread 

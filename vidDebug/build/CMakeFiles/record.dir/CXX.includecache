@@ -1,0 +1,32 @@
+#IncludeRegexLine: ^[ 	]*[#%][ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/ubuntu/vidDebug/buffer.cpp
+stdio.h
+-
+unistd.h
+-
+time.h
+-
+dc1394/dc1394.h
+-
+inttypes.h
+-
+vector
+-
+memory.h
+-
+queue
+-
+mutex
+-
+pthread.h
+-
+fstream
+-
+

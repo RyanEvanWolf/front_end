@@ -1,0 +1,3 @@
+/home/ubuntu/vidDebug/build/CMakeFiles/rebuild_cache.dir
+/home/ubuntu/vidDebug/build/CMakeFiles/edit_cache.dir
+/home/ubuntu/vidDebug/build/CMakeFiles/record.dir
