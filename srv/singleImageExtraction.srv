@@ -1,8 +1,10 @@
-std_msgs/String detectorName
-front_end/DetectorParameter[] attrib
+string detectorName
+string[] det_attrib
+string descriptorName
+string[] desc_attrib
 sensor_msgs/Image leftImg
 sensor_msgs/Image rightImg
 ---
-Features[] leftFeatures
-Features[] rightFeatures
-ProcTime[] processingTime
+front_end/Feature[] leftFeatures
+front_end/Feature[] rightFeatures
+front_end/ProcTime[] processingTime

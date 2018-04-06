@@ -81,7 +81,6 @@ catkin_python_setup()
 ## Generate messages in the 'msg' folder
 add_message_files(
    FILES
-		DetectorParameter.msg
 		ORB.msg
 		Feature.msg
 		StereoMatch.msg
@@ -96,6 +95,7 @@ add_message_files(
 ## Generate services in the 'srv' folder
 add_service_files(
 	FILES
+		singleImageExtraction.srv
 		setDetector.srv
 		detectCurrent.srv
 )	
