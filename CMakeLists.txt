@@ -81,6 +81,9 @@ catkin_python_setup()
 ## Generate messages in the 'msg' folder
 add_message_files(
    FILES
+		frameExtract.msg
+		kPoint.msg
+		ProcTime.msg
 		ORB.msg
 		Feature.msg
 		StereoMatch.msg

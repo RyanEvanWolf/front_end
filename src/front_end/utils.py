@@ -25,8 +25,8 @@ def getSURF_Attributes():
     threshold=np.arange(200,500,50)
     nOctave=np.arange(4,7,1)
     nOctaveLayers=np.arange(3,6,1)
-    extended=(True,False)
-    upright=(True,False)
+    extended=(1,0)
+    upright=(1,0)
     ###pack into string format
     output={}
     output["HessianThreshold"]=threshold
@@ -34,16 +34,42 @@ def getSURF_Attributes():
     output["nOctaveLayers"]=nOctaveLayers
     output["Extended"]=extended
     output["Upright"]=upright
-    packedStrings=[]
+    detectorStrings=[]
+    descriptorStrings=[]
     for t in threshold:
         for n in nOctave:
             for nl in nOctaveLayers:
                 for e in extended:
                     for u in upright:
                         msg="HessianThreshold,"+str(t)+",nOctave,"+str(n)+",nOctaveLayers,"+str(nl)+",Extended,"+str(e)+",Upright,"+str(u)
-                        packedStrings.append(msg)
-    return output,packedStrings
+                        detectorStrings.append(msg)
+    ##descriptor Settings
+    for e in extended:
+        for u in upright:
+            msg="HessianThreshold,"+str(threshold[0])+",nOctave,"+str(nOctave[0])+",nOctaveLayers,"+str(nOctaveLayers[1])+",Extended,"+str(e)+",Upright,"+str(u)
+            descriptorStrings.append(msg)
+    return output,detectorStrings,descriptorStrings
 
+def updateDetector(name,csvString,detectorRef):
+    parts=csvString.split(",")
+    if(name=="FAST"):
+        detectorRef.setThreshold(int(parts[1]))
+        detectorRef.setType(int(parts[3]))
+        detectorRef.setNonmaxSuppression(bool(parts[5]))
+    if(name=="SURF"):
+        detectorRef.setHessianThreshold(float(parts[1]))
+        detectorRef.setNOctaves(int(parts[3]))
+        detectorRef.setNOctaveLayers(int(parts[5]))
+        detectorRef.setExtended(int(parts[7]))
+        detectorRef.setUpright(int(parts[9]))
+
+def getDetector(name):
+    if(name=="FAST"):
+        return True,cv2.FastFeatureDetector_create()
+    elif(name=="SURF"):
+        return True,cv2.xfeatures2d.SURF_create()
+    else:
+        return False,None
 
 # def getOrbParameters():
 #     ORB_Messages = []

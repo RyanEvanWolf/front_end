@@ -5,6 +5,4 @@ string[] desc_attrib
 sensor_msgs/Image leftImg
 sensor_msgs/Image rightImg
 ---
-front_end/Feature[] leftFeatures
-front_end/Feature[] rightFeatures
-front_end/ProcTime[] processingTime
+front_end/frameExtract[] outputFrames
