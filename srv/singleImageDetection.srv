@@ -1,0 +1,7 @@
+string detectorName
+string[] det_attrib
+bool returnKP
+sensor_msgs/Image leftImg
+sensor_msgs/Image rightImg
+---
+front_end/frameDetection[] outputFrames 

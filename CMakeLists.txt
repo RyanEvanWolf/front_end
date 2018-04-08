@@ -81,7 +81,7 @@ catkin_python_setup()
 ## Generate messages in the 'msg' folder
 add_message_files(
    FILES
-		frameExtract.msg
+		frameDetection.msg
 		kPoint.msg
 		ProcTime.msg
 		ORB.msg
@@ -98,7 +98,8 @@ add_message_files(
 ## Generate services in the 'srv' folder
 add_service_files(
 	FILES
-		singleImageExtraction.srv
+		singleImageDetection.srv
+		#singleImageExtraction.srv
 		setDetector.srv
 		detectCurrent.srv
 )	

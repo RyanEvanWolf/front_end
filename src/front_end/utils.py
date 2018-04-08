@@ -1,6 +1,6 @@
 import numpy as np
 import cv2
-
+from statistics import mean,stdev
 
 
 
@@ -70,6 +70,32 @@ def getDetector(name):
         return True,cv2.xfeatures2d.SURF_create()
     else:
         return False,None
+
+def getKPstats(KPset):
+    ##get X list
+    x=[]
+    y=[]
+    for i in KPset:
+        x.append(i.pt[1])
+        y.append(i.pt[0])
+    if(len(x)>2):
+        xavg=mean(x)
+        xdev=stdev(x)
+    else:
+        xavg=0
+        xdev=0
+    if(len(y)>2):
+        yavg=mean(y)
+        ydev=stdev(y)
+    else:
+        yavg=0
+        ydev=0
+    return {"X":{"Avg":xavg,"stdDev":xdev},"Y":{"Avg":yavg,"stdDev":ydev}}
+def cvKP_to_JSON(kp):
+    pass 
+
+def JSON_to_cvKP(JSON):
+    pass
 
 # def getOrbParameters():
 #     ORB_Messages = []

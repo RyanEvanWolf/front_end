@@ -1,0 +1,13 @@
+front_end/kPoint[] leftFeatures
+uint16 nLeft
+float32 l_xAvg
+float32 l_yAvg
+float32 l_xStd
+float32 l_yStd
+front_end/kPoint[] rightFeatures
+uint16 nRight
+float32 r_xAvg
+float32 r_yAvg
+float32 r_xStd
+float32 r_yStd
+front_end/ProcTime[] processingTime 

@@ -2,8 +2,6 @@ string detectorName
 string det_attrib
 string descriptorName
 string desc_attrib
-front_end/kPoint[] leftFeatures
-front_end/kPoint[] rightFeatures
+
 sensor_msgs/Image[] ldescr
 sensor_msgs/Image[] rdescr
-front_end/ProcTime[] processingTime
