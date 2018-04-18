@@ -1,0 +1,39 @@
+#!/usr/bin/env python
+import cv2
+import numpy as np
+
+from front_end.utils import ros2cv_KP,cv2ros_KP,getBRIEF_Attributes,getDescriptor,printFormattedKP
+from front_end.msg import kPoint
+img=cv2.imread("/home/ryan/DATA/A/00500.ppm",cv2.IMREAD_GRAYSCALE)
+cv2.cvtColor(img,cv2.COLOR_BayerBG2GRAY,img)
+fast=cv2.FastFeatureDetector_create()
+
+p,pp=getBRIEF_Attributes()
+kp=fast.detect(img)
+print(type(kp))
+
+msg=cv2ros_KP(kp[0])
+
+u=ros2cv_KP(msg)
+
+print(type(img))
+img2=cv2.drawKeypoints(img, kp,img)
+
+cv2.imshow("a",img2)
+
+s=cv2.xfeatures2d.BriefDescriptorExtractor_create(32)
+
+
+s3=cv2.BRISK_create()
+
+print(printFormattedKP(u))
+
+print(s.compute(img,[u]))
+
+
+for i in pp:
+    print(i)
+    t,s=getDescriptor(i)
+    print(s.compute(img,[u,u],None))
+    print(s3.compute(img,[u],None))
+cv2.waitKey(2000)

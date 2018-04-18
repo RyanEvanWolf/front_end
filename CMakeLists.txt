@@ -84,24 +84,28 @@ add_message_files(
 		frameDetection.msg
 		kPoint.msg
 		ProcTime.msg
-		ORB.msg
-		Feature.msg
-		StereoMatch.msg
-		StereoFrame.msg
-		FrameTracks.msg
-		Window.msg
-		WindowFrame.msg
-		InterWindowFrame.msg
-		Landmark.msg
+		loopStereoFrame.msg
+		Descriptors.msg
+		frameDescription.msg
+#		ORB.msg
+#		Feature.msg
+#		StereoMatch.msg
+#		StereoFrame.msg
+#		FrameTracks.msg
+#		Window.msg
+#		WindowFrame.msg
+#		InterWindowFrame.msg
+#		Landmark.msg
 )
 
 ## Generate services in the 'srv' folder
 add_service_files(
 	FILES
 		singleImageDetection.srv
+		singleImageDescription.srv
 		#singleImageExtraction.srv
-		setDetector.srv
-		detectCurrent.srv
+#		setDetector.srv
+#		detectCurrent.srv
 )	
 
 

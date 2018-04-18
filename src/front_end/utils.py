@@ -1,7 +1,7 @@
 import numpy as np
 import cv2
 from statistics import mean,stdev
-
+from front_end.msg import kPoint
 
 
 def getFAST_Attributes():
@@ -20,6 +20,29 @@ def getFAST_Attributes():
                 msg="Threshold,"+str(t)+",dType,"+str(d)+",NonMaximumSuppression,"+str(m)
                 packedStrings.append(msg)
     return output,packedStrings
+
+def getBRIEF_Attributes():
+    size=[16,32,64]
+    orientation=[1,0]
+    output={}
+    output["bytes"]=size
+    output["use_orientation"]=orientation
+    packedStrings=[]
+    for s in size:
+        for o in orientation:
+            msg="BRIEF,bytes,"+str(s)+",use_orientation,"+str(o)
+            packedStrings.append(msg)
+    return output,packedStrings
+
+def getAllDescriptor_Attributes():
+    descriptorStrings=[]
+    ########
+    fake,strings=getBRIEF_Attributes()
+    descriptorStrings+=strings
+
+    fake,fake2,strings=getSURF_Attributes()
+    descriptorStrings+=strings
+    return descriptorStrings
 
 def getSURF_Attributes():
     threshold=np.arange(200,500,50)
@@ -46,7 +69,7 @@ def getSURF_Attributes():
     ##descriptor Settings
     for e in extended:
         for u in upright:
-            msg="HessianThreshold,"+str(threshold[0])+",nOctave,"+str(nOctave[0])+",nOctaveLayers,"+str(nOctaveLayers[1])+",Extended,"+str(e)+",Upright,"+str(u)
+            msg="SURF,HessianThreshold,"+str(threshold[0])+",nOctave,"+str(nOctave[0])+",nOctaveLayers,"+str(nOctaveLayers[1])+",Extended,"+str(e)+",Upright,"+str(u)
             descriptorStrings.append(msg)
     return output,detectorStrings,descriptorStrings
 
@@ -63,6 +86,9 @@ def updateDetector(name,csvString,detectorRef):
         detectorRef.setExtended(int(parts[7]))
         detectorRef.setUpright(int(parts[9]))
 
+def updateDescriptor(csvString,detectorRef):
+    parts=csvString.split(",")
+
 def getDetector(name):
     if(name=="FAST"):
         return True,cv2.FastFeatureDetector_create()
@@ -71,6 +97,24 @@ def getDetector(name):
     else:
         return False,None
 
+def getDescriptor(csvString):
+    parts=csvString.split(",")
+    name=parts[0]
+    if(name=="BRIEF"):
+        bits=int(parts[2])
+        orientation=int(parts[4])
+        return True,cv2.xfeatures2d.BriefDescriptorExtractor_create(bits,orientation)
+    elif(name=="SURF"):
+        threshold=float(parts[2])
+        octaves=int(parts[4])
+        layers=int(parts[6])
+        extended=int(parts[8])
+        upright=int(parts[10])
+
+        return True,cv2.xfeatures2d.SURF_create(threshold,octaves,
+                                                layers,extended,upright)
+    else:
+        return False,None
 def getKPstats(KPset):
     ##get X list
     x=[]
@@ -91,6 +135,37 @@ def getKPstats(KPset):
         yavg=0
         ydev=0
     return {"X":{"Avg":xavg,"stdDev":xdev},"Y":{"Avg":yavg,"stdDev":ydev}}
+
+def ros2cv_KP(message):
+    kp=cv2.KeyPoint()
+    kp.angle=message.angle
+    kp.octave=message.octave
+    kp.pt=(message.y,message.x)
+    kp.response=message.response
+    kp.size=message.size
+    kp.class_id=message.class_id
+    return kp
+
+def cv2ros_KP(kp):
+    message=kPoint()
+    message.angle=kp.angle
+    message.octave=kp.octave
+    message.x=kp.pt[1]
+    message.y=kp.pt[0]
+    message.response=kp.response
+    message.size=kp.size
+    message.class_id=kp.class_id
+    return message
+
+def printFormattedKP(kp):
+    out=""
+    out+="pt,"+str(kp.pt)
+    out+=",angle,"+str(kp.angle)
+    out+=",octave,"+str(kp.octave)
+    out+=",response,"+str(kp.response)
+    out+=",size,"+str(kp.size)
+    out+=",class_id,"+str(kp.class_id)
+    return out
 def cvKP_to_JSON(kp):
     pass 
 
