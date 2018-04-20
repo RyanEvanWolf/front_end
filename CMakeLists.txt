@@ -103,6 +103,7 @@ add_service_files(
 	FILES
 		singleImageDetection.srv
 		singleImageDescription.srv
+		singleStereo.srv
 		#singleImageExtraction.srv
 #		setDetector.srv
 #		detectCurrent.srv

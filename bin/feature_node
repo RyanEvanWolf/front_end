@@ -73,66 +73,9 @@ def singleImageDescription_fn(req):
         latestDescriptors.proc.append(t)
         latestDescriptors.rightDescriptors=cvb.cv2_to_imgmsg(Descr)
         fullOutputMessage.results.append(latestDescriptors)
-            # if(Descr==None):
-            #     print(cvKP.pt)
-            #     print(d)
-            #     print(fake)
-            #     print(Descr)
-    # for k in fullOutputMessage.leftFeatures:
-    #     cvKP=ros2cv_KP(k)
-    #     allKP.append(cvKP)
-    #     ####get all the types of descriptors
-    #     for d in descr:
-    #         t=ProcTime()
-    #         t.label="ld_"+d
-    #         success,extractor=True,cv2.xfeatures2d.BriefDescriptorExtractor_create(32)#getDescriptor(d)
-    #         startTime=time.time()
-    #         fake,Descr=extractor.compute(leftImg,[kp[0]])
-    #         # if(Descr==None):
-    #         #     print(cvKP.pt)
-    #         #     print(d)
-    #         #     print(fake)
-    #         #     print(Descr)
-    #         t.seconds=time.time()-startTime
-    #         #k.descriptors.append(cvb.cv2_to_imgmsg(Descr))
-    # outImage=cv2.drawKeypoints(leftImg,allKP,outImage)
-    # cv2.imshow("a",outImage)
-    # cv2.waitKey(1000)
-    # for k in fullOutputMessage.rightFeatures:
-    #     cvKP=ros2cv_KP(k)
-    #     ####get all the types of descriptors
-    #     for d in descr:
-    #         t=ProcTime()
-    #         t.label="rd_"+d
-    #         success,extractor=getDescriptor(d)
-    #         print(type(extractor))
-    #         startTime=time.time()
-    #         fake,Descr=extractor.compute(rightImg,[cvKP])
-    #         print(len(fake))
-    #         print(len(Descr))
-    #         t.seconds=time.time()-startTime
-    #         #k.descriptors.append(cvb.cv2_to_imgmsg(Descr))
 
     print("---Description---"+str(imagesProcessed))
     return fullOutputMessage
-
-        # for descriptorIndex in req.desc_attrib:
-        #     updateDetector(req.descriptorName,descriptorIndex,descriptor)
-        #     ldtime.seconds=0
-        #     if(len(leftKPTs)>0):
-        #         startTime=time.time()
-        #         fake,leftDescr=descriptor.compute(leftImg,leftKPTs)
-        #         ldtime.seconds=time.time()-startTime
-        #         ##pack into frame
-        #         latestFrame.ldescr.append(cvb.cv2_to_imgmsg(leftDescr))
-        #     if(len(rightKPTs)>0):
-        #         startTime=time.time()
-        #         fake,rightDescr=descriptor.compute(rightImg,rightKPTs)
-        #         rdtime.seconds=time.time()-startTime
-        #         ##pack into frame
-        #         latestFrame.rdescr.append(cvb.cv2_to_imgmsg(rightDescr))
-        #     processCount+=1
-        #     print(str(processCount)+"/"+str(len(req.det_attrib)*len(req.desc_attrib)))
 
 def singleImageDetection_fn(req):
     global imagesProcessed
