@@ -87,6 +87,7 @@ add_message_files(
 		loopStereoFrame.msg
 		Descriptors.msg
 		frameDescription.msg
+		Homography.msg
 #		ORB.msg
 #		Feature.msg
 #		StereoMatch.msg

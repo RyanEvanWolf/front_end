@@ -172,6 +172,11 @@ def cvKP_to_JSON(kp):
 def JSON_to_cvKP(JSON):
     pass
 
+def getHomogZeros():
+    out=np.zeros((4,1),dtype=np.float64)
+    out[3,0]=1
+    return out
+
 # def getOrbParameters():
 #     ORB_Messages = []
 #     scaleVect =np.linspace(1.0, 2.5, 4, endpoint=True)#,8
