@@ -1,5 +1,4 @@
-string detectorName
-string[] det_attrib
+string[] detID
 bool returnKP
 sensor_msgs/Image leftImg
 sensor_msgs/Image rightImg

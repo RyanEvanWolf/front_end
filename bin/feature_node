@@ -8,71 +8,73 @@ from front_end.utils import *
 from front_end.srv import *
 from front_end.msg import frameDetection,ProcTime,kPoint
 from front_end.msg import Descriptors,frameDescription
+from front_end.features import detectorLookUpTable,descriptorLookUpTable,getDetector
 from cv_bridge import CvBridge
 
 cvb=CvBridge()
-
+detTable=detectorLookUpTable()
+descTable=descriptorLookUpTable()
 global imagesProcessed
 imagesProcessed=0
 
 def singleImageDescription_fn(req):
     global imagesProcessed
 
-    leftImg=cvb.imgmsg_to_cv2(req.leftImg)
-    rightImg=cvb.imgmsg_to_cv2(req.rightImg)
-    descr=getAllDescriptor_Attributes()
+    # leftImg=cvb.imgmsg_to_cv2(req.leftImg)
+    # rightImg=cvb.imgmsg_to_cv2(req.rightImg)
+    # descr=getAllDescriptor_Attributes()
 
     fullOutputMessage=singleImageDescriptionResponse()
-    ###reform into lists
+    # ###reform into lists
 
-    lkp=[]
-    lID=[]
-    rkp=[]
-    rID=[]
+    # lkp=[]
+    # lID=[]
+    # rkp=[]
+    # rID=[]
 
-    for i in req.leftFeatures:
-        lkp.append(ros2cv_KP(i))
-        lID.append(i.class_id)
-    for i in req.rightFeatures:
-        rkp.append(ros2cv_KP(i))
-        rID.append(i.class_id)
-    originalLeft=len(lkp)
-    originalRight=len(rkp)
+    # for i in req.leftFeatures:
+    #     lkp.append(ros2cv_KP(i))
+    #     lID.append(i.class_id)
+    # for i in req.rightFeatures:
+    #     rkp.append(ros2cv_KP(i))
+    #     rID.append(i.class_id)
+    # originalLeft=len(lkp)
+    # originalRight=len(rkp)
 
-    for descrIndex in range(0,len(descr)):
-        print(descr[descrIndex])
-        latestDescriptors=Descriptors()
-        latestDescriptors.descriptID=descrIndex
-        t=ProcTime()
-        t.label="ld_d"
-        success,extractor=getDescriptor(descr[descrIndex])
-        startTime=time.time()
-        newKP,Descr=extractor.compute(leftImg,lkp)
-        t.seconds=time.time()-startTime
-        ####create mask
-        maskID=[]
-        for i in newKP:
-            maskID.append(i.class_id)
-        missing=list(set(lID)-set(maskID))
-        for i in missing:
-            latestDescriptors.left_featureMask.append(int(i))
-        latestDescriptors.proc.append(t)
-        latestDescriptors.leftDescriptors=cvb.cv2_to_imgmsg(Descr)
+    # for descrIndex in range(0,len(descr)):
+    #     print(descr[descrIndex])
+    #     latestDescriptors=Descriptors()
+    #     latestDescriptors.descriptID=descrIndex
+    #     t=ProcTime()
+    #     t.label="ld_d"
+    #     success,extractor=getDescriptor(descr[descrIndex])
+    #     startTime=time.time()
+    #     newKP,Descr=extractor.compute(leftImg,lkp)
+    #     t.seconds=time.time()-startTime
+    #     ####create mask
+    #     maskID=[]
+    #     for i in newKP:
+    #         maskID.append(i.class_id)
+    #     missing=list(set(lID)-set(maskID))
+    #     for i in missing:
+    #         latestDescriptors.left_featureMask.append(int(i))
+    #     latestDescriptors.proc.append(t)
+    #     latestDescriptors.leftDescriptors=cvb.cv2_to_imgmsg(Descr)
 
-        t.label="rd_d"
-        startTime=time.time()
-        newKP,Descr=extractor.compute(rightImg,rkp)
-        t.seconds=time.time()-startTime
-        ####create mask
-        maskID=[]
-        for i in newKP:
-            maskID.append(i.class_id)
-        missing=list(set(rID)-set(maskID))
-        for i in missing:
-            latestDescriptors.right_featureMask.append(int(i))
-        latestDescriptors.proc.append(t)
-        latestDescriptors.rightDescriptors=cvb.cv2_to_imgmsg(Descr)
-        fullOutputMessage.results.append(latestDescriptors)
+    #     t.label="rd_d"
+    #     startTime=time.time()
+    #     newKP,Descr=extractor.compute(rightImg,rkp)
+    #     t.seconds=time.time()-startTime
+    #     ####create mask
+    #     maskID=[]
+    #     for i in newKP:
+    #         maskID.append(i.class_id)
+    #     missing=list(set(rID)-set(maskID))
+    #     for i in missing:
+    #         latestDescriptors.right_featureMask.append(int(i))
+    #     latestDescriptors.proc.append(t)
+    #     latestDescriptors.rightDescriptors=cvb.cv2_to_imgmsg(Descr)
+    #     fullOutputMessage.results.append(latestDescriptors)
 
     print("---Description---"+str(imagesProcessed))
     return fullOutputMessage
@@ -83,7 +85,7 @@ def singleImageDetection_fn(req):
     rightImg=cvb.imgmsg_to_cv2(req.rightImg)
     ###update Detector
 
-    success,detector=getDetector(req.detectorName)
+    #success,detector=getDetector(req.detID)
     #success,descriptor=getDetector(req.descriptorName)
     processCount=0
 
@@ -94,9 +96,10 @@ def singleImageDetection_fn(req):
     rtime.label="rKP"
 
     fullOutputMessage=singleImageDetectionResponse()
-    for settingsIndex in req.det_attrib:
-        updateDetector(req.detectorName,settingsIndex,detector)
-
+    for settingsIndex in req.detID:
+        print(settingsIndex)
+        detector,success=getDetector(detTable[settingsIndex]["Name"],
+                                     detTable[settingsIndex]["Param"])
         latestFrame=frameDetection()
         startTime=time.time()
         leftKPTs=detector.detect(leftImg)
@@ -105,7 +108,7 @@ def singleImageDetection_fn(req):
         startTime=time.time()
         rightKPTs=detector.detect(rightImg)
         rtime.seconds=time.time()-startTime
-        ###pack into frames
+        ##pack into frames
         lstat=getKPstats(leftKPTs)
         rstat=getKPstats(rightKPTs)
         latestFrame.l_xAvg=lstat["X"]["Avg"]
@@ -141,9 +144,8 @@ def singleImageDetection_fn(req):
     imagesProcessed+=1
     return fullOutputMessage
 
-if __name__ == '__main__':
-    rospy.init_node("feature_node")
-    setServices=[]
-    s=rospy.Service("feature_node/singleImageDetection",singleImageDetection,singleImageDetection_fn)
-    s1=rospy.Service("feature_node/singleImageDescription",singleImageDescription,singleImageDescription_fn)
-    rospy.spin()
+rospy.init_node("feature_node")
+setServices=[]
+s=rospy.Service("feature_node/singleImageDetection",singleImageDetection,singleImageDetection_fn)
+s1=rospy.Service("feature_node/singleImageDescription",singleImageDescription,singleImageDescription_fn)
+rospy.spin()

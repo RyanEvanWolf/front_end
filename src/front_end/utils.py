@@ -4,117 +4,136 @@ from statistics import mean,stdev
 from front_end.msg import kPoint
 
 
-def getFAST_Attributes():
+def getFAST_parameters():
     threshold=np.arange(1, 60, 3)
     dType=(cv2.FAST_FEATURE_DETECTOR_TYPE_5_8,cv2.FAST_FEATURE_DETECTOR_TYPE_7_12,cv2.FAST_FEATURE_DETECTOR_TYPE_9_16)
     maxSuppression=(True,False)
-    ###pack into string format
     output={}
     output["Threshold"]=threshold
     output["dType"]=dType
     output["NonMaximumSuppression"]=maxSuppression
-    packedStrings=[]
-    for t in threshold:
-        for d in dType:
-            for m in maxSuppression:
-                msg="Threshold,"+str(t)+",dType,"+str(d)+",NonMaximumSuppression,"+str(m)
-                packedStrings.append(msg)
-    return output,packedStrings
+    return output
 
-def getBRIEF_Attributes():
-    size=[16,32,64]
-    orientation=[1,0]
+def getFAST_Combinations():
     output={}
-    output["bytes"]=size
-    output["use_orientation"]=orientation
-    packedStrings=[]
-    for s in size:
-        for o in orientation:
-            msg="BRIEF,bytes,"+str(s)+",use_orientation,"+str(o)
-            packedStrings.append(msg)
-    return output,packedStrings
+    output["Name"]="FAST"
+    params=getFAST_parameters()
+    orderedKeys=sorted(params.keys())
+    print(orderedKeys)
+    return output
 
-def getAllDescriptor_Attributes():
-    descriptorStrings=[]
-    ########
-    fake,strings=getBRIEF_Attributes()
-    descriptorStrings+=strings
 
-    fake,fake2,strings=getSURF_Attributes()
-    descriptorStrings+=strings
-    return descriptorStrings
+# def getFAST_Attributes():
+#     threshold=np.arange(1, 60, 3)
+#     dType=(cv2.FAST_FEATURE_DETECTOR_TYPE_5_8,cv2.FAST_FEATURE_DETECTOR_TYPE_7_12,cv2.FAST_FEATURE_DETECTOR_TYPE_9_16)
+#     maxSuppression=(True,False)
+#     ###pack into string format
+#     output={}
+#     output["Threshold"]=threshold
+#     output["dType"]=dType
+#     output["NonMaximumSuppression"]=maxSuppression
+#     packedStrings=[]
+#     for t in threshold:
+#         for d in dType:
+#             for m in maxSuppression:
+#                 msg="Threshold,"+str(t)+",dType,"+str(d)+",NonMaximumSuppression,"+str(m)
+#                 packedStrings.append(msg)
+#     return output,packedStrings
 
-def getSURF_Attributes():
-    threshold=np.arange(200,500,50)
-    nOctave=np.arange(4,7,1)
-    nOctaveLayers=np.arange(3,6,1)
-    extended=(1,0)
-    upright=(1,0)
-    ###pack into string format
-    output={}
-    output["HessianThreshold"]=threshold
-    output["nOctave"]=nOctave
-    output["nOctaveLayers"]=nOctaveLayers
-    output["Extended"]=extended
-    output["Upright"]=upright
-    detectorStrings=[]
-    descriptorStrings=[]
-    for t in threshold:
-        for n in nOctave:
-            for nl in nOctaveLayers:
-                for e in extended:
-                    for u in upright:
-                        msg="HessianThreshold,"+str(t)+",nOctave,"+str(n)+",nOctaveLayers,"+str(nl)+",Extended,"+str(e)+",Upright,"+str(u)
-                        detectorStrings.append(msg)
-    ##descriptor Settings
-    for e in extended:
-        for u in upright:
-            msg="SURF,HessianThreshold,"+str(threshold[0])+",nOctave,"+str(nOctave[0])+",nOctaveLayers,"+str(nOctaveLayers[1])+",Extended,"+str(e)+",Upright,"+str(u)
-            descriptorStrings.append(msg)
-    return output,detectorStrings,descriptorStrings
+# def getBRIEF_Attributes():
+#     size=[16,32,64]
+#     orientation=[1,0]
+#     output={}
+#     output["bytes"]=size
+#     output["use_orientation"]=orientation
+#     packedStrings=[]
+#     for s in size:
+#         for o in orientation:
+#             msg="BRIEF,bytes,"+str(s)+",use_orientation,"+str(o)
+#             packedStrings.append(msg)
+#     return output,packedStrings
 
-def updateDetector(name,csvString,detectorRef):
-    parts=csvString.split(",")
-    if(name=="FAST"):
-        detectorRef.setThreshold(int(parts[1]))
-        detectorRef.setType(int(parts[3]))
-        detectorRef.setNonmaxSuppression(bool(parts[5]))
-    if(name=="SURF"):
-        detectorRef.setHessianThreshold(float(parts[1]))
-        detectorRef.setNOctaves(int(parts[3]))
-        detectorRef.setNOctaveLayers(int(parts[5]))
-        detectorRef.setExtended(int(parts[7]))
-        detectorRef.setUpright(int(parts[9]))
+# def getAllDescriptor_Attributes():
+#     descriptorStrings=[]
+#     ########
+#     fake,strings=getBRIEF_Attributes()
+#     descriptorStrings+=strings
 
-def updateDescriptor(csvString,detectorRef):
-    parts=csvString.split(",")
+#     fake,fake2,strings=getSURF_Attributes()
+#     descriptorStrings+=strings
+#     return descriptorStrings
 
-def getDetector(name):
-    if(name=="FAST"):
-        return True,cv2.FastFeatureDetector_create()
-    elif(name=="SURF"):
-        return True,cv2.xfeatures2d.SURF_create()
-    else:
-        return False,None
+# def getSURF_Attributes():
+#     threshold=np.arange(200,500,50)
+#     nOctave=np.arange(4,7,1)
+#     nOctaveLayers=np.arange(3,6,1)
+#     extended=(1,0)
+#     upright=(1,0)
+#     ###pack into string format
+#     output={}
+#     output["HessianThreshold"]=threshold
+#     output["nOctave"]=nOctave
+#     output["nOctaveLayers"]=nOctaveLayers
+#     output["Extended"]=extended
+#     output["Upright"]=upright
+#     detectorStrings=[]
+#     descriptorStrings=[]
+#     for t in threshold:
+#         for n in nOctave:
+#             for nl in nOctaveLayers:
+#                 for e in extended:
+#                     for u in upright:
+#                         msg="HessianThreshold,"+str(t)+",nOctave,"+str(n)+",nOctaveLayers,"+str(nl)+",Extended,"+str(e)+",Upright,"+str(u)
+#                         detectorStrings.append(msg)
+#     ##descriptor Settings
+#     for e in extended:
+#         for u in upright:
+#             msg="SURF,HessianThreshold,"+str(threshold[0])+",nOctave,"+str(nOctave[0])+",nOctaveLayers,"+str(nOctaveLayers[1])+",Extended,"+str(e)+",Upright,"+str(u)
+#             descriptorStrings.append(msg)
+#     return output,detectorStrings,descriptorStrings
 
-def getDescriptor(csvString):
-    parts=csvString.split(",")
-    name=parts[0]
-    if(name=="BRIEF"):
-        bits=int(parts[2])
-        orientation=int(parts[4])
-        return True,cv2.xfeatures2d.BriefDescriptorExtractor_create(bits,orientation)
-    elif(name=="SURF"):
-        threshold=float(parts[2])
-        octaves=int(parts[4])
-        layers=int(parts[6])
-        extended=int(parts[8])
-        upright=int(parts[10])
+# def updateDetector(name,csvString,detectorRef):
+#     parts=csvString.split(",")
+#     if(name=="FAST"):
+#         detectorRef.setThreshold(int(parts[1]))
+#         detectorRef.setType(int(parts[3]))
+#         detectorRef.setNonmaxSuppression(bool(parts[5]))
+#     if(name=="SURF"):
+#         detectorRef.setHessianThreshold(float(parts[1]))
+#         detectorRef.setNOctaves(int(parts[3]))
+#         detectorRef.setNOctaveLayers(int(parts[5]))
+#         detectorRef.setExtended(int(parts[7]))
+#         detectorRef.setUpright(int(parts[9]))
 
-        return True,cv2.xfeatures2d.SURF_create(threshold,octaves,
-                                                layers,extended,upright)
-    else:
-        return False,None
+# def updateDescriptor(csvString,detectorRef):
+#     parts=csvString.split(",")
+
+# def getDetector(name):
+#     if(name=="FAST"):
+#         return True,cv2.FastFeatureDetector_create()
+#     elif(name=="SURF"):
+#         return True,cv2.xfeatures2d.SURF_create()
+#     else:
+#         return False,None
+
+# def getDescriptor(csvString):
+#     parts=csvString.split(",")
+#     name=parts[0]
+#     if(name=="BRIEF"):
+#         bits=int(parts[2])
+#         orientation=int(parts[4])
+#         return True,cv2.xfeatures2d.BriefDescriptorExtractor_create(bits,orientation)
+#     elif(name=="SURF"):
+#         threshold=float(parts[2])
+#         octaves=int(parts[4])
+#         layers=int(parts[6])
+#         extended=int(parts[8])
+#         upright=int(parts[10])
+
+#         return True,cv2.xfeatures2d.SURF_create(threshold,octaves,
+#                                                 layers,extended,upright)
+#     else:
+#         return False,None
 def getKPstats(KPset):
     ##get X list
     x=[]
@@ -169,13 +188,13 @@ def printFormattedKP(kp):
 def cvKP_to_JSON(kp):
     pass 
 
-def JSON_to_cvKP(JSON):
-    pass
+# def JSON_to_cvKP(JSON):
+#     pass
 
-def getHomogZeros():
-    out=np.zeros((4,1),dtype=np.float64)
-    out[3,0]=1
-    return out
+# def getHomogZeros():
+#     out=np.zeros((4,1),dtype=np.float64)
+#     out[3,0]=1
+#     return out
 
 # def getOrbParameters():
 #     ORB_Messages = []
