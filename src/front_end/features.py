@@ -75,8 +75,14 @@ def getBRIEF_combinations():
             singleSettings["Param"]=[]
             singleSettings["Param"].append(str(b))
             singleSettings["Param"].append(str(o))
+            singleSettings["NormType"]="NORM_HAMMING"
             output.append(singleSettings)
     return output
+
+def getBRIEF(params):
+    descr=cv2.xfeatures2d.BriefDescriptorExtractor_create(int(params[0]),bool(params[1]))
+    #descr.setDescriptorSize(int(params[0]))
+    return descr
 ###################
 ####SURF
 
@@ -110,6 +116,7 @@ def getSURF_combinations():
                         singleSettings["Param"].append(str(on))
                         singleSettings["Param"].append(str(e))
                         singleSettings["Param"].append(str(u))
+                        singleSettings["NormType"]="NORM_L2"
                         output.append(singleSettings)
     return output
 
@@ -175,6 +182,23 @@ def getDetector(Name,params):
     else:
         return None,False
 
+def getDescriptor(Name,params):
+    if(Name=="SURF"):
+        return getSURF(params),True
+    if(Name=="BRIEF"):
+        return getBRIEF(params),True
+    else:
+        return None,False
+
+def getMatcher(normType):
+    if(normType=="NORM_L2"):
+        return cv2.BFMatcher(cv2.NORM_L2)
+    elif(normType=="NORM_HAMMING"):
+        return cv2.BFMatcher(cv2.NORM_HAMMING)
+
+def assignIDs(listKP):
+    for i in range(0,len(listKP)):
+        listKP[i].class_id=i
 #def updateDetector(Name,params,detectorRef)
 # def updateDetector(name,csvString,detectorRef):
 #     parts=csvString.split(",")

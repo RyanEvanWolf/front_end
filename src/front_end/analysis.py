@@ -2,6 +2,7 @@ from front_end.features import descriptorLookUpTable,detectorLookUpTable
 import numpy as np
 from statistics import mean,stdev
 import pickle
+
 class featureDatabase:
     def __init__(self,pickleDir):
         self.table=detectorLookUpTable()
@@ -60,3 +61,23 @@ class featureDatabase:
                 Settings[i[0]].append(allSettings[closestIndex])
                 Results[i[0]].append(leftNFeatures[closestIndex])
         return Settings,Results
+    def getAllProcessingTime(self,detectorName):
+        nImages=len(self.featurePickle)
+        table=detectorLookUpTable()
+        allSettings=table.keys()
+        ###get setting indexes
+        idList=[]
+        for i in range(0,len(allSettings)):
+            if(table[allSettings[i]]["Name"]==detectorName):
+                idList.append(i)
+        print("totalSettings",len(idList))
+        print("totalWithSurf",len(self.featurePickle),len(self.featurePickle[0].outputFrames))
+        lprocTime=[]
+        frameN=[]
+        for i in range(0,len(self.featurePickle)):
+            for feature in idList:
+                frameN.append(i)
+                lprocTime.append(self.featurePickle[i].outputFrames[feature].processingTime[0].seconds*1000)
+        return frameN,lprocTime
+    def getProcessingTime(self,Settings,Results):
+        pass

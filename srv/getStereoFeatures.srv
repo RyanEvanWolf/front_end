@@ -1,0 +1,6 @@
+string detID
+string descrID
+sensor_msgs/Image leftImg
+sensor_msgs/Image rightImg
+---
+front_end/stereoFeatures latestFeatures

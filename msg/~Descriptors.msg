@@ -1,6 +1,6 @@
 front_end/ProcTime[] proc
-int32 descriptID
-int32[] left_featureMask
-int32[] right_featureMask
+string descID
+sensor_msgs/Image leftMask
+sensor_msgs/Image rightMask
 sensor_msgs/Image leftDescriptors
 sensor_msgs/Image rightDescriptors

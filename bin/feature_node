@@ -7,8 +7,7 @@ import copy
 from front_end.utils import *
 from front_end.srv import *
 from front_end.msg import frameDetection,ProcTime,kPoint
-from front_end.msg import Descriptors,frameDescription
-from front_end.features import detectorLookUpTable,descriptorLookUpTable,getDetector
+from front_end.features import getDescriptor,detectorLookUpTable,descriptorLookUpTable,getDetector
 from cv_bridge import CvBridge
 
 cvb=CvBridge()
@@ -17,64 +16,63 @@ descTable=descriptorLookUpTable()
 global imagesProcessed
 imagesProcessed=0
 
-def singleImageDescription_fn(req):
+def getStereoFeatures_fn(req):
     global imagesProcessed
+    ####create Results
+    lTime=ProcTime()
+    lTime.label="lkp"
+    rTime=ProcTime()
+    rTime.label="rkp"
+    ldTime=ProcTime()
+    ldTime.label="ld"
+    rdTime=ProcTime()
+    rdTime.label="rd"
 
-    # leftImg=cvb.imgmsg_to_cv2(req.leftImg)
-    # rightImg=cvb.imgmsg_to_cv2(req.rightImg)
+    leftImg=cvb.imgmsg_to_cv2(req.leftImg)
+    rightImg=cvb.imgmsg_to_cv2(req.rightImg)
     # descr=getAllDescriptor_Attributes()
-
-    fullOutputMessage=singleImageDescriptionResponse()
+    print(req.detID,req.descrID)
+    fullOutputMessage=getStereoFeaturesResponse()
+    fullOutputMessage.latestFeatures.detID=req.detID
+    fullOutputMessage.latestFeatures.descrID=req.descrID
     # ###reform into lists
+    detector,success=getDetector(detTable[req.detID]["Name"],
+                                     detTable[req.detID]["Param"])
+    extractor,success2=getDescriptor(descTable[req.descrID]["Name"],
+                                     descTable[req.descrID]["Param"])
+    ###########Get Left Info
+    startTime=time.time()
+    leftKPTs=detector.detect(leftImg)
+    lTime.seconds=time.time()-startTime
 
-    # lkp=[]
-    # lID=[]
-    # rkp=[]
-    # rID=[]
+    startTime=time.time()
+    newKP,Descr=extractor.compute(leftImg,leftKPTs)
+    ldTime.seconds=time.time()-startTime
+    
+    fullOutputMessage.latestFeatures.leftFeatures=packKP(newKP)
+    fullOutputMessage.latestFeatures.leftDescr=cvb.cv2_to_imgmsg(Descr)    
+    #########Get Right Info
+    startTime=time.time()
+    rightKPTs=detector.detect(rightImg)
+    rTime.seconds=time.time()-startTime
 
-    # for i in req.leftFeatures:
-    #     lkp.append(ros2cv_KP(i))
-    #     lID.append(i.class_id)
-    # for i in req.rightFeatures:
-    #     rkp.append(ros2cv_KP(i))
-    #     rID.append(i.class_id)
-    # originalLeft=len(lkp)
-    # originalRight=len(rkp)
+    startTime=time.time()
+    newKP,Descr=extractor.compute(rightImg,rightKPTs)
+    rdTime.seconds=time.time()-startTime
+    fullOutputMessage.latestFeatures.rightFeatures=packKP(newKP)
+    fullOutputMessage.latestFeatures.rightDescr=cvb.cv2_to_imgmsg(Descr)
+    ###############################
+    startTime=time.time()
+    rightKPTs=detector.detect(leftImg)
+    rTime.seconds=time.time()-startTime
 
-    # for descrIndex in range(0,len(descr)):
-    #     print(descr[descrIndex])
-    #     latestDescriptors=Descriptors()
-    #     latestDescriptors.descriptID=descrIndex
-    #     t=ProcTime()
-    #     t.label="ld_d"
-    #     success,extractor=getDescriptor(descr[descrIndex])
-    #     startTime=time.time()
-    #     newKP,Descr=extractor.compute(leftImg,lkp)
-    #     t.seconds=time.time()-startTime
-    #     ####create mask
-    #     maskID=[]
-    #     for i in newKP:
-    #         maskID.append(i.class_id)
-    #     missing=list(set(lID)-set(maskID))
-    #     for i in missing:
-    #         latestDescriptors.left_featureMask.append(int(i))
-    #     latestDescriptors.proc.append(t)
-    #     latestDescriptors.leftDescriptors=cvb.cv2_to_imgmsg(Descr)
+    fullOutputMessage.latestFeatures.proc.append(lTime)
+    fullOutputMessage.latestFeatures.proc.append(ldTime)
+    fullOutputMessage.latestFeatures.proc.append(rTime)
+    fullOutputMessage.latestFeatures.proc.append(rdTime)
+    imagesProcessed+=1
+    print(imagesProcessed)
 
-    #     t.label="rd_d"
-    #     startTime=time.time()
-    #     newKP,Descr=extractor.compute(rightImg,rkp)
-    #     t.seconds=time.time()-startTime
-    #     ####create mask
-    #     maskID=[]
-    #     for i in newKP:
-    #         maskID.append(i.class_id)
-    #     missing=list(set(rID)-set(maskID))
-    #     for i in missing:
-    #         latestDescriptors.right_featureMask.append(int(i))
-    #     latestDescriptors.proc.append(t)
-    #     latestDescriptors.rightDescriptors=cvb.cv2_to_imgmsg(Descr)
-    #     fullOutputMessage.results.append(latestDescriptors)
 
     print("---Description---"+str(imagesProcessed))
     return fullOutputMessage
@@ -84,9 +82,6 @@ def singleImageDetection_fn(req):
     leftImg=cvb.imgmsg_to_cv2(req.leftImg)
     rightImg=cvb.imgmsg_to_cv2(req.rightImg)
     ###update Detector
-
-    #success,detector=getDetector(req.detID)
-    #success,descriptor=getDetector(req.descriptorName)
     processCount=0
 
     ltime=ProcTime()
@@ -147,5 +142,5 @@ def singleImageDetection_fn(req):
 rospy.init_node("feature_node")
 setServices=[]
 s=rospy.Service("feature_node/singleImageDetection",singleImageDetection,singleImageDetection_fn)
-s1=rospy.Service("feature_node/singleImageDescription",singleImageDescription,singleImageDescription_fn)
+s1=rospy.Service("feature_node/getStereoFeatures",getStereoFeatures,getStereoFeatures_fn)
 rospy.spin()

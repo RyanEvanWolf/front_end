@@ -84,10 +84,10 @@ add_message_files(
 		frameDetection.msg
 		kPoint.msg
 		ProcTime.msg
-		loopStereoFrame.msg
-		Descriptors.msg
-		frameDescription.msg
 		Homography.msg
+		stereoFeatures.msg
+		stereoLandmarks.msg
+		cvMatch.msg
 #		ORB.msg
 #		Feature.msg
 #		StereoMatch.msg
@@ -103,8 +103,8 @@ add_message_files(
 add_service_files(
 	FILES
 		singleImageDetection.srv
-		singleImageDescription.srv
-		singleStereo.srv
+		getStereoFeatures.srv
+		stereoMatching.srv
 		#singleImageExtraction.srv
 #		setDetector.srv
 #		detectCurrent.srv

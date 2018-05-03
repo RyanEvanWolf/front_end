@@ -1,7 +1,7 @@
 import numpy as np
 import cv2
 from statistics import mean,stdev
-from front_end.msg import kPoint
+from front_end.msg import kPoint,cvMatch
 
 
 def getFAST_parameters():
@@ -155,6 +155,18 @@ def getKPstats(KPset):
         ydev=0
     return {"X":{"Avg":xavg,"stdDev":xdev},"Y":{"Avg":yavg,"stdDev":ydev}}
 
+def packKP(KPlist):
+    newList=[]
+    for i in KPlist:
+        newList.append(cv2ros_KP(i))
+    return newList
+
+def unpackKP(messagelist):
+    newList=[]
+    for i in messagelist:
+        newList.append(ros2cv_KP(i))
+    return newList
+
 def ros2cv_KP(message):
     kp=cv2.KeyPoint()
     kp.angle=message.angle
@@ -176,6 +188,22 @@ def cv2ros_KP(kp):
     message.class_id=kp.class_id
     return message
 
+def cv2ros_dmatch(dm):
+    msg=cvMatch()
+    msg.imgIdx=dm.imgIdx
+    msg.trainIdx=dm.trainIdx
+    msg.queryIdx=dm.queryIdx
+    msg.distance=dm.distance
+    return msg
+
+def ros2cv_dmatch(msg):
+    dm=cv2.DMatch()
+    dm.imgIdx=msg.imgIdx
+    dm.trainIdx=msg.trainIdx
+    dm.queryIdx=msg.queryIdx
+    dm.distance=msg.distance
+    return dm 
+
 def printFormattedKP(kp):
     out=""
     out+="pt,"+str(kp.pt)
@@ -185,8 +213,7 @@ def printFormattedKP(kp):
     out+=",size,"+str(kp.size)
     out+=",class_id,"+str(kp.class_id)
     return out
-def cvKP_to_JSON(kp):
-    pass 
+
 
 # def JSON_to_cvKP(JSON):
 #     pass
