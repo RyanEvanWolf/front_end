@@ -17,50 +17,8 @@ descTable=descriptorLookUpTable()
 
 cvb=CvBridge()
 
-
-def packLandmarks(lkp,rkp,ldesc,rdesc,goodMatches,det,descr):
-    msg=stereoLandmarks()
-    msg.detID=det
-    msg.descrID=descr
-    newLdesc=np.zeros((len(goodMatches),ldesc.shape[1]),dtype=ldesc.dtype)
-    newRdesc=np.zeros((len(goodMatches),ldesc.shape[1]),dtype=ldesc.dtype)
-    for index in range(0,len(goodMatches)):
-        ###pack left 
-        msg.leftFeatures.append(lkp[goodMatches[index].queryIdx])
-        newLdesc[index,:]=ldesc[goodMatches[index].queryIdx,:]
-        ###pack right
-        msg.rightFeatures.append(rkp[goodMatches[index].trainIdx])
-        newRdesc[index,:]=rdesc[goodMatches[index].trainIdx,:]
-        ###pack match
-        match=cv2.DMatch()
-        match.distance=goodMatches[index].distance
-        match.queryIdx=index
-        match.trainIdx=index
-        msg.matches.append(cv2ros_dmatch(match))
-    msg.leftDescr=cvb.cv2_to_imgmsg(newLdesc)
-    msg.rightDescr=cvb.cv2_to_imgmsg(newRdesc)
-    return msg
-
 def stereoMatching_fn(req):
-    ###unpack the keypoints into cv lists
-    lkp=unpackKP(req.frame.leftFeatures)
-    assignIDs(lkp)
-    rkp=unpackKP(req.frame.rightFeatures)
-    assignIDs(rkp)
-    ld=cvb.imgmsg_to_cv2(req.frame.leftDescr)
-    rd=cvb.imgmsg_to_cv2(req.frame.rightDescr)
-    ###filter by epipolar matches
-    mask,dist=getEpiPolarMatches(lkp,rkp)
-    b=getPotentialMatches(ld,
-                          rd,
-                          mask,descTable[req.frame.descrID]["NormType"])
-
-    c=loweFilterPotential(b)
-    out=packLandmarks(lkp,rkp,ld,rd,c,req.frame.detID,req.frame.descrID)
-
-    reply=stereoMatchingResponse()
-    reply.out=out
-    return stereoMatchingResponse()
+    return algorithm_one(req.frame)
 
 
 if __name__ == '__main__':

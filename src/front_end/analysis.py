@@ -13,11 +13,14 @@ class featureDatabase:
         nImages=len(self.featurePickle)
         table=detectorLookUpTable()
         allSettings=table.keys()
-        ###get setting indexes
-        idList=[]
-        for i in range(0,len(allSettings)):
-            if(table[allSettings[i]]["Name"]==detectorName):
-                idList.append(i)
+        # ###get setting indexes
+        # idList=[]
+        # for i in range(0,len(allSettings)):
+        #     if(table[allSettings[i]]["Name"]==detectorName):
+        #         idList.append(i)
+        # for i in idList:
+        #     print(i,table[allSettings[i]]["Name"])
+
         Settings={}
         Settings["Maximum"]=[]
         Settings["0.9Maximum"]=[]
@@ -39,9 +42,13 @@ class featureDatabase:
         Results["-Deviation"]=[]
         Results["Minimum"]=[]
         for imageIndex in self.featurePickle:
+            ###make a list of nFeatures
             leftNFeatures=[]
-            for feature in idList:
-                leftNFeatures.append(imageIndex.outputFrames[feature].nLeft)
+            settings=[]
+            for settingsIndex in imageIndex.outputFrames:
+                if(table[settingsIndex.detID]["Name"]==detectorName):
+                    leftNFeatures.append(settingsIndex.nLeft)
+                    settings.append(settingsIndex.detID)
             MaxInFrame=np.amax(leftNFeatures)
             MinInFrame=np.amin(leftNFeatures)
             MeanInFrame=mean(leftNFeatures)
@@ -58,7 +65,9 @@ class featureDatabase:
                             ("Minimum",MinInFrame)]
             for i in IdealPerformanceTotals:
                 closestIndex=np.abs(np.array(leftNFeatures)-i[1]).argmin()
-                Settings[i[0]].append(allSettings[closestIndex])
+                print(i)
+                print(leftNFeatures[closestIndex])
+                Settings[i[0]].append(settings[closestIndex])
                 Results[i[0]].append(leftNFeatures[closestIndex])
         return Settings,Results
     def getAllProcessingTime(self,detectorName):
@@ -81,3 +90,47 @@ class featureDatabase:
         return frameN,lprocTime
     def getProcessingTime(self,Settings,Results):
         pass
+
+
+def getStereoFrameStatistics(inputFrame,landmarkFrame):
+                        #stereoFeatures,stereoLandmarks
+    #####calculate stereo Matching Stats
+    ###epiPolar Error
+    Results={}
+    Results["ProcessingTime"]={}
+    epipolar_error=[]
+    for i in range(0,len(landmarkFrame.leftFeatures)):
+        epipolar_error.append(landmarkFrame.leftFeatures[i].y-
+                                landmarkFrame.rightFeatures[i].y)
+    
+    Results["Epi"]=RMSerror(epipolar_error)
+    ###inlier Ratio
+    print("Frames Info:",len(landmarkFrame.leftFeatures),len(inputFrame.leftFeatures))
+    try:
+        Results["InlierRatio"]=float(len(landmarkFrame.leftFeatures))/float(len(inputFrame.leftFeatures))
+    except:
+        Results["InlierRatio"]=0
+    Results["nMatches"]=len(landmarkFrame.leftFeatures)
+    ###processing Time
+    for i in inputFrame.proc:
+        Results["ProcessingTime"][i.label]=i.seconds
+    for i in landmarkFrame.proc:
+        Results["ProcessingTime"][i.label]=i.seconds
+    return Results
+
+# def getLandmarkStats(landmarkMsg):
+#     ProcessingT
+#     pass
+
+# def getStereoStats(inputFrame,matcheframe):
+#     print("")
+
+
+def RMSerror(vector):
+    RMS=0
+    if(len(vector)>0):
+        for v in vector:
+            RMS+=np.power(v,2)
+        RMS=np.sqrt(RMS/len(vector))
+    return RMS
+

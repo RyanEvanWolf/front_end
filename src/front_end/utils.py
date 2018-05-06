@@ -139,8 +139,8 @@ def getKPstats(KPset):
     x=[]
     y=[]
     for i in KPset:
-        x.append(i.pt[1])
-        y.append(i.pt[0])
+        x.append(i.pt[0])
+        y.append(i.pt[1])
     if(len(x)>2):
         xavg=mean(x)
         xdev=stdev(x)
@@ -171,7 +171,7 @@ def ros2cv_KP(message):
     kp=cv2.KeyPoint()
     kp.angle=message.angle
     kp.octave=message.octave
-    kp.pt=(message.y,message.x)
+    kp.pt=(message.x,message.y)
     kp.response=message.response
     kp.size=message.size
     kp.class_id=message.class_id
@@ -181,8 +181,8 @@ def cv2ros_KP(kp):
     message=kPoint()
     message.angle=kp.angle
     message.octave=kp.octave
-    message.x=kp.pt[1]
-    message.y=kp.pt[0]
+    message.x=kp.pt[0]
+    message.y=kp.pt[1]
     message.response=kp.response
     message.size=kp.size
     message.class_id=kp.class_id

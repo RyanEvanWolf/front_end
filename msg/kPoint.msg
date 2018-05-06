@@ -5,4 +5,3 @@ float32 angle
 float32 response
 int32 octave
 int32 class_id
-sensor_msgs/Image[] descriptors

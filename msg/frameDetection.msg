@@ -1,4 +1,5 @@
 front_end/kPoint[] leftFeatures
+string detID
 uint16 nLeft
 float32 l_xAvg
 float32 l_yAvg

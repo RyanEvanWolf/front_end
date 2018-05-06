@@ -44,11 +44,11 @@ def getStereoFeatures_fn(req):
     startTime=time.time()
     leftKPTs=detector.detect(leftImg)
     lTime.seconds=time.time()-startTime
-
     startTime=time.time()
     newKP,Descr=extractor.compute(leftImg,leftKPTs)
     ldTime.seconds=time.time()-startTime
-    
+    print(len(leftKPTs),len(newKP))
+
     fullOutputMessage.latestFeatures.leftFeatures=packKP(newKP)
     fullOutputMessage.latestFeatures.leftDescr=cvb.cv2_to_imgmsg(Descr)    
     #########Get Right Info
@@ -61,6 +61,7 @@ def getStereoFeatures_fn(req):
     rdTime.seconds=time.time()-startTime
     fullOutputMessage.latestFeatures.rightFeatures=packKP(newKP)
     fullOutputMessage.latestFeatures.rightDescr=cvb.cv2_to_imgmsg(Descr)
+
     ###############################
     startTime=time.time()
     rightKPTs=detector.detect(leftImg)
@@ -72,8 +73,6 @@ def getStereoFeatures_fn(req):
     fullOutputMessage.latestFeatures.proc.append(rdTime)
     imagesProcessed+=1
     print(imagesProcessed)
-
-
     print("---Description---"+str(imagesProcessed))
     return fullOutputMessage
 
@@ -99,7 +98,6 @@ def singleImageDetection_fn(req):
         startTime=time.time()
         leftKPTs=detector.detect(leftImg)
         ltime.seconds=time.time()-startTime
-
         startTime=time.time()
         rightKPTs=detector.detect(rightImg)
         rtime.seconds=time.time()-startTime
@@ -132,6 +130,7 @@ def singleImageDetection_fn(req):
                 latestFrame.rightFeatures.append(kp)
         latestFrame.processingTime.append(ltime)
         latestFrame.processingTime.append(rtime)
+        latestFrame.detID=settingsIndex
         processCount+=1
 
         fullOutputMessage.outputFrames.append(latestFrame)
