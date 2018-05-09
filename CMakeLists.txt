@@ -87,7 +87,9 @@ add_message_files(
 		Homography.msg
 		stereoFeatures.msg
 		stereoLandmarks.msg
+		windowStatus.msg
 		cvMatch.msg
+		interFrameTracks.msg
 #		ORB.msg
 #		Feature.msg
 #		StereoMatch.msg
@@ -104,6 +106,7 @@ add_service_files(
 	FILES
 		singleImageDetection.srv
 		getStereoFeatures.srv
+		windowMatching.srv
 		stereoMatching.srv
 		#singleImageExtraction.srv
 #		setDetector.srv

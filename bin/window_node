@@ -1,0 +1,32 @@
+#!/usr/bin/env python 
+import rospy
+import numpy as np
+from front_end.srv import *
+from front_end.features import detectorLookUpTable,descriptorLookUpTable,getDetector
+detTable=detectorLookUpTable()
+descTable=descriptorLookUpTable()
+from sensor_msgs.msg import CameraInfo,Image
+from front_end.algorithm import window
+rospy.init_node("window_node")
+
+leftInfo=rospy.wait_for_message("/bumblebee_configuration/idealLeft/CameraInfo",CameraInfo)
+##########
+K=np.zeros((3,3),dtype=np.float64)
+K[0,0]=leftInfo.K[0]
+K[0,1]=leftInfo.K[1]
+K[0,2]=leftInfo.K[2]
+K[1,0]=leftInfo.K[3]
+K[1,1]=leftInfo.K[4]
+K[1,2]=leftInfo.K[5]
+K[2,0]=leftInfo.K[6]
+K[2,1]=leftInfo.K[7]
+K[2,2]=leftInfo.K[8]
+print(K)
+##############
+
+
+tracker=window(K=K)
+
+
+s1=rospy.Service("window_node/windowMatching",windowMatching,tracker.update)
+rospy.spin()

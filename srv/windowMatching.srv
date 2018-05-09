@@ -1,0 +1,4 @@
+bool reset
+front_end/stereoLandmarks latestFrame
+---
+front_end/windowStatus state 

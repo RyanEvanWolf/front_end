@@ -3,6 +3,8 @@ import numpy as np
 from statistics import mean,stdev
 import pickle
 
+from cv_bridge import CvBridge
+
 class featureDatabase:
     def __init__(self,pickleDir):
         self.table=detectorLookUpTable()
@@ -117,6 +119,27 @@ def getStereoFrameStatistics(inputFrame,landmarkFrame):
     for i in landmarkFrame.proc:
         Results["ProcessingTime"][i.label]=i.seconds
     return Results
+
+def getWindowStateStatistics(windowState,leftInfo,rightInfo,Q):
+    cvb=CvBridge()
+    Results={}
+    ###get nInliers
+    print("length",len(windowState.tracks))
+    for i in windowState.tracks:
+        img=cvb.imgmsg_to_cv2(i.motionInliers)
+        Results["nTracks"]=np.count_nonzero(img)
+    ###get inlierRatio
+    print(len(windowState.tracks))
+    print(len(windowState.tracks[0].tracks))
+    Results["InlierRatio"]=float(Results["nTracks"])/float(len(windowState.tracks[0].tracks))
+    ###get H
+    ###
+    ###current Points
+    
+    ###previous Points
+    return Results
+    
+
 
 # def getLandmarkStats(landmarkMsg):
 #     ProcessingT

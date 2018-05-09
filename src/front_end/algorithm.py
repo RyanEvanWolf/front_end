@@ -3,10 +3,136 @@ from front_end.utils import *
 from front_end.features import *
 from front_end.srv import *
 from cv_bridge import CvBridge
-from front_end.msg import ProcTime,kPoint,stereoLandmarks
+from front_end.msg import ProcTime,kPoint,stereoLandmarks,interFrameTracks
+from front_end.motion import createHomog
+
 
 EPI_THRESHOLD=2.0
 LOWE_THRESHOLD=0.8
+defaultK=np.zeros((3,3),np.float64)
+defaultK[0,0]=803.205
+defaultK[1,1]=803.205
+defaultK[0,2]=433.774
+defaultK[1,2]=468.444
+defaultK[2,2]=1.0
+
+def singleWindowMatch(currentLandmarks,previousLandmarks):
+    #####perform KNN matching across Frames
+    cvb=CvBridge()
+     
+    descTable=descriptorLookUpTable()
+    currentKP=unpackKP(currentLandmarks.leftFeatures)
+    previousKP=unpackKP(previousLandmarks.leftFeatures)
+    currentDescriptors=cvb.imgmsg_to_cv2(currentLandmarks.leftDescr)
+    previousDescriptors=cvb.imgmsg_to_cv2(previousLandmarks.leftDescr)
+    #print(currentDescriptors.shape,previousDescriptors.shape)
+    matcher=getMatcher(descTable[currentLandmarks.descrID]["NormType"])
+    print(type(matcher))
+    ####unpack descriptors
+    ###left Descriptors
+    ans=matcher.knnMatch(currentDescriptors,previousDescriptors,5)
+    epiMatches=[]
+    for i in ans:
+        indexErrors=[]
+        for j in i:
+            indexErrors.append(getMatchEpiError(j,currentKP,previousKP))
+        bestEpi=min(indexErrors)
+        if(bestEpi<EPI_THRESHOLD):
+            epiMatches.append(i[indexErrors.index(bestEpi)])
+    print(float(len(epiMatches))/float(len(currentKP)))
+
+    ###double check duplicates
+    return epiMatches
+
+def getNister(currentLandmarks,previousLandmarks,matches,K):
+    currentKP=np.zeros((len(matches),2),dtype=np.float64)
+    previousKP=np.zeros((len(matches),2),dtype=np.float64)
+    print(len(matches),len(currentLandmarks.leftFeatures),len(previousLandmarks.leftFeatures))
+    for i in range(0,len(matches)):
+        currentKP[i,0]=ros2cv_KP(currentLandmarks.leftFeatures[matches[i].queryIdx]).pt[0]
+        currentKP[i,1]=ros2cv_KP(currentLandmarks.leftFeatures[matches[i].queryIdx]).pt[1]
+        previousKP[i,0]=ros2cv_KP(previousLandmarks.leftFeatures[matches[i].trainIdx]).pt[0]
+        previousKP[i,1]=ros2cv_KP(previousLandmarks.leftFeatures[matches[i].trainIdx]).pt[1]
+    print(currentKP.shape,previousKP.shape)
+    E,mask=cv2.findEssentialMat(currentKP,previousKP,K[0,0],(K[0:2,2][0],K[0:2,2][1]),threshold=2)
+    #r1,r2,t=cv2.decomposeEssentialMat(E)
+    nInliers,R,T,matchMask=cv2.recoverPose(E,currentKP,previousKP,K,mask)
+    ###cheirality check
+    count=0
+    for i in matchMask:
+        if(i>0):
+            count+=1
+    print("Nister",nInliers,count)
+    ###scale
+    ###make homography
+    return createHomog(R,T),matchMask
+
+def getMatchEpiError(match,leftKP,rightKP):
+    return leftKP[match.queryIdx].pt[1]-rightKP[match.trainIdx].pt[1]
+
+
+class BAwindow:
+    def __init__(self,length=2,K=defaultK):
+        self.length=length
+
+class window:
+    def __init__(self,K,length=2):
+        self.length=length
+        self.window=[]
+        self.motion=[]
+        self.tracks=[]
+        self.motionInliers=[]
+        self.K=K
+        print(K)
+    def update(self,newMsg):
+        if(newMsg.reset):
+            self.window=[]
+            self.motion=[]
+            self.tracks=[]
+            self.motionInliers=[]
+            return windowMatchingResponse()
+        else:
+            self.window.append(newMsg.latestFrame)
+            if(len(self.window)>=self.length+1):
+                del self.window[0]
+                del self.motion[0]
+                del self.tracks[0]
+                del self.motionInliers[0]
+            if(len(self.window)>=self.length):
+                self.tracks.append(singleWindowMatch(self.window[-1],self.window[-2]))
+                h,m=getNister(self.window[-1],self.window[-2],self.tracks[-1],self.K)
+                self.motion.append(h)
+                self.motionInliers.append(m)
+                print(len(self.window),len(self.motion),len(self.tracks))
+            return self.getStatus()
+    def getStatus(self):
+        output=windowMatchingResponse()
+        cvb=CvBridge()
+        for i in self.window:
+            output.state.msgs.append(i)
+        for i in self.motion:
+            output.state.motion.append(cvb.cv2_to_imgmsg(i))
+        for i in self.tracks:
+            msg=interFrameTracks()
+            for j in i:
+                msg.tracks.append(cv2ros_dmatch(j))
+            output.state.tracks.append(msg)
+        for i in range(0,len(self.motionInliers)):
+            outMask=np.zeros((1,len(self.motionInliers[i])),dtype=np.int8)
+            for j in range(0,len(self.motionInliers[i])):
+                if(self.motionInliers[i][j]>0):
+                    outMask[0,j]=1
+            output.state.tracks[i].motionInliers=cvb.cv2_to_imgmsg(outMask)
+        return output
+    
+
+def triangulate(leftKP,rightKP,Q):
+    for i in range(0,len(leftKP)):
+        dVector=np.zeros((4,1),dtype=np.float64)
+        dVector[0,0]=leftKP[i].pt[0]
+        dVector[1,0]=leftKP[i].pt[1]
+        dVector[2,0]=leftKP[i].pt[0]-rightKP[i].pt[0]
+        dVector[3,0]=1.0
 
 ###################
 ###Algorithm One
@@ -109,3 +235,9 @@ def algorithm_one(stereoFrame):
 
 ###################
 ###Algorithm Two
+
+########
+###Window matching
+
+#######
+##Algorithm One

@@ -149,6 +149,21 @@ def getSURF(params):
 
 ##############
 ####
+def getDetectorIDs(detectorName):
+    table=detectorLookUpTable()
+    results=[]
+    for i in table.keys():
+        if(table[i]["Name"]==detectorName):
+            results.append(i)
+    return results
+
+def getDescriptorIDs(descriptorName):
+    table=descriptorLookUpTable()
+    results=[]
+    for i in table.keys():
+        if(table[i]["Name"]==descriptorName):
+            results.append(i)
+    return results
 def detectorLookUpTable():
     Table={}
     allSettings=(getFAST_combinations()+getSURF_combinations())
@@ -159,8 +174,8 @@ def detectorLookUpTable():
 
 def descriptorLookUpTable():
     Table={}
-    allSettings=(getBRIEF_combinations()
-                + getSURF_combinations())
+    allSettings=getSURF_combinations()#(getBRIEF_combinations()
+                #+ getSURF_combinations())
     for d in range(0,len(allSettings)):
         ID="Desc"+str("%X" % d).zfill(10)
         Table[ID]=allSettings[d]

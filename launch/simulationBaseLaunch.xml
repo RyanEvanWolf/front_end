@@ -1,0 +1,10 @@
+<launch>
+  <arg name="BumblebeeConfigurationFolder" default="/home/ryan/Calibration"/>
+  <arg name="publishTransform" default="False"/>
+  <node name="bumblebee_configuration" type="bumblebee_configuration.py" output="screen" pkg="bumblebee" args="$(arg BumblebeeConfigurationFolder) bumblebee_configuration $(arg publishTransform)"/>
+	<node name="feature_node" type="feature_node" pkg="front_end" output="screen"/>
+	<node name="stereo_node" type="stereo_node" pkg="front_end" output="screen"/>
+  <node name="window_node" type="window_node" pkg="front_end" output="screen"/>/
+</launch>
+	
+
