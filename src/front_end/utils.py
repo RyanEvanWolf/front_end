@@ -214,7 +214,6 @@ def printFormattedKP(kp):
     out+=",class_id,"+str(kp.class_id)
     return out
 
-
 # def JSON_to_cvKP(JSON):
 #     pass
 

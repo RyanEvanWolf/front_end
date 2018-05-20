@@ -31,15 +31,15 @@ def singleWindowMatch(currentLandmarks,previousLandmarks):
     ####unpack descriptors
     ###left Descriptors
     ans=matcher.knnMatch(currentDescriptors,previousDescriptors,5)
-    epiMatches=[]
-    for i in ans:
-        indexErrors=[]
-        for j in i:
-            indexErrors.append(getMatchEpiError(j,currentKP,previousKP))
-        bestEpi=min(indexErrors)
-        if(bestEpi<EPI_THRESHOLD):
-            epiMatches.append(i[indexErrors.index(bestEpi)])
-    print(float(len(epiMatches))/float(len(currentKP)))
+    epiMatches=loweFilterPotential(ans)
+    # for i in ans:
+    #     indexErrors=[]
+    #     for j in i:
+    #         indexErrors.append(getMatchEpiError(j,currentKP,previousKP))
+    #     bestEpi=min(indexErrors)
+    #     if(bestEpi<EPI_THRESHOLD):
+    #         epiMatches.append(i[indexErrors.index(bestEpi)])
+    # print(float(len(epiMatches))/float(len(currentKP)))
 
     ###double check duplicates
     return epiMatches
@@ -54,15 +54,20 @@ def getNister(currentLandmarks,previousLandmarks,matches,K):
         previousKP[i,0]=ros2cv_KP(previousLandmarks.leftFeatures[matches[i].trainIdx]).pt[0]
         previousKP[i,1]=ros2cv_KP(previousLandmarks.leftFeatures[matches[i].trainIdx]).pt[1]
     print(currentKP.shape,previousKP.shape)
-    E,mask=cv2.findEssentialMat(currentKP,previousKP,K[0,0],(K[0:2,2][0],K[0:2,2][1]),threshold=2)
+    E,mask=cv2.findEssentialMat(currentKP,previousKP,K[0,0],(K[0:2,2][0],K[0:2,2][1]),threshold=1)
     #r1,r2,t=cv2.decomposeEssentialMat(E)
+    print("original",np.count_nonzero(mask))
     nInliers,R,T,matchMask=cv2.recoverPose(E,currentKP,previousKP,K,mask)
     ###cheirality check
-    count=0
-    for i in matchMask:
-        if(i>0):
-            count+=1
-    print("Nister",nInliers,count)
+    print("Matches MAsk",np.count_nonzero(matchMask))
+    indexes=[]
+    print("here")
+    for i in range(0,len(matchMask)):
+        if(matchMask[i]>0):
+            indexes.append(i)
+    print(indexes)
+    #print(matchMask)
+    print("Nister",nInliers)
     ###scale
     ###make homography
     return createHomog(R,T),matchMask

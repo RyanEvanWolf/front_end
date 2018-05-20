@@ -2,7 +2,7 @@ from front_end.features import descriptorLookUpTable,detectorLookUpTable
 import numpy as np
 from statistics import mean,stdev
 import pickle
-
+import cv2
 from cv_bridge import CvBridge
 
 class featureDatabase:
@@ -138,16 +138,6 @@ def getWindowStateStatistics(windowState,leftInfo,rightInfo,Q):
     
     ###previous Points
     return Results
-    
-
-
-# def getLandmarkStats(landmarkMsg):
-#     ProcessingT
-#     pass
-
-# def getStereoStats(inputFrame,matcheframe):
-#     print("")
-
 
 def RMSerror(vector):
     RMS=0

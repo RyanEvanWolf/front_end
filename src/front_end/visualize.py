@@ -48,6 +48,30 @@ def drawMask(lkp,rkp,limg,rimg,mask,index=0):
 
 
     return Epi
+
+def genStereoscopicImage(left,right):
+    ###convert to colours
+    print(left.shape,left.dtype)
+    limg=np.zeros((left.shape[0],left.shape[1],3),dtype=np.uint8)
+    limg[:,:,0]=0.8*left
+    limg[:,:,1]=0.1*left
+    limg[:,:,2]=0.1*left
+    rimg=np.zeros((right.shape[0],right.shape[1],3),dtype=np.uint8)
+    rimg[:,:,0]=0.1*right
+    rimg[:,:,1]=0.1*right
+    rimg[:,:,2]=0.8*right
+    stereoscopic=cv2.addWeighted(limg,0.6,rimg,0.4,0)
+    return stereoscopic
+
+def drawFrameTracks(stereoImage,kpl,kpr,matches):
+    copyImg=stereoImage
+    for i in range(0,len(matches)):
+        l=(int(kpl[matches[i].queryIdx].pt[0]),int(kpl[matches[i].queryIdx].pt[1]))
+        r=(int(kpr[matches[i].trainIdx].pt[0]),int(kpr[matches[i].trainIdx].pt[1]))
+        cv2.circle(copyImg,l,2,(0,255,0),1)
+        cv2.circle(copyImg,r,2,(255,222,1),1)
+        cv2.line(copyImg,l,r,(255,255,25),1)
+    return copyImg
     # leftColour=cv2.cvtColor(self.left,cv2.COLOR_GRAY2RGB)
     # rightColour=cv2.cvtColor(self.right,cv2.COLOR_GRAY2RGB)
     # Epi=np.hstack((leftColour, rightColour))
