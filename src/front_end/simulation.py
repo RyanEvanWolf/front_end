@@ -1,7 +1,7 @@
 import cv2
 import math
 import time
-
+import random
 import numpy as np
 import rospy
 from cv_bridge import CvBridge
@@ -11,6 +11,54 @@ from front_end.motion import *
 import matplotlib.pyplot as plt
 import copy
 
+import pickle
+
+
+class simDirectory:
+    def __init__(self,rootDir):
+        self.root=rootDir
+    def getSettings(self):
+        m=pickle.load(open(self.root+"/motion.p"))
+        c=pickle.load(open(self.root+"/camera.p"))
+        n=pickle.load(open(self.root+"/Nister.p"))
+        return c,m,n
+
+
+def MotionCategorySettings():
+    Settings={}
+    Settings["Fast"]={}
+    Settings["Medium"]={}
+    Settings["Slow"]={}
+    Settings["Fast"]["TranslationNoise"]=0.3 ##meters
+    Settings["Fast"]["RotationNoise"]=8        ##degrees
+    Settings["Medium"]["TranslationNoise"]=0.15 ##meters
+    Settings["Medium"]["RotationNoise"]=5        ##degrees
+    Settings["Slow"]["TranslationNoise"]=0.05 ##meters
+    Settings["Slow"]["RotationNoise"]=2        ##degrees
+    return Settings
+
+def getCameraSettingsFromServer():
+    cvb=CvBridge()
+    ##assumes a node has been declared
+    cameraSettings={}
+    cameraSettings["Q"]=cvb.imgmsg_to_cv2(rospy.wait_for_message("/bumblebee_configuration/Q",Image))
+    cameraSettings["lInfo"]=rospy.wait_for_message("/bumblebee_configuration/idealLeft/CameraInfo",CameraInfo)
+    cameraSettings["rInfo"]=rospy.wait_for_message("/bumblebee_configuration/idealRight/CameraInfo",CameraInfo)
+    cameraSettings["Pl"]=np.zeros((3,4),dtype=np.float64)
+    cameraSettings["Pr"]=np.zeros((3,4),dtype=np.float64)
+    for row in range(0,3):
+            for col in range(0,4):
+                cameraSettings["Pl"][row,col]=cameraSettings["lInfo"].P[row*4 +col]
+                cameraSettings["Pr"][row,col]=cameraSettings["lInfo"].P[row*4 +col]
+
+    cameraSettings["width"]=cameraSettings["lInfo"].width
+    cameraSettings["height"]=cameraSettings["lInfo"].height
+    cameraSettings["f"]=cameraSettings["Pl"][0,0]
+    cameraSettings["pp"]=(cameraSettings["Pl"][0:2,2][0],
+                        cameraSettings["Pl"][0:2,2][1])
+    cameraSettings["k"]=cameraSettings["Pl"][0:3,0:3]
+    return cameraSettings
+
 def noisyRotations(noise=5):
     frame={}
     frame["Roll"]=np.random.normal(0,noise,1)
@@ -19,7 +67,7 @@ def noisyRotations(noise=5):
     q=quaternion_from_euler(math.radians(frame["Roll"]),
                             math.radians(frame["Pitch"]),
                             math.radians(frame["Yaw"]),'szxy')
-    frame["R"]=quaternion_matrix(q)[0:3,0:3]    
+    frame["matrix"]=quaternion_matrix(q)[0:3,0:3]    
     return frame
 
 def dominantTranslation(zBase=0.2,noise=0.1):
@@ -31,38 +79,19 @@ def dominantTranslation(zBase=0.2,noise=0.1):
     t[0,0]=frame["X"]
     t[1,0]=frame["Y"]
     t[2,0]=frame["Z"]
-    frame["T"]=t
+    frame["vector"]=t
     return frame
 
-# def withinROI(pt,width,height):
-#     if((pt[0]>0)and(pt[0]<width)):
-#         if((pt[1]>0)and(pt[1]<height)):
-#             return True
-#         else:
-#             return False
-#     else:
-#         return False
-# def genIdealPoint(width,height):
-#     withinImage=False
-#     ustd=0.5*width/2.0 ##std deviation
-#     vstd=0.5*height/2.0
-#     while(not withinImage):
-#         leftPt=(np.random.normal(width/2.0,ustd,1),
-#                 np.random.normal(height/2.0,vstd,1))
-#         time.sleep(0.1)
-#         withinImage=withinROI(leftPt,width,height)        
-#     return leftPt   
-
-# class simulatedTrajectory:
-#     def __init__(self,total):
-#         self.R=[]
-#         self.T=[]
-#         self.H=[]
-#         for i in range(0,total):
-#             self.T.append(dominantTranslation())
-#             self.R.append(noisyRotations())
-#             self.H.append(createHomog(self.R[-1]["R"],
-#                                       self.T[-1]["T"]))
+def genDefaultNisterSettings(cameraConfig):
+    settings={}
+    settings["Pl"]=cameraConfig["Pl"]
+    settings["Pr"]=cameraConfig["Pr"]
+    settings["pp"]=cameraConfig["pp"]
+    settings["k"]=cameraConfig["k"]
+    settings["f"]=cameraConfig["f"]
+    settings["threshold"]=3
+    settings["probability"]=0.99
+    return settings
 
 def genDefaultStraightSimulationConfig(Pl,Pr,Q,width,height):
     Settings={}
@@ -84,115 +113,120 @@ def genDefaultStraightSimulationConfig(Pl,Pr,Q,width,height):
                                      width,3),dtype=np.uint8)
     return Settings
 
+class nisterExtract:
+    def __init__(self,rootDir,extractConfig):
+        self.root=rootDir
+        self.output=rootDir+"/Nister"
+        self.extract=extractConfig
+        self.outData=[]
+    def extractMotion(self,dataSet):
+        for motionIndex in dataSet.data:
+            ##########
+            ##for each operating Curve
+            singleHResults=[]
+            print("Original")
+            print(getMotion(motionIndex["H"]))
+            for curve in motionIndex["Curves"]:
+                curveResult={}
+                simulationPoints=[]
+                for pointIndex in curve:
+                    simulationPoints.append(motionIndex["Points"][pointIndex])
+                newPts=np.zeros((len(simulationPoints),2),dtype=np.float64)
+                oldPts=np.zeros((len(simulationPoints),2),dtype=np.float64)
+                for j in range(0,len(simulationPoints)):
+                    newPts[j,0]=simulationPoints[j]["Lb"][0]
+                    newPts[j,1]=simulationPoints[j]["Lb"][1]
+                    oldPts[j,0]=simulationPoints[j]["La"][0]
+                    oldPts[j,1]=simulationPoints[j]["La"][1]
+                E,mask=cv2.findEssentialMat(newPts,oldPts,self.extract["f"],self.extract["pp"])
+                                            #,prob=self.extract["probability"],threshold=self.extract["threshold"])#,threshold=1)    #
+                nInliers,R,T,matchMask=cv2.recoverPose(E,newPts,oldPts,self.extract["k"],mask)
+                averageScale=np.zeros((3,3),dtype=np.float64)
+                countedIn=0
+                for index in range(0,len(simulationPoints)):
+                    i=simulationPoints[index]
+                    if(matchMask[index,0]==255):
+                        scale=(i["Xa"][0:3,0]-R.dot(i["Xb"][0:3,0])).reshape(3,1).dot(np.transpose(T.reshape(3,1))).dot(np.linalg.pinv(T.dot(np.transpose(T))))
+                        averageScale+=scale 
+                        countedIn+=1
+                averageScale=averageScale/nInliers
+                T=averageScale.dot(T)  
+                original=createHomog(R,T)
+                curveResult["H"]=np.linalg.inv(original)
+                curveResult["Motion"]=getMotion(curveResult["H"]) 
+                curveResult["inlierMask"]=matchMask
+                curveResult["nInlier"]=nInliers
+                curveResult["inlierRatio"]=nInliers/float(len(simulationPoints))
+                curveResult["E"]=E
+                curveResult["MotionError"]=self.getMotionError(curveResult["H"],motionIndex["H"])
+                curveResult["CurveID"]=len(simulationPoints)
+                curveResult["PointResults"]=[]
+                #####get reprojection results
+                for index in range(0,len(simulationPoints)):
+                    i=simulationPoints[index]
+                    if(matchMask[index,0]==255):
+                        curveResult["PointResults"].append(self.getLandmarkReprojection(i,curveResult["H"]) )
+                singleHResults.append(curveResult)
+            self.outData.append(singleHResults)
+    def getMotionError(self,H,Hestimate):
+        orig=getMotion(H)
+        est=getMotion(Hestimate)
+        angleError=math.sqrt((orig["Roll"]-est["Roll"])**2 +
+                             (orig["Yaw"]-est["Yaw"])**2 +
+                              (orig["Pitch"]-orig["Pitch"])**2)
+        TranslationError=math.sqrt((orig["X"]-est["X"])**2 +
+                             (orig["Y"]-est["Y"])**2 +
+                              (orig["Z"]-orig["Z"])**2)
+        return {"TranslationError":TranslationError,"angleError":angleError}
+    def getLandmarkReprojection(self,simPoint,H):
+        simResult={}
+        la_estimate=self.extract["Pl"].dot(simPoint["Xa"])
+        la_estimate=la_estimate/la_estimate[2,0]
+        ra_estimate=self.extract["Pr"].dot(simPoint["Xa"])
+        ra_estimate=ra_estimate/ra_estimate[2,0]
+        Xb_estimate=H.dot(simPoint["Xa"])
 
-class simulationDataSet:
-    def __init__(self,configDictionary):
-        self.settings=configDictionary
-        self.slow=[]
-        self.medium=[]
-        self.fast=[]
-
-    def generateData(self):
-        f=self.settings["Pl"][0,0]
-        pp=(self.settings["Pl"][0:2,2][0],self.settings["Pl"][0:2,2][1])
-        k=np.eye(3,dtype=np.float64)#self.settings["Pl"][0:3,0:3]
-        print(f)
-        print(pp)
-        print(k)
-        ####gen slow Data
-        for i in range(0,self.settings["TotalSimulations"]):
+        lb_estimate=self.extract["Pl"].dot(Xb_estimate)
+        lb_estimate=lb_estimate/lb_estimate[2,0]
+        rb_estimate=self.extract["Pr"].dot(Xb_estimate)
+        rb_estimate=rb_estimate/rb_estimate[2,0]
+        simResult["La_Pred"]=la_estimate
+        simResult["Ra_Pred"]=ra_estimate
+        simResult["Lb_Pred"]=lb_estimate
+        simResult["Rb_Pred"]=rb_estimate
+        simResult["Error"]=[lb_estimate-simPoint["Lb"],
+                            la_estimate-simPoint["La"],
+                            ra_estimate-simPoint["Ra"],
+                            rb_estimate-simPoint["Rb"]]
+        return simResult
+        
+class idealDataSet:
+    def __init__(self,outDir,motionConfig,cameraConfig):
+        self.motion=motionConfig
+        self.cameraConfig=cameraConfig
+        self.outDir=outDir
+    def generate(self,pointsCurve=[500,750,1000,2000,3000],totalH=500):
+        totalPoints=max(pointsCurve)
+        pointsCurve.remove(totalPoints)
+        for i in range(0,totalH):
+            print("H=",i)
             simulationData={}
             simulationData["ID"]=i 
-            simulationData["Motion"]={}
-            simulationData["Motion"]["Results"]={}
-            simulationData["Motion"]["Rotation"]=noisyRotations(self.settings["RotationNoise"])
-            simulationData["Motion"]["Translation"]=dominantTranslation(self.settings["SlowDeviation"],
-                                self.settings["TranslationNoise"])
-            simulationData["Motion"]["H"]=createHomog(simulationData["Motion"]["Rotation"]["R"],
-                                    simulationData["Motion"]["Translation"]["T"])
+            simulationData["R"]=noisyRotations(self.motion["RotationNoise"])
+            simulationData["T"]=dominantTranslation(self.motion["TranslationNoise"])
+            simulationData["H"]=createHomog(simulationData["R"]["matrix"],
+                                            simulationData["T"]["vector"])
             simulationData["Points"]=[]
-            newPts=np.zeros((self.settings["TotalPoints"],2),dtype=np.float64)
-            oldPts=np.zeros((self.settings["TotalPoints"],2),dtype=np.float64)
-
-		# int totalAverageSamples=0;
-		# cv::Mat average=cv::Mat::zeros(3,1,CV_64F);//correctlyScaledTransform
-		# cv::Mat K=P(cv::Rect(0,0,3,3));
-
-		# for(int index=0;index<latestInter.currentInlierIndexes.size();index++)
-		# {
-
-		# 	if(motionInlierMask.at<bool>(0,index))
-		# 	{
-		# 		cv::Mat xnew,xold;
-		# 		//compute scale from projection 
-		# 		//projection pixel in previous frame
-		# 		xold=cv::Mat(3,1,CV_64F);
-		# 		xold.at<double>(0,0)=previous.inliers.at(latestInter.previousInlierIndexes.at(index)).distance.x;
-		# 		xold.at<double>(1,0)=previous.inliers.at(latestInter.previousInlierIndexes.at(index)).distance.y;
-		# 		xold.at<double>(2,0)=previous.inliers.at(latestInter.previousInlierIndexes.at(index)).distance.z;
-
-		# 		xnew=cv::Mat(3,1,CV_64F);
-		# 		xnew.at<double>(0,0)=current.inliers.at(latestInter.currentInlierIndexes.at(index)).distance.x;
-		# 		xnew.at<double>(1,0)=current.inliers.at(latestInter.currentInlierIndexes.at(index)).distance.y;
-		# 		xnew.at<double>(2,0)=current.inliers.at(latestInter.currentInlierIndexes.at(index)).distance.z;
-		# 		average+=((K.inv()*xold-outR*xnew)*outT.inv(cv::DECOMP_SVD))*outT;
-		# 		totalAverageSamples++;
-		# 		if(totalAverageSamples==15)
-		# 		{
-		# 			index=latestInter.currentInlierIndexes.size();
-		# 		}
-		# 	}
-		# }
-
-
-            for j in range(0,self.settings["TotalPoints"]):
-                pt=self.genStereoLandmark(simulationData["Motion"]["H"])
-                newPts[j,0]=pt["Lb"][0]
-                newPts[j,1]=pt["Lb"][1]
-                oldPts[j,0]=pt["La"][0]
-                oldPts[j,1]=pt["La"][1]
-                simulationData["Points"].append(pt)
-            E,mask=cv2.findEssentialMat(newPts,oldPts,f,pp)#,threshold=1)    #
-            nInliers,R,T,matchMask=cv2.recoverPose(E,newPts,oldPts,k,mask)
-
-            simulationData["Motion"]["Results"]["Nister"]=nInliers,R,T,matchMask,E
-            averageScale=np.zeros((3,3),dtype=np.float64)
-            for i in simulationData["Points"]:
-                scale=(i["Xa"][0:3,0]-R.dot(i["Xb"][0:3,0])).reshape(3,1).dot(np.transpose(T.reshape(3,1))).dot(np.linalg.pinv(T.dot(np.transpose(T))))
-                print(scale)
-                averageScale+=scale 
-            averageScale=averageScale/len(simulationData["Points"])
-
-                #print(scale)
-                #print((i["Xa"][0:3,0]-R.dot(i["Xb"][0:3,0])).shape)
-                #print(np.linalg.pinv(T.reshape(3,1).shape))
-                #Results=(i["Xa"][0:3,0]-R.dot(i["Xb"][0:3,0])).dot(np.linalg.pinv(T.reshape(3,1)))
-                #print("--")#Results)
-                # disparity=i["La"][0,0]-i["Ra"][0,0]
-                # vc=np.ones((4,1),dtype=np.float64)
-                # vc[0,0]=i["La"][0,0]
-                # vc[1,0]=i["La"][0,0]
-                # vc[2,0]=disparity
-                # currentPt=self.settings["Q"].dot(vc)
-                # currentPt=currentPt/currentPt[3,0]
-                # print(i["Xa"]-currentPt)
-                ####get triangulated features from Q
-
-
-                # print(simulationData["Points"][i]["Xa"][0:3,0])
-                # print(simulation)
-                # result=(dot(simulationData["Points"][i]["Xa"][0:3,0])-
-                #      R.dot(simulationData["Points"][i]["Xb"][0:3,0]))
-                # result=result.dot(np.linalg.inv(T))
-                # result=result.dot(T)
-                # print(result)
-
-
-# average+=((K.inv()*xold-outR*xnew)*outT.inv(cv::DECOMP_SVD))*outT;
-
-            simulationData["Motion"]["Results"]["PointCloud"]=self.PointCloudMotion(simulationData)
-            print("----")
-            self.slow.append(simulationData)
+            simulationData["Curves"]=[]
+            simulationData["Curves"].append(range(0,totalPoints))##add the 15000 set of indexes
+            for pointIndex in range(0,totalPoints):
+                simulationData["Points"].append(self.genStereoLandmark(simulationData["H"]))
+            for curveIndex in pointsCurve:
+                simulationData["Curves"].append(random.sample(range(0, totalPoints), curveIndex))
+            outFile=self.outDir+"/H_"+str(i)+".p"
+            f=open(outFile, 'wb')
+            pickle.dump(simulationData,f)
+            f.close()
     def genStereoLandmark(self,H):
         validPoint=False
         while(not validPoint):
@@ -206,92 +240,54 @@ class simulationDataSet:
             simPoint["Xa"][0,0]=x
             simPoint["Xa"][1,0]=y
             simPoint["Xa"][2,0]=z
-            simPoint["La"]=self.settings["Pl"].dot(simPoint["Xa"])
+            simPoint["La"]=self.cameraConfig["Pl"].dot(simPoint["Xa"])
             simPoint["La"]=simPoint["La"]/simPoint["La"][2,0]
-            simPoint["Ra"]=self.settings["Pr"].dot(simPoint["Xa"])
+            simPoint["Ra"]=self.cameraConfig["Pr"].dot(simPoint["Xa"])
             simPoint["Ra"]=simPoint["Ra"]/simPoint["Ra"][2,0]
 
             simPoint["Xb"]=H.dot(simPoint["Xa"])
             simPoint["Xb"]=simPoint["Xb"]/simPoint["Xb"][3,0]
-            simPoint["Lb"]=self.settings["Pl"].dot(simPoint["Xb"])
+            simPoint["Lb"]=self.cameraConfig["Pl"].dot(simPoint["Xb"])
             simPoint["Lb"]=simPoint["Lb"]/simPoint["Lb"][2,0]
-            simPoint["Rb"]=self.settings["Pr"].dot(simPoint["Xb"])
+            simPoint["Rb"]=self.cameraConfig["Pr"].dot(simPoint["Xb"])
             simPoint["Rb"]=simPoint["Rb"]/simPoint["Rb"][2,0]
             if(self.withinROI(simPoint["La"])and self.withinROI(simPoint["Lb"])
                 and self.withinROI(simPoint["Ra"]) and self.withinROI(simPoint["Rb"])
-                and simPoint["Xa"][2,0]>0 and simPoint["Xb"][2,0]>0):
+                and (simPoint["Xa"][2,0]>0) and (simPoint["Xb"][2,0]>0)
+                and (simPoint["Xa"][1,0]>-0.5) and (simPoint["Xb"][1,0]>-0.5)):
                 validPoint=True
         return simPoint
-    def getStereoLandmark(self,H):
-        validPoint=False
-        while(not validPoint):
-            ustd=self.settings["width"]##std deviation
-            vstd=self.settings["height"]
-            leftPt=(np.random.normal(self.settings["width"]/2.0,ustd,1),
-                    np.random.normal(self.settings["height"]/2.0,vstd,1))
-            disparity=np.random.normal(0,2.0*self.settings["width"],1)
-            rightPt=(leftPt[0]+disparity,leftPt[1])
-            vc=np.ones((4,1),dtype=np.float64)
-            vc[0,0]=leftPt[0]
-            vc[1,0]=leftPt[1]
-            vc[2,0]=disparity
-            currentPt=self.settings["Q"].dot(vc)
-            currentPt=currentPt/currentPt[3,0]
-            if(self.withinROI(leftPt)and self.withinROI(rightPt)and(currentPt[2,0]>0)):
-                    simPoint={}
-                    simPoint["La"]=leftPt
-                    simPoint["Ra"]=rightPt
-                    simPoint["Disparity"]=disparity
-                    simPoint["Xa"]=currentPt
-                    validPoint=self.getStereoLandmarkProjection(H,simPoint)
-        return simPoint
-    def getStereoLandmarkProjection(self,H,simPoint):
-        simPoint["Xb"]=H.dot(simPoint["Xa"])
-        simPoint["Xb"]=simPoint["Xb"]/simPoint["Xb"][3,0]
-        simPoint["Lb"]=self.settings["Pl"].dot(simPoint["Xb"])
-        simPoint["Lb"]=simPoint["Lb"]/simPoint["Lb"][2,0]
-        simPoint["Rb"]=self.settings["Pr"].dot(simPoint["Xb"])
-        simPoint["Rb"]=simPoint["Rb"]/simPoint["Rb"][2,0]
-        lbEstimated=self.settings["Pl"].dot(H.dot(simPoint["Xa"]))
-        lbEstimated=lbEstimated/lbEstimated[2,0]
-        simPoint["LbPredicted"]=lbEstimated
-        rbEstimated=self.settings["Pr"].dot(H.dot(simPoint["Xa"]))
-        rbEstimated=rbEstimated/rbEstimated[2,0]
-        simPoint["RbPredicted"]=rbEstimated
-        if(self.withinROI(simPoint["Lb"])and self.withinROI(simPoint["Rb"])and(simPoint["Xb"][2,0]>0)):
-            return True
-        else:
-            return False
     def withinROI(self,pt):
-        if((pt[0]>0)and(pt[0]<self.settings["width"])):
-            if((pt[1]>0)and(pt[1]<self.settings["height"])):
+        if((pt[0]>0)and(pt[0]<self.cameraConfig["width"])):
+            if((pt[1]>0)and(pt[1]<self.cameraConfig["height"])):
                 return True
             else:
                 return False
         else:
-            return False 
-    def PointCloudMotion(self,simulationData):
-        ##find centroid
-        Acentroid=np.zeros((4,1),dtype=np.float64)
-        Bcentroid=np.zeros((4,1),dtype=np.float64)
-        for i in simulationData["Points"]:
-            Acentroid+=i["Xa"]
-            Bcentroid+=i["Xb"]
-        Acentroid=(Acentroid/len(simulationData["Points"]))[0:3,0].reshape((3,1))
-        Bcentroid=(Bcentroid/len(simulationData["Points"]))[0:3,0].reshape((3,1))
+            return False
 
-        H=np.zeros(3,dtype=np.float64)
+    # def PointCloudMotion(self,simulationData):
+    #     ##find centroid
+    #     Acentroid=np.zeros((4,1),dtype=np.float64)
+    #     Bcentroid=np.zeros((4,1),dtype=np.float64)
+    #     for i in simulationData["Points"]:
+    #         Acentroid+=i["Xa"]
+    #         Bcentroid+=i["Xb"]
+    #     Acentroid=(Acentroid/len(simulationData["Points"]))[0:3,0].reshape((3,1))
+    #     Bcentroid=(Bcentroid/len(simulationData["Points"]))[0:3,0].reshape((3,1))
 
-        for i in simulationData["Points"]:    
-            H = H + ((i["Xa"][0:3,0].reshape((3,1))-Acentroid).dot(
-                        np.transpose(i["Xb"][0:3,0].reshape((3,1))-Bcentroid)))
-        u,s,v=np.linalg.svd(H)
-        R=np.transpose(v).dot(np.transpose(u))
-        if(np.linalg.det(R)<0):
-            R[0:3,2]==R[0:3,2]*-1.0
+    #     H=np.zeros(3,dtype=np.float64)
 
-        T=R.dot(Acentroid)+Bcentroid
-        return createHomog(R,T)
+    #     for i in simulationData["Points"]:    
+    #         H = H + ((i["Xa"][0:3,0].reshape((3,1))-Acentroid).dot(
+    #                     np.transpose(i["Xb"][0:3,0].reshape((3,1))-Bcentroid)))
+    #     u,s,v=np.linalg.svd(H)
+    #     R=np.transpose(v).dot(np.transpose(u))
+    #     if(np.linalg.det(R)<0):
+    #         R[0:3,2]==R[0:3,2]*-1.0
+
+    #     T=R.dot(Acentroid)+Bcentroid
+    #     return createHomog(R,T)
 
 
 

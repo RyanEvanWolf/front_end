@@ -17,71 +17,37 @@ from tf.transformations import quaternion_from_euler, quaternion_matrix
 rospy.init_node('motionSimulation')
 cvb=CvBridge()
 
-Q=cvb.imgmsg_to_cv2(rospy.wait_for_message("/bumblebee_configuration/Q",Image))
-leftInfo=rospy.wait_for_message("/bumblebee_configuration/idealLeft/CameraInfo",CameraInfo)
-rightInfo=rospy.wait_for_message("/bumblebee_configuration/idealRight/CameraInfo",CameraInfo)
-
-Pl=np.zeros((3,4),dtype=np.float64)
-Pr=np.zeros((3,4),dtype=np.float64)
-for row in range(0,3):
-        for col in range(0,4):
-                Pl[row,col]=leftInfo.P[row*4 +col]
-                Pr[row,col]=rightInfo.P[row*4 +col]
-width=leftInfo.width
-height=leftInfo.height
+kSettings=getCameraSettingsFromServer()
+mSettings=MotionCategorySettings()
+NisterSettings=genDefaultNisterSettings(kSettings)
+rootDir="/media/ryan/EXTRA/output/Simulation"
 
 
-settings=genDefaultStraightSimulationConfig(Pl,Pr,Q,width,height)
-dataset=simulationDataSet(settings)
-dataset.generateData()
 
-with open("/media/ryan/EXTRA/output/Simulation/data.p", 'wb') as handle:
-        pickle.dump(dataset,handle)
+f=open(rootDir+"/camera.p", 'wb')
+pickle.dump(kSettings,f)
+f.close()
 
+f=open(rootDir+"/motion.p", 'wb')
+pickle.dump(mSettings,f)
+f.close()
 
-# print(type(Q))
+f=open(rootDir+"/Nister.p", 'wb')
+pickle.dump(NisterSettings,f)
+f.close()
+####generate SlowData
 
-# bumblebee=simulatedCamera(leftInfo,rightInfo,Q)
-# # simPoint=bumblebee.getStereoLandmark()
-# print(simPoint)
-# la=bumblebee.Pl.dot(simPoint["Xa"])
-# lb=bumblebee.Pr.dot(simPoint["Xa"])
-# print(la/la[2,0])
-# print(lb/lb[2,0])
-# print(Q)
-# print(bumblebee.Pl)
-# print(bumblebee.Pr)
+idealData=idealDataSet(rootDir+"/slow_ideal",mSettings["Slow"],kSettings)
+idealData.generate(totalH=5)
 
-# path=simulatedTrajectory(5)
-
-#cv2.namedWindow("Tracks",cv2.WINDOW_NORMAL)
-
-# for i in range(0,len(path.H)):
-#     print(path.T[i]["T"])
-#     print(path.R[i]["R"])
-        #     out=bumblebee.getIdealSimulation(150,path.H[i])
-#     trackImage=bumblebee.getBlankImage()
-#     for pt in out:
-#         lnew=(int(pt["Lb"][0]),int(pt["Lb"][1]))
-#         lold=(int(pt["La"][0]),int(pt["La"][1]))
-#         cv2.circle(trackImage,lnew,2,(0,255,0))
-#         cv2.circle(trackImage,lold,2,(0,0,255))
-#         cv2.line(trackImage,lnew,lold,(0,0,255),1)
-#         print("PRed",bumblebee.reprojectionError(pt,path.H[i]))
-# #         cv2.circle(outImage,newData[2],2,(255,0,255))
-# #         cv2.line(outImage,newData[0],newData[2],(0,0,255),1)
-# #         cv2.circle(outImage,(int(newData[4][0]),int(newData[4][1])),2,(0,255,0))
-# #         cv2.line(outImage,newData[0],(int(newData[4][0]),int(newData[4][1])),(0,255,255),1)
-#     cv2.imshow("Tracks",trackImage)
-#     bumblebee.estimateMotion(out)
-#     cv2.waitKey(5000)9
-# pl=np.zeros((3,4),dtype=np.float64)
-# pr=np.zeros((3,4),dtype=np.float64)
-# for row in range(0,3):
-#     for col in range(0,4):
-#         pl[row,col]=leftInfo.P[row*4+col]
-#         pr[row,col]=rightInfo.P[row*4+col]
-        
+# NisterSettings=genDefaultNisterSettings(kSettings)
 
 
-# def genSteeringRotation(total,yawAngle=10,noise=0.2):
+# NisterExtractor=nisterExtract("/media/ryan/EXTRA/output/Simulation",NisterSettings)
+# NisterExtractor.extractMotion(idealData)
+
+# with open("/media/ryan/EXTRA/output/Simulation/slow_ideal.p", 'wb') as handle:
+#         pickle.dump(idealData,handle)
+
+# with open(NisterExtractor.output+"/slow_ideal.p", 'wb') as handle:
+#         pickle.dump(NisterExtractor,handle)
