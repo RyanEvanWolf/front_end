@@ -1,0 +1,32 @@
+#!/usr/bin/env python
+
+import math
+import time
+
+import pickle
+
+import cv2
+import numpy as np
+import rospy
+from cv_bridge import CvBridge
+from front_end.motion import *
+from front_end.simulation import *
+from sensor_msgs.msg import CameraInfo, Image
+from tf.transformations import quaternion_from_euler, quaternion_matrix
+
+import argparse
+rospy.init_node('motionSimulation')
+cvb=CvBridge()
+
+
+parser =argparse.ArgumentParser()
+parser.add_argument("worldFolder")
+parser.add_argument("--root_dir",default="/media/ryan/EXTRA/output/Simulation",type=str)
+args,unknown=parser.parse_known_args()
+d=simDirectory(args.root_dir)
+f=open(args.root_dir+"/Nister.p", 'r')
+NisterSettings=pickle.load(f)
+f.close()
+
+NisterExtractor=nisterExtract("/media/ryan/EXTRA/output/Simulation",NisterSettings)
+NisterExtractor.extractMotion(args.worldFolder)

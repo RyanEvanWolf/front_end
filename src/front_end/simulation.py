@@ -11,6 +11,8 @@ from front_end.motion import *
 import matplotlib.pyplot as plt
 import copy
 
+import os
+
 import pickle
 
 
@@ -118,21 +120,22 @@ class nisterExtract:
         self.root=rootDir
         self.output=rootDir+"/Nister"
         self.extract=extractConfig
-        self.outData=[]
-    def extractMotion(self,dataSet):
-        for motionIndex in dataSet.data:
-            ##########
-            ##for each operating Curve
-            singleHResults=[]
-            print("Original")
-            print(getMotion(motionIndex["H"]))
-            for curve in motionIndex["Curves"]:
-                curveResult={}
+    def extractMotion(self,inputFolder):
+        worldFilesSet=os.listdir(self.root+"/"+inputFolder)
+        for Hpickle in worldFilesSet:
+            f=open(self.root+"/"+inputFolder+"/"+Hpickle,"r")
+            data=pickle.load(f)
+            f.close()
+            print(getMotion(data["H"]))
+            HResults={}
+            for curve in data["Curves"]:
+                curveID=str(len(curve))
+                HResults[curveID]={}
                 simulationPoints=[]
                 for pointIndex in curve:
-                    simulationPoints.append(motionIndex["Points"][pointIndex])
-                newPts=np.zeros((len(simulationPoints),2),dtype=np.float64)
-                oldPts=np.zeros((len(simulationPoints),2),dtype=np.float64)
+                    simulationPoints.append(data["Points"][pointIndex])
+                    newPts=np.zeros((len(simulationPoints),2),dtype=np.float64)
+                    oldPts=np.zeros((len(simulationPoints),2),dtype=np.float64)
                 for j in range(0,len(simulationPoints)):
                     newPts[j,0]=simulationPoints[j]["Lb"][0]
                     newPts[j,1]=simulationPoints[j]["Lb"][1]
@@ -152,22 +155,73 @@ class nisterExtract:
                 averageScale=averageScale/nInliers
                 T=averageScale.dot(T)  
                 original=createHomog(R,T)
-                curveResult["H"]=np.linalg.inv(original)
-                curveResult["Motion"]=getMotion(curveResult["H"]) 
-                curveResult["inlierMask"]=matchMask
-                curveResult["nInlier"]=nInliers
-                curveResult["inlierRatio"]=nInliers/float(len(simulationPoints))
-                curveResult["E"]=E
-                curveResult["MotionError"]=self.getMotionError(curveResult["H"],motionIndex["H"])
-                curveResult["CurveID"]=len(simulationPoints)
-                curveResult["PointResults"]=[]
+                HResults[curveID]["H"]=np.linalg.inv(original)
+                print(getMotion(HResults[curveID]["H"]))
+                HResults[curveID]["Motion"]=getMotion(HResults[curveID]["H"]) 
+                HResults[curveID]["inlierMask"]=matchMask
+                HResults[curveID]["nInlier"]=nInliers
+                HResults[curveID]["inlierRatio"]=nInliers/float(len(simulationPoints))
+                HResults[curveID]["E"]=E
+                HResults[curveID]["MotionError"]=self.getMotionError(HResults[curveID]["H"],data["H"])
+                HResults[curveID]["CurveID"]=len(simulationPoints)
+                HResults[curveID]["PointResults"]=[]
                 #####get reprojection results
                 for index in range(0,len(simulationPoints)):
                     i=simulationPoints[index]
                     if(matchMask[index,0]==255):
-                        curveResult["PointResults"].append(self.getLandmarkReprojection(i,curveResult["H"]) )
-                singleHResults.append(curveResult)
-            self.outData.append(singleHResults)
+                        HResults[curveID]["PointResults"].append(self.getLandmarkReprojection(i,HResults[curveID]["H"]) )
+            f=open(self.output+"/"+inputFolder+"/"+Hpickle,"w")
+            pickle.dump(HResults,f)
+            f.close()
+        print("----")        
+        # for motionIndex in dataSet.data:
+        #     ##########
+        #     ##for each operating Curve
+        #     singleHResults=[]
+        #     print("Original")
+        #     print(getMotion(motionIndex["H"]))
+        #     for curve in motionIndex["Curves"]:
+        #         curveResult={}
+        #         simulationPoints=[]
+        #         for pointIndex in curve:
+        #             simulationPoints.append(motionIndex["Points"][pointIndex])
+        #         newPts=np.zeros((len(simulationPoints),2),dtype=np.float64)
+        #         oldPts=np.zeros((len(simulationPoints),2),dtype=np.float64)
+        #         for j in range(0,len(simulationPoints)):
+        #             newPts[j,0]=simulationPoints[j]["Lb"][0]
+        #             newPts[j,1]=simulationPoints[j]["Lb"][1]
+        #             oldPts[j,0]=simulationPoints[j]["La"][0]
+        #             oldPts[j,1]=simulationPoints[j]["La"][1]
+        #         E,mask=cv2.findEssentialMat(newPts,oldPts,self.extract["f"],self.extract["pp"])
+        #                                     #,prob=self.extract["probability"],threshold=self.extract["threshold"])#,threshold=1)    #
+        #         nInliers,R,T,matchMask=cv2.recoverPose(E,newPts,oldPts,self.extract["k"],mask)
+        #         averageScale=np.zeros((3,3),dtype=np.float64)
+        #         countedIn=0
+        #         for index in range(0,len(simulationPoints)):
+        #             i=simulationPoints[index]
+        #             if(matchMask[index,0]==255):
+        #                 scale=(i["Xa"][0:3,0]-R.dot(i["Xb"][0:3,0])).reshape(3,1).dot(np.transpose(T.reshape(3,1))).dot(np.linalg.pinv(T.dot(np.transpose(T))))
+        #                 averageScale+=scale 
+        #                 countedIn+=1
+        #         averageScale=averageScale/nInliers
+        #         T=averageScale.dot(T)  
+        #         original=createHomog(R,T)
+        #         curveResult["H"]=np.linalg.inv(original)
+        #         curveResult["Motion"]=getMotion(curveResult["H"]) 
+        #         curveResult["inlierMask"]=matchMask
+        #         curveResult["nInlier"]=nInliers
+        #         curveResult["inlierRatio"]=nInliers/float(len(simulationPoints))
+        #         curveResult["E"]=E
+        #         curveResult["MotionError"]=self.getMotionError(curveResult["H"],motionIndex["H"])
+        #         curveResult["CurveID"]=len(simulationPoints)
+        #         curveResult["PointResults"]=[]
+        #         #####get reprojection results
+        #         for index in range(0,len(simulationPoints)):
+        #             i=simulationPoints[index]
+        #             if(matchMask[index,0]==255):
+        #                 curveResult["PointResults"].append(self.getLandmarkReprojection(i,curveResult["H"]) )
+        #         singleHResults.append(curveResult)
+        #     self.outData.append(singleHResults)
     def getMotionError(self,H,Hestimate):
         orig=getMotion(H)
         est=getMotion(Hestimate)
