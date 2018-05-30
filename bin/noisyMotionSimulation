@@ -1,0 +1,49 @@
+#!/usr/bin/env python
+
+import math
+import time
+
+import pickle
+
+import cv2
+import numpy as np
+import rospy
+from cv_bridge import CvBridge
+from front_end.motion import *
+from front_end.simulation import *
+from sensor_msgs.msg import CameraInfo, Image
+from tf.transformations import quaternion_from_euler, quaternion_matrix
+from front_end.simulation import *
+import argparse
+
+rospy.init_node('noisyMotionSimulation')
+
+
+
+rootDir="/media/ryan/EXTRA/output/Simulation"
+
+d=simDirectory(rootDir)
+
+cam,mot,nist=d.getSettings()
+
+
+
+
+idealDirs=d.getIdealWorldDir()
+outDirs=d.getNoisyWorldDir()
+############
+##add slow noise
+############
+for k in noiseLevels.keys():
+    newOutFolder=outDirs[0]+"/"+k
+    addGaussianNoise(noiseLevels[k],idealDirs[0],newOutFolder,cam)
+    print(k)
+
+
+#addGaussianNoise(noiseLevels,idealDirs[0],idealDirs[0],cam)
+
+
+
+
+
+

@@ -15,6 +15,14 @@ import os
 
 import pickle
 
+noiseLevels={}
+noiseLevels["0_5"]=0.5
+noiseLevels["1"]=1
+noiseLevels["2"]=2
+noiseLevels["5"]=5
+noiseLevels["10"]=10
+noiseLevels["15"]=15
+outlierLevels=[0.01,0.05,0.1,0.2,0.3]
 
 class simDirectory:
     def __init__(self,rootDir):
@@ -24,7 +32,16 @@ class simDirectory:
         c=pickle.load(open(self.root+"/camera.p"))
         n=pickle.load(open(self.root+"/Nister.p"))
         return c,m,n
-
+    def getIdealWorldDir(self):
+        s=self.root+"/slow_ideal"
+        m=self.root+"/medium_ideal"
+        f=self.root+"/fast_ideal"
+        return s,m,f
+    def getNoisyWorldDir(self):
+        s=self.root+"/slow_noisy"
+        m=self.root+"/medium_noisy"
+        f=self.root+"/fast_noisy"
+        return s,m,f     
 
 def MotionCategorySettings():
     Settings={}
@@ -122,6 +139,7 @@ class nisterExtract:
         self.extract=extractConfig
     def extractMotion(self,inputFolder):
         worldFilesSet=os.listdir(self.root+"/"+inputFolder)
+        print("Loaded From "+self.root+"/"+inputFolder)
         for Hpickle in worldFilesSet:
             f=open(self.root+"/"+inputFolder+"/"+Hpickle,"r")
             data=pickle.load(f)
@@ -173,7 +191,7 @@ class nisterExtract:
             f=open(self.output+"/"+inputFolder+"/"+Hpickle,"w")
             pickle.dump(HResults,f)
             f.close()
-        print("----")        
+            print("----")        
         # for motionIndex in dataSet.data:
         #     ##########
         #     ##for each operating Curve
@@ -228,10 +246,13 @@ class nisterExtract:
         angleError=math.sqrt((orig["Roll"]-est["Roll"])**2 +
                              (orig["Yaw"]-est["Yaw"])**2 +
                               (orig["Pitch"]-orig["Pitch"])**2)
-        TranslationError=math.sqrt((orig["X"]-est["X"])**2 +
-                             (orig["Y"]-est["Y"])**2 +
-                              (orig["Z"]-orig["Z"])**2)
-        return {"TranslationError":TranslationError,"angleError":angleError}
+        TranslationError=math.sqrt((orig["X"]-est["X"])**2+
+                                    (orig["Y"]-est["Y"])**2+
+                                    (orig["Z"]-est["Z"])**2)
+        out={}
+        out["TranslationError"]=TranslationError
+        out["angleError"]=angleError
+        return out
     def getLandmarkReprojection(self,simPoint,H):
         simResult={}
         la_estimate=self.extract["Pl"].dot(simPoint["Xa"])
@@ -320,6 +341,50 @@ class idealDataSet:
         else:
             return False
 
+
+def addGaussianNoise(sigma,inDir,outDir,cameraConfig):
+    worldFilesSet=os.listdir(inDir)
+    for Hpickle in worldFilesSet:
+        f=open(inDir+"/"+Hpickle,"r")
+        data=pickle.load(f)
+        f.close()
+        dataOut=copy.deepcopy(data)
+        print(Hpickle)
+        for index in range(0,len(data["Points"])):
+            newNoisyPt={}
+            newNoisyPt["La"]=addNoise(data["Points"][index]["La"],sigma,cameraConfig)
+            newNoisyPt["Ra"]=addNoise(data["Points"][index]["Ra"],sigma,cameraConfig)
+            newNoisyPt["Lb"]=addNoise(data["Points"][index]["Lb"],sigma,cameraConfig)
+            newNoisyPt["Rb"]=addNoise(data["Points"][index]["Rb"],sigma,cameraConfig)
+            newNoisyPt["Xa"]=data["Points"][index]["Xa"]
+            newNoisyPt["Xb"]=data["Points"][index]["Xb"]
+            data["Points"][index]=newNoisyPt
+                # noisyPt=copy.deepcopy(point)
+
+                # n=np.random.normal(0,noiseLevel,1)
+                # print(n)
+                #noisyPt["La"]=noisyPt["La"]+
+                #point["Noisy"][str(noiseLevel)]={}
+        print("written" +outDir+"/"+Hpickle)
+        f=open(outDir+"/"+Hpickle,"w")
+        pickle.dump(data,f)
+        f.close()        
+
+
+def addNoise(idealPt,sigma,cameraConfig):
+    valid=False
+    while(not valid):
+        valid=True
+        n=np.random.normal(0,sigma,2)
+        newPt=copy.deepcopy(idealPt)
+        newPt[0,0]=newPt[0,0]+n[0]
+        newPt[1,0]=newPt[1,0]+n[1]
+
+        if((newPt[0,0]>0)and(newPt[0,0]<cameraConfig["width"])):
+            if((newPt[1,0]>0)and(newPt[1,0]<cameraConfig["height"])):
+                valid=True
+    return newPt
+        #n=np.random.normal(0,noiseLevel,1)
     # def PointCloudMotion(self,simulationData):
     #     ##find centroid
     #     Acentroid=np.zeros((4,1),dtype=np.float64)
