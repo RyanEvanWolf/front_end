@@ -36,3 +36,20 @@ def getMotion(H):
     Result["Y"]=H[1,3]
     Result["Z"]=H[2,3]
     return Result
+
+def compareMotion(H,Hest):
+    Hstruct=getMotion(H)
+    HestStruct=getMotion(Hest)
+    Result={}
+    Result["Roll"]=getPercentError(Hstruct["Roll"],HestStruct["Roll"])
+    Result["Pitch"]=getPercentError(Hstruct["Pitch"],HestStruct["Pitch"])
+    Result["Yaw"]=getPercentError(Hstruct["Yaw"],HestStruct["Yaw"])
+    Result["X"]=getPercentError(Hstruct["X"],HestStruct["X"])
+    Result["Y"]=getPercentError(Hstruct["Y"],HestStruct["Y"])
+    Result["Z"]=getPercentError(Hstruct["Z"],HestStruct["Z"])
+    return Result
+
+def getPercentError(ideal,measured):
+    diff=abs(ideal-measured)
+    pError=100*diff/abs(float(ideal))
+    return pError

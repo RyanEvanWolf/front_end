@@ -48,12 +48,20 @@ def MotionCategorySettings():
     Settings["Fast"]={}
     Settings["Medium"]={}
     Settings["Slow"]={}
-    Settings["Fast"]["TranslationNoise"]=0.3 ##meters
-    Settings["Fast"]["RotationNoise"]=8        ##degrees
-    Settings["Medium"]["TranslationNoise"]=0.15 ##meters
-    Settings["Medium"]["RotationNoise"]=5        ##degrees
-    Settings["Slow"]["TranslationNoise"]=0.05 ##meters
-    Settings["Slow"]["RotationNoise"]=2        ##degrees
+    Settings["Fast"]["TranslationMean"]=0.066
+    Settings["Fast"]["RotationMean"]=0
+    Settings["Fast"]["TranslationNoise"]=0.1*Settings["Fast"]["TranslationMean"] ##meters
+    Settings["Fast"]["RotationNoise"]=8      ##degrees
+
+    Settings["Medium"]["TranslationMean"]=0.044
+    Settings["Medium"]["RotationMean"]=0
+    Settings["Medium"]["TranslationNoise"]=0.1*Settings["Medium"]["TranslationMean"] ##meters
+    Settings["Medium"]["RotationNoise"]=4        ##degrees
+
+    Settings["Slow"]["TranslationMean"]=0.066
+    Settings["Slow"]["RotationMean"]=0
+    Settings["Slow"]["TranslationNoise"]=0.1*Settings["Slow"]["TranslationMean"] ##meters
+    Settings["Slow"]["RotationNoise"]=1        ##degrees
     return Settings
 
 def getCameraSettingsFromServer():
@@ -180,7 +188,7 @@ class nisterExtract:
                 HResults[curveID]["nInlier"]=nInliers
                 HResults[curveID]["inlierRatio"]=nInliers/float(len(simulationPoints))
                 HResults[curveID]["E"]=E
-                HResults[curveID]["MotionError"]=self.getMotionError(HResults[curveID]["H"],data["H"])
+                HResults[curveID]["MotionError"]=compareMotion(HResults[curveID]["H"],data["H"])
                 HResults[curveID]["CurveID"]=len(simulationPoints)
                 HResults[curveID]["PointResults"]=[]
                 #####get reprojection results
@@ -192,57 +200,11 @@ class nisterExtract:
             pickle.dump(HResults,f)
             f.close()
             print("----")        
-        # for motionIndex in dataSet.data:
-        #     ##########
-        #     ##for each operating Curve
-        #     singleHResults=[]
-        #     print("Original")
-        #     print(getMotion(motionIndex["H"]))
-        #     for curve in motionIndex["Curves"]:
-        #         curveResult={}
-        #         simulationPoints=[]
-        #         for pointIndex in curve:
-        #             simulationPoints.append(motionIndex["Points"][pointIndex])
-        #         newPts=np.zeros((len(simulationPoints),2),dtype=np.float64)
-        #         oldPts=np.zeros((len(simulationPoints),2),dtype=np.float64)
-        #         for j in range(0,len(simulationPoints)):
-        #             newPts[j,0]=simulationPoints[j]["Lb"][0]
-        #             newPts[j,1]=simulationPoints[j]["Lb"][1]
-        #             oldPts[j,0]=simulationPoints[j]["La"][0]
-        #             oldPts[j,1]=simulationPoints[j]["La"][1]
-        #         E,mask=cv2.findEssentialMat(newPts,oldPts,self.extract["f"],self.extract["pp"])
-        #                                     #,prob=self.extract["probability"],threshold=self.extract["threshold"])#,threshold=1)    #
-        #         nInliers,R,T,matchMask=cv2.recoverPose(E,newPts,oldPts,self.extract["k"],mask)
-        #         averageScale=np.zeros((3,3),dtype=np.float64)
-        #         countedIn=0
-        #         for index in range(0,len(simulationPoints)):
-        #             i=simulationPoints[index]
-        #             if(matchMask[index,0]==255):
-        #                 scale=(i["Xa"][0:3,0]-R.dot(i["Xb"][0:3,0])).reshape(3,1).dot(np.transpose(T.reshape(3,1))).dot(np.linalg.pinv(T.dot(np.transpose(T))))
-        #                 averageScale+=scale 
-        #                 countedIn+=1
-        #         averageScale=averageScale/nInliers
-        #         T=averageScale.dot(T)  
-        #         original=createHomog(R,T)
-        #         curveResult["H"]=np.linalg.inv(original)
-        #         curveResult["Motion"]=getMotion(curveResult["H"]) 
-        #         curveResult["inlierMask"]=matchMask
-        #         curveResult["nInlier"]=nInliers
-        #         curveResult["inlierRatio"]=nInliers/float(len(simulationPoints))
-        #         curveResult["E"]=E
-        #         curveResult["MotionError"]=self.getMotionError(curveResult["H"],motionIndex["H"])
-        #         curveResult["CurveID"]=len(simulationPoints)
-        #         curveResult["PointResults"]=[]
-        #         #####get reprojection results
-        #         for index in range(0,len(simulationPoints)):
-        #             i=simulationPoints[index]
-        #             if(matchMask[index,0]==255):
-        #                 curveResult["PointResults"].append(self.getLandmarkReprojection(i,curveResult["H"]) )
-        #         singleHResults.append(curveResult)
-        #     self.outData.append(singleHResults)
     def getMotionError(self,H,Hestimate):
         orig=getMotion(H)
         est=getMotion(Hestimate)
+        out["X"]
+
         angleError=math.sqrt((orig["Roll"]-est["Roll"])**2 +
                              (orig["Yaw"]-est["Yaw"])**2 +
                               (orig["Pitch"]-orig["Pitch"])**2)
@@ -288,7 +250,7 @@ class idealDataSet:
             simulationData={}
             simulationData["ID"]=i 
             simulationData["R"]=noisyRotations(self.motion["RotationNoise"])
-            simulationData["T"]=dominantTranslation(self.motion["TranslationNoise"])
+            simulationData["T"]=dominantTranslation(self.motion["TranslationMean"],self.motion["TranslationNoise"])
             simulationData["H"]=createHomog(simulationData["R"]["matrix"],
                                             simulationData["T"]["vector"])
             simulationData["Points"]=[]
@@ -341,6 +303,8 @@ class idealDataSet:
         else:
             return False
 
+def addOutlier():
+    pass
 
 def addGaussianNoise(sigma,inDir,outDir,cameraConfig):
     worldFilesSet=os.listdir(inDir)
