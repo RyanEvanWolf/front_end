@@ -16,13 +16,14 @@ import os
 import pickle
 
 noiseLevels={}
+noiseLevels["0_25"]=0.25
 noiseLevels["0_5"]=0.5
+noiseLevels["0_75"]=0.75
 noiseLevels["1"]=1
 noiseLevels["2"]=2
 noiseLevels["5"]=5
 noiseLevels["10"]=10
-noiseLevels["15"]=15
-outlierLevels=[0.01,0.05,0.1,0.2,0.3]
+outlierLevels=[0.01,0.025,0.05,0.1,0.2,0.3,0.4]
 
 class simDirectory:
     def __init__(self,rootDir):
@@ -58,7 +59,7 @@ def MotionCategorySettings():
     Settings["Medium"]["TranslationNoise"]=0.1*Settings["Medium"]["TranslationMean"] ##meters
     Settings["Medium"]["RotationNoise"]=4        ##degrees
 
-    Settings["Slow"]["TranslationMean"]=0.066
+    Settings["Slow"]["TranslationMean"]=0.022
     Settings["Slow"]["RotationMean"]=0
     Settings["Slow"]["TranslationNoise"]=0.1*Settings["Slow"]["TranslationMean"] ##meters
     Settings["Slow"]["RotationNoise"]=1        ##degrees
@@ -76,7 +77,7 @@ def getCameraSettingsFromServer():
     for row in range(0,3):
             for col in range(0,4):
                 cameraSettings["Pl"][row,col]=cameraSettings["lInfo"].P[row*4 +col]
-                cameraSettings["Pr"][row,col]=cameraSettings["lInfo"].P[row*4 +col]
+                cameraSettings["Pr"][row,col]=cameraSettings["rInfo"].P[row*4 +col]
 
     cameraSettings["width"]=cameraSettings["lInfo"].width
     cameraSettings["height"]=cameraSettings["lInfo"].height
@@ -140,108 +141,119 @@ def genDefaultStraightSimulationConfig(Pl,Pr,Q,width,height):
                                      width,3),dtype=np.uint8)
     return Settings
 
-class nisterExtract:
-    def __init__(self,rootDir,extractConfig):
-        self.root=rootDir
-        self.output=rootDir+"/Nister"
-        self.extract=extractConfig
-    def extractMotion(self,inputFolder):
-        worldFilesSet=os.listdir(self.root+"/"+inputFolder)
-        print("Loaded From "+self.root+"/"+inputFolder)
-        for Hpickle in worldFilesSet:
-            f=open(self.root+"/"+inputFolder+"/"+Hpickle,"r")
-            data=pickle.load(f)
-            f.close()
-            print(getMotion(data["H"]))
-            HResults={}
-            for curve in data["Curves"]:
-                curveID=str(len(curve))
-                HResults[curveID]={}
-                simulationPoints=[]
-                for pointIndex in curve:
-                    simulationPoints.append(data["Points"][pointIndex])
-                    newPts=np.zeros((len(simulationPoints),2),dtype=np.float64)
-                    oldPts=np.zeros((len(simulationPoints),2),dtype=np.float64)
-                for j in range(0,len(simulationPoints)):
-                    newPts[j,0]=simulationPoints[j]["Lb"][0]
-                    newPts[j,1]=simulationPoints[j]["Lb"][1]
-                    oldPts[j,0]=simulationPoints[j]["La"][0]
-                    oldPts[j,1]=simulationPoints[j]["La"][1]
-                E,mask=cv2.findEssentialMat(newPts,oldPts,self.extract["f"],self.extract["pp"])
-                                            #,prob=self.extract["probability"],threshold=self.extract["threshold"])#,threshold=1)    #
-                nInliers,R,T,matchMask=cv2.recoverPose(E,newPts,oldPts,self.extract["k"],mask)
-                averageScale=np.zeros((3,3),dtype=np.float64)
-                countedIn=0
-                for index in range(0,len(simulationPoints)):
-                    i=simulationPoints[index]
-                    if(matchMask[index,0]==255):
-                        scale=(i["Xa"][0:3,0]-R.dot(i["Xb"][0:3,0])).reshape(3,1).dot(np.transpose(T.reshape(3,1))).dot(np.linalg.pinv(T.dot(np.transpose(T))))
-                        averageScale+=scale 
-                        countedIn+=1
-                averageScale=averageScale/nInliers
-                T=averageScale.dot(T)  
-                original=createHomog(R,T)
-                HResults[curveID]["H"]=np.linalg.inv(original)
-                print(getMotion(HResults[curveID]["H"]))
-                HResults[curveID]["Motion"]=getMotion(HResults[curveID]["H"]) 
-                HResults[curveID]["inlierMask"]=matchMask
-                HResults[curveID]["nInlier"]=nInliers
-                HResults[curveID]["inlierRatio"]=nInliers/float(len(simulationPoints))
-                HResults[curveID]["E"]=E
-                HResults[curveID]["MotionError"]=compareMotion(HResults[curveID]["H"],data["H"])
-                HResults[curveID]["CurveID"]=len(simulationPoints)
-                HResults[curveID]["PointResults"]=[]
-                #####get reprojection results
-                for index in range(0,len(simulationPoints)):
-                    i=simulationPoints[index]
-                    if(matchMask[index,0]==255):
-                        HResults[curveID]["PointResults"].append(self.getLandmarkReprojection(i,HResults[curveID]["H"]) )
-            f=open(self.output+"/"+inputFolder+"/"+Hpickle,"w")
-            pickle.dump(HResults,f)
-            f.close()
-            print("----")        
-    def getMotionError(self,H,Hestimate):
-        orig=getMotion(H)
-        est=getMotion(Hestimate)
-        out["X"]
+# class nisterExtract:
+#     def __init__(self,rootDir,extractConfig):
+#         self.root=rootDir
+#         self.output=rootDir+"/Nister"
+#         self.extract=extractConfig
+#     def extractMotion(self,inputFolder):
+#         worldFilesSet=os.listdir(self.root+"/"+inputFolder)
+#         print("Loaded From "+self.root+"/"+inputFolder)
+#         for Hpickle in worldFilesSet:
+#             f=open(self.root+"/"+inputFolder+"/"+Hpickle,"r")
+#             data=pickle.load(f)
+#             f.close()
+#             print(getMotion(data["H"]))
+#             HResults={}
+#             for curve in data["Curves"]:
+#                 curveID=str(len(curve))
+#                 HResults[curveID]={}
+#                 simulationPoints=[]
+#                 for pointIndex in curve:
+#                     simulationPoints.append(data["Points"][pointIndex])
+#                     newPts=np.zeros((len(simulationPoints),2),dtype=np.float64)
+#                     oldPts=np.zeros((len(simulationPoints),2),dtype=np.float64)
+#                 for j in range(0,len(simulationPoints)):
+#                     newPts[j,0]=simulationPoints[j]["Lb"][0]
+#                     newPts[j,1]=simulationPoints[j]["Lb"][1]
+#                     oldPts[j,0]=simulationPoints[j]["La"][0]
+#                     oldPts[j,1]=simulationPoints[j]["La"][1]
+#                 E,mask=cv2.findEssentialMat(newPts,oldPts,self.extract["f"],self.extract["pp"])
+#                                             #,prob=self.extract["probability"],threshold=self.extract["threshold"])#,threshold=1)    #
+#                 nInliers,R,T,matchMask=cv2.recoverPose(E,newPts,oldPts,self.extract["k"],mask)
+#                 averageScale=np.zeros((3,3),dtype=np.float64)
+#                 countedIn=0
+#                 for index in range(0,len(simulationPoints)):
+#                     i=simulationPoints[index]
+#                     if(matchMask[index,0]==255):
+#                         scale=(i["Xa"][0:3,0]-R.dot(i["Xb"][0:3,0])).reshape(3,1).dot(np.transpose(T.reshape(3,1))).dot(np.linalg.pinv(T.dot(np.transpose(T))))
+#                         averageScale+=scale 
+#                         countedIn+=1
+#                 averageScale=averageScale/nInliers
+#                 T=averageScale.dot(T)  
+#                 original=createHomog(R,T)
+#                 HResults[curveID]["H"]=np.linalg.inv(original)
+#                 print(getMotion(HResults[curveID]["H"]))
+#                 HResults[curveID]["Motion"]=getMotion(HResults[curveID]["H"]) 
+#                 HResults[curveID]["inlierMask"]=matchMask
+#                 HResults[curveID]["nInlier"]=nInliers
+#                 HResults[curveID]["inlierRatio"]=nInliers/float(len(simulationPoints))
+#                 HResults[curveID]["E"]=E
+#                 HResults[curveID]["MotionError"]=compareMotion(HResults[curveID]["H"],data["H"])
+#                 HResults[curveID]["CurveID"]=len(simulationPoints)
+#                 HResults[curveID]["PointResults"]=[]
+#                 #####get reprojection results
+#                 for index in range(0,len(simulationPoints)):
+#                     i=simulationPoints[index]
+#                     if(matchMask[index,0]==255):
+#                         HResults[curveID]["PointResults"].append(self.getLandmarkReprojection(i,HResults[curveID]["H"]) )
+#             f=open(self.output+"/"+inputFolder+"/"+Hpickle,"w")
+#             pickle.dump(HResults,f)
+#             f.close()
+#             print("----")        
+#     def getMotionError(self,H,Hestimate):
+#         orig=getMotion(H)
+#         est=getMotion(Hestimate)
+#         out["X"]
 
-        angleError=math.sqrt((orig["Roll"]-est["Roll"])**2 +
-                             (orig["Yaw"]-est["Yaw"])**2 +
-                              (orig["Pitch"]-orig["Pitch"])**2)
-        TranslationError=math.sqrt((orig["X"]-est["X"])**2+
-                                    (orig["Y"]-est["Y"])**2+
-                                    (orig["Z"]-est["Z"])**2)
-        out={}
-        out["TranslationError"]=TranslationError
-        out["angleError"]=angleError
-        return out
-    def getLandmarkReprojection(self,simPoint,H):
-        simResult={}
-        la_estimate=self.extract["Pl"].dot(simPoint["Xa"])
-        la_estimate=la_estimate/la_estimate[2,0]
-        ra_estimate=self.extract["Pr"].dot(simPoint["Xa"])
-        ra_estimate=ra_estimate/ra_estimate[2,0]
-        Xb_estimate=H.dot(simPoint["Xa"])
+#         angleError=math.sqrt((orig["Roll"]-est["Roll"])**2 +
+#                              (orig["Yaw"]-est["Yaw"])**2 +
+#                               (orig["Pitch"]-orig["Pitch"])**2)
+#         TranslationError=math.sqrt((orig["X"]-est["X"])**2+
+#                                     (orig["Y"]-est["Y"])**2+
+#                                     (orig["Z"]-est["Z"])**2)
+#         out={}
+#         out["TranslationError"]=TranslationError
+#         out["angleError"]=angleError
+#         return out
+#     def getLandmarkReprojection(self,simPoint,H):
+#         simResult={}
+#         la_estimate=self.extract["Pl"].dot(simPoint["Xa"])
+#         la_estimate=la_estimate/la_estimate[2,0]
+#         ra_estimate=self.extract["Pr"].dot(simPoint["Xa"])
+#         ra_estimate=ra_estimate/ra_estimate[2,0]
+#         Xb_estimate=H.dot(simPoint["Xa"])
 
-        lb_estimate=self.extract["Pl"].dot(Xb_estimate)
-        lb_estimate=lb_estimate/lb_estimate[2,0]
-        rb_estimate=self.extract["Pr"].dot(Xb_estimate)
-        rb_estimate=rb_estimate/rb_estimate[2,0]
-        simResult["La_Pred"]=la_estimate
-        simResult["Ra_Pred"]=ra_estimate
-        simResult["Lb_Pred"]=lb_estimate
-        simResult["Rb_Pred"]=rb_estimate
-        simResult["Error"]=[lb_estimate-simPoint["Lb"],
-                            la_estimate-simPoint["La"],
-                            ra_estimate-simPoint["Ra"],
-                            rb_estimate-simPoint["Rb"]]
-        return simResult
-        
+#         lb_estimate=self.extract["Pl"].dot(Xb_estimate)
+#         lb_estimate=lb_estimate/lb_estimate[2,0]
+#         rb_estimate=self.extract["Pr"].dot(Xb_estimate)
+#         rb_estimate=rb_estimate/rb_estimate[2,0]
+#         simResult["La_Pred"]=la_estimate
+#         simResult["Ra_Pred"]=ra_estimate
+#         simResult["Lb_Pred"]=lb_estimate
+#         simResult["Rb_Pred"]=rb_estimate
+#         simResult["Error"]=[lb_estimate-simPoint["Lb"],
+#                             la_estimate-simPoint["La"],
+#                             ra_estimate-simPoint["Ra"],
+#                             rb_estimate-simPoint["Rb"]]
+#         return simResult
+
+
+def getReprojection(currentPoints,currentTriangulated,previousPoints,previousTriangulated,Pl,Pr,scaledH):
+    reprojections=[]
+    for i in range(0,len(currentPoints)):
+        pass
+    print(len(currentPoints))
+
+
 class idealDataSet:
-    def __init__(self,outDir,motionConfig,cameraConfig):
+    def __init__(self,outDir,motionConfig,cameraConfig,nisterConfig):
         self.motion=motionConfig
         self.cameraConfig=cameraConfig
         self.outDir=outDir
+        self.nisterConfig=nisterConfig
+        self.NisterExtractor=nisterExtract("/media/ryan/EXTRA/output/Simulation",nisterConfig)
+
     def generate(self,pointsCurve=[500,750,1000,2000,3000],totalH=500):
         totalPoints=max(pointsCurve)
         pointsCurve.remove(totalPoints)
@@ -250,16 +262,47 @@ class idealDataSet:
             simulationData={}
             simulationData["ID"]=i 
             simulationData["R"]=noisyRotations(self.motion["RotationNoise"])
-            simulationData["T"]=dominantTranslation(self.motion["TranslationMean"],self.motion["TranslationNoise"])
+            simulationData["Tc"]=dominantTranslation(self.motion["TranslationMean"],self.motion["TranslationNoise"])
             simulationData["H"]=createHomog(simulationData["R"]["matrix"],
-                                            simulationData["T"]["vector"])
+                                            simulationData["Tc"]["vector"])
+            simulationData["Htransform"]=composeTransform(simulationData["R"]["matrix"],
+                                            simulationData["Tc"]["vector"])
             simulationData["Points"]=[]
             simulationData["Curves"]=[]
-            simulationData["Curves"].append(range(0,totalPoints))##add the 15000 set of indexes
+            simulationData["Stats"]={}
+            simulationData["Stats"]["percentError"]=[]
+            simulationData["Stats"]["Hestimate"]=[]
             for pointIndex in range(0,totalPoints):
-                simulationData["Points"].append(self.genStereoLandmark(simulationData["H"]))
+                simulationData["Points"].append(self.genStereoLandmark(simulationData["Htransform"]))
+            print(getMotion(simulationData["H"]),"ideal")
             for curveIndex in pointsCurve:
                 simulationData["Curves"].append(random.sample(range(0, totalPoints), curveIndex))
+            simulationData["Curves"].append(range(0,totalPoints))##add the 15000 set of indexes
+            for curveArray in simulationData["Curves"]:
+                currentPoints=[]
+                previousPoints=[]
+                currentLandmarks=[]
+                previousLandmarks=[]
+                curveID=str(len(curveArray))
+                for pointIndex in curveArray:
+                    currentPoints.append([simulationData["Points"][pointIndex]["Lb"][0,0],simulationData["Points"][pointIndex]["Lb"][1,0]])
+                    currentLandmarks.append(simulationData["Points"][pointIndex]["Xb"])
+                    previousPoints.append([simulationData["Points"][pointIndex]["La"][0,0],simulationData["Points"][pointIndex]["La"][1,0]])
+                    previousLandmarks.append(simulationData["Points"][pointIndex]["Xa"])
+                    
+
+                r=self.NisterExtractor.extractScaledMotion(currentPoints,currentLandmarks,previousPoints,previousLandmarks,True)
+                ##############
+                ###r["H"] is the combined transform with [R -RT]...To get actual T we still have to decompose it
+        #             f=open(self.output+"/"+inputFolder+"/"+Hpickle,"w")
+        #             pickle.dump(HResults,f)
+        #             f.close()
+                print(getMotion(decomposeTransform(r["H"])),"measured")
+                simulationData
+                print(compareMotion(simulationData["H"],decomposeTransform(r["H"])),"percent")
+                simulationData["Stats"]["percentError"].append(compareMotion(simulationData["H"],decomposeTransform(r["H"])))
+                simulationData["Stats"]["Hestimate"].append(getMotion(decomposeTransform(r["H"])))
+                print("---")
             outFile=self.outDir+"/H_"+str(i)+".p"
             f=open(outFile, 'wb')
             pickle.dump(simulationData,f)
@@ -293,6 +336,11 @@ class idealDataSet:
                 and (simPoint["Xa"][2,0]>0) and (simPoint["Xb"][2,0]>0)
                 and (simPoint["Xa"][1,0]>-0.5) and (simPoint["Xb"][1,0]>-0.5)):
                 validPoint=True
+                
+                #rp=cv2.triangulatePoints(self.cameraConfig["Pl"],self.cameraConfig["Pr"],
+                #                            (simPoint["La"][0,0],simPoint["La"][1,0]),
+                #                            (simPoint["Ra"][0,0],simPoint["Ra"][1,0]))
+                #rp=rp/rp[3,0]
         return simPoint
     def withinROI(self,pt):
         if((pt[0]>0)and(pt[0]<self.cameraConfig["width"])):
@@ -307,32 +355,37 @@ def addOutlier():
     pass
 
 def addGaussianNoise(sigma,inDir,outDir,cameraConfig):
-    worldFilesSet=os.listdir(inDir)
-    for Hpickle in worldFilesSet:
-        f=open(inDir+"/"+Hpickle,"r")
-        data=pickle.load(f)
-        f.close()
-        dataOut=copy.deepcopy(data)
-        print(Hpickle)
-        for index in range(0,len(data["Points"])):
-            newNoisyPt={}
-            newNoisyPt["La"]=addNoise(data["Points"][index]["La"],sigma,cameraConfig)
-            newNoisyPt["Ra"]=addNoise(data["Points"][index]["Ra"],sigma,cameraConfig)
-            newNoisyPt["Lb"]=addNoise(data["Points"][index]["Lb"],sigma,cameraConfig)
-            newNoisyPt["Rb"]=addNoise(data["Points"][index]["Rb"],sigma,cameraConfig)
-            newNoisyPt["Xa"]=data["Points"][index]["Xa"]
-            newNoisyPt["Xb"]=data["Points"][index]["Xb"]
-            data["Points"][index]=newNoisyPt
-                # noisyPt=copy.deepcopy(point)
+    pass
+    ####Load the set of ideal Files one at a time
+    ####for i in each curve
+    ####for i in each noise level
+    ####add noise to the original levels
+    ####Re triangulate from the noisy measurements
+    ####Add it to the Result Object
+    ####Store it
 
-                # n=np.random.normal(0,noiseLevel,1)
-                # print(n)
-                #noisyPt["La"]=noisyPt["La"]+
-                #point["Noisy"][str(noiseLevel)]={}
-        print("written" +outDir+"/"+Hpickle)
-        f=open(outDir+"/"+Hpickle,"w")
-        pickle.dump(data,f)
-        f.close()        
+
+
+    # worldFilesSet=os.listdir(inDir)
+    # for Hpickle in worldFilesSet:
+    #     f=open(inDir+"/"+Hpickle,"r")
+    #     data=pickle.load(f)
+    #     f.close()
+    #     dataOut=copy.deepcopy(data)
+    #     print(Hpickle)
+    #     for index in range(0,len(data["Points"])):
+    #         newNoisyPt={}
+    #         newNoisyPt["La"]=addNoise(data["Points"][index]["La"],sigma,cameraConfig)
+    #         newNoisyPt["Ra"]=addNoise(data["Points"][index]["Ra"],sigma,cameraConfig)
+    #         newNoisyPt["Lb"]=addNoise(data["Points"][index]["Lb"],sigma,cameraConfig)
+    #         newNoisyPt["Rb"]=addNoise(data["Points"][index]["Rb"],sigma,cameraConfig)
+    #         newNoisyPt["Xa"]=data["Points"][index]["Xa"]
+    #         newNoisyPt["Xb"]=data["Points"][index]["Xb"]
+    #         data["Points"][index]=newNoisyPt
+    #     print("written" +outDir+"/"+Hpickle)
+    #     f=open(outDir+"/"+Hpickle,"w")
+    #     pickle.dump(data,f)
+    #     f.close()        
 
 
 def addNoise(idealPt,sigma,cameraConfig):
