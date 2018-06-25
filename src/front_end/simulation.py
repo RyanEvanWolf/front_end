@@ -20,10 +20,10 @@ noiseLevels["0_25"]=0.25
 noiseLevels["0_5"]=0.5
 noiseLevels["0_75"]=0.75
 noiseLevels["1"]=1
+noiseLevels["1_5"]=1.5
 noiseLevels["2"]=2
-noiseLevels["5"]=5
-noiseLevels["10"]=10
-outlierLevels=[0.01,0.025,0.05,0.1,0.2,0.3,0.4]
+noiseLevels["2_5"]=2.5
+outlierLevels=[0.20,0.30,0.4,0.5,0.6]
 
 class simDirectory:
     def __init__(self,rootDir):
@@ -43,7 +43,11 @@ class simDirectory:
         m=self.root+"/medium_noisy"
         f=self.root+"/fast_noisy"
         return s,m,f     
-
+    def getOutlierDir(self):
+        s=self.root+"/slow_outlier"
+        m=self.root+"/medium_outlier"
+        f=self.root+"/fast_outlier"
+        return s,m,f
 def MotionCategorySettings():
     Settings={}
     Settings["Fast"]={}
@@ -253,8 +257,8 @@ class idealDataSet:
         self.outDir=outDir
         self.nisterConfig=nisterConfig
         self.NisterExtractor=nisterExtract("/media/ryan/EXTRA/output/Simulation",nisterConfig)
-
-    def generate(self,pointsCurve=[500,750,1000,2000,3000],totalH=500):
+        self.pcl=pclExtract("/media/ryan/EXTRA/output/Simulation",nisterConfig)
+    def generate(self,pointsCurve=[100,250,500,1000,2500],totalH=500): #,250,500,1000,2500]
         totalPoints=max(pointsCurve)
         pointsCurve.remove(totalPoints)
         for i in range(0,totalH):
@@ -273,7 +277,7 @@ class idealDataSet:
             simulationData["Stats"]["percentError"]=[]
             simulationData["Stats"]["Hestimate"]=[]
             for pointIndex in range(0,totalPoints):
-                simulationData["Points"].append(self.genStereoLandmark(simulationData["Htransform"]))
+                simulationData["Points"].append(self.genStereoLandmark(simulationData["Htransform"]))###Htransform
             print(getMotion(simulationData["H"]),"ideal")
             for curveIndex in pointsCurve:
                 simulationData["Curves"].append(random.sample(range(0, totalPoints), curveIndex))
@@ -289,19 +293,13 @@ class idealDataSet:
                     currentLandmarks.append(simulationData["Points"][pointIndex]["Xb"])
                     previousPoints.append([simulationData["Points"][pointIndex]["La"][0,0],simulationData["Points"][pointIndex]["La"][1,0]])
                     previousLandmarks.append(simulationData["Points"][pointIndex]["Xa"])
-                    
-
                 r=self.NisterExtractor.extractScaledMotion(currentPoints,currentLandmarks,previousPoints,previousLandmarks,True)
-                ##############
-                ###r["H"] is the combined transform with [R -RT]...To get actual T we still have to decompose it
-        #             f=open(self.output+"/"+inputFolder+"/"+Hpickle,"w")
-        #             pickle.dump(HResults,f)
-        #             f.close()
-                print(getMotion(decomposeTransform(r["H"])),"measured")
-                simulationData
-                print(compareMotion(simulationData["H"],decomposeTransform(r["H"])),"percent")
-                simulationData["Stats"]["percentError"].append(compareMotion(simulationData["H"],decomposeTransform(r["H"])))
-                simulationData["Stats"]["Hestimate"].append(getMotion(decomposeTransform(r["H"])))
+                s=self.pcl.rigid_transform_3D(previousLandmarks,currentLandmarks)
+
+                simulationData["nisterResult"]=r
+                simulationData["rigidResult"]=s
+                print(getMotion(decomposeTransform(np.linalg.inv(r["H"]))))
+                print(getMotion(decomposeTransform(s)))
                 print("---")
             outFile=self.outDir+"/H_"+str(i)+".p"
             f=open(outFile, 'wb')
@@ -325,7 +323,7 @@ class idealDataSet:
             simPoint["Ra"]=self.cameraConfig["Pr"].dot(simPoint["Xa"])
             simPoint["Ra"]=simPoint["Ra"]/simPoint["Ra"][2,0]
 
-            simPoint["Xb"]=H.dot(simPoint["Xa"])
+            simPoint["Xb"]=np.dot(H,simPoint["Xa"])
             simPoint["Xb"]=simPoint["Xb"]/simPoint["Xb"][3,0]
             simPoint["Lb"]=self.cameraConfig["Pl"].dot(simPoint["Xb"])
             simPoint["Lb"]=simPoint["Lb"]/simPoint["Lb"][2,0]
@@ -351,54 +349,119 @@ class idealDataSet:
         else:
             return False
 
-def addOutlier():
-    pass
+def addOutlier(percentage,inDir,outDir,cameraConfig):
+    ####load the files
+    ####for i in each operating Curve
+    ####calculate the number of outliers
+    ####select a random subset of them from the curve
+    ####generate a new set of data with nOutliers
+    ####store it
+    worldFilesSet=os.listdir(inDir)
+    for Hpickle in worldFilesSet:
+        print(inDir+"/"+Hpickle)
+        f=open(inDir+"/"+Hpickle,"r")
+        data=pickle.load(f)
+        f.close()
+        outputData=[]
+        for operatingCurve in data["Curves"]:
+            newCurve=[]
+            nOutliers=int(percentage*len(operatingCurve))
+            ##gen random subset
+            outliers=random.sample(range(0, len(operatingCurve)),nOutliers)
+            for individualIndex in operatingCurve:
+                newCurve.append(data["Points"][individualIndex])
+            for outlierIndex in outliers:
+                newCurve[outlierIndex]["La"]=genOutlier(newCurve[outlierIndex]["La"],
+                                                                    cameraConfig)
+                newCurve[outlierIndex]["Ra"]=genOutlier(newCurve[outlierIndex]["Ra"],
+                                                                    cameraConfig)
+                newCurve[outlierIndex]["Xa"]=cv2.triangulatePoints(cameraConfig["Pl"],cameraConfig["Pr"],
+                                            (newCurve[outlierIndex]["La"][0,0],newCurve[outlierIndex]["La"][1,0]),
+                                            (newCurve[outlierIndex]["Ra"][0,0],newCurve[outlierIndex]["Ra"][1,0]))
+                newCurve[outlierIndex]["Xa"]=newCurve[outlierIndex]["Xa"]/newCurve[outlierIndex]["Xa"][3,0]        
+                newCurve[outlierIndex]["Lb"]=genOutlier(newCurve[outlierIndex]["Lb"],
+                                                                    cameraConfig)
+                
+                newCurve[outlierIndex]["Rb"]=genOutlier(newCurve[outlierIndex]["Rb"],
+                                                                    cameraConfig)
+                newCurve[outlierIndex]["Xb"]=cv2.triangulatePoints(cameraConfig["Pl"],cameraConfig["Pr"],
+                                            (newCurve[outlierIndex]["Lb"][0,0],newCurve[outlierIndex]["Lb"][1,0]),
+                                            (newCurve[outlierIndex]["Rb"][0,0],newCurve[outlierIndex]["Rb"][1,0]))
+                newCurve[outlierIndex]["Xb"]=newCurve[outlierIndex]["Xb"]/newCurve[outlierIndex]["Xb"][3,0]
+            outputData.append(newCurve)        
+        print("written" +outDir+"/"+Hpickle)
+        f=open(outDir+"/"+Hpickle,"w")
+        pickle.dump(outputData,f)
+        f.close() 
+def genOutlier(idealPt,cameraConfig,minNoise=3):
+    ####generate point from uniform distribution
+    ####check if its within largest noise level
+    ####
+    valid=False
+    while(not valid):
+        x=np.random.rand(1)*float(cameraConfig["width"])
+        y=np.random.rand(1)*float(cameraConfig["height"])#np.random.rand(0,cameraConfig["height"],1)
+        pts=np.ones((3,1),dtype=np.float64)
+        pts[0,0]=x
+        pts[1,0]=y 
+        diff=abs(idealPt-pts  ) 
+        if((diff[0,0]>minNoise)and(diff[1,0]>minNoise)):
+            valid=True
+
+    return pts
+
 
 def addGaussianNoise(sigma,inDir,outDir,cameraConfig):
-    pass
-    ####Load the set of ideal Files one at a time
-    ####for i in each curve
     ####for i in each noise level
     ####add noise to the original levels
     ####Re triangulate from the noisy measurements
+    ####            -> constrained y noise to -1 and +1
     ####Add it to the Result Object
     ####Store it
-
-
-
-    # worldFilesSet=os.listdir(inDir)
-    # for Hpickle in worldFilesSet:
-    #     f=open(inDir+"/"+Hpickle,"r")
-    #     data=pickle.load(f)
-    #     f.close()
-    #     dataOut=copy.deepcopy(data)
-    #     print(Hpickle)
-    #     for index in range(0,len(data["Points"])):
-    #         newNoisyPt={}
-    #         newNoisyPt["La"]=addNoise(data["Points"][index]["La"],sigma,cameraConfig)
-    #         newNoisyPt["Ra"]=addNoise(data["Points"][index]["Ra"],sigma,cameraConfig)
-    #         newNoisyPt["Lb"]=addNoise(data["Points"][index]["Lb"],sigma,cameraConfig)
-    #         newNoisyPt["Rb"]=addNoise(data["Points"][index]["Rb"],sigma,cameraConfig)
-    #         newNoisyPt["Xa"]=data["Points"][index]["Xa"]
-    #         newNoisyPt["Xb"]=data["Points"][index]["Xb"]
-    #         data["Points"][index]=newNoisyPt
-    #     print("written" +outDir+"/"+Hpickle)
-    #     f=open(outDir+"/"+Hpickle,"w")
-    #     pickle.dump(data,f)
-    #     f.close()        
+    worldFilesSet=os.listdir(inDir)
+    for Hpickle in worldFilesSet:
+        print(inDir+"/"+Hpickle)
+        f=open(inDir+"/"+Hpickle,"r")
+        data=pickle.load(f)
+        f.close()
+        outputData=[]
+        for operatingCurve in data["Curves"]:
+            newCurve=[]
+            for individualIndex in operatingCurve:
+                newNoisyPt={}
+                newNoisyPt["La"]=addNoise(data["Points"][individualIndex]["La"],sigma,cameraConfig)
+                newNoisyPt["Ra"]=addNoise(data["Points"][individualIndex]["Ra"],sigma,cameraConfig)
+                newNoisyPt["Lb"]=addNoise(data["Points"][individualIndex]["Lb"],sigma,cameraConfig)
+                newNoisyPt["Rb"]=addNoise(data["Points"][individualIndex]["Rb"],sigma,cameraConfig)
+                newNoisyPt["Xa"]=cv2.triangulatePoints(cameraConfig["Pl"],cameraConfig["Pr"],
+                                            (newNoisyPt["La"][0,0],newNoisyPt["La"][1,0]),
+                                            (newNoisyPt["Ra"][0,0],newNoisyPt["Ra"][1,0]))
+                newNoisyPt["Xa"]=newNoisyPt["Xa"]/newNoisyPt["Xa"][3,0]
+                newNoisyPt["Xb"]=cv2.triangulatePoints(cameraConfig["Pl"],cameraConfig["Pr"],
+                            (newNoisyPt["Lb"][0,0],newNoisyPt["Lb"][1,0]),
+                            (newNoisyPt["Rb"][0,0],newNoisyPt["Rb"][1,0]))
+                newNoisyPt["Xb"]=newNoisyPt["Xb"]/newNoisyPt["Xb"][3,0]
+                newCurve.append(newNoisyPt)
+            outputData.append(newCurve)
+        print("written" +outDir+"/"+Hpickle)
+        f=open(outDir+"/"+Hpickle,"w")
+        pickle.dump(outputData,f)
+        f.close() 
+       
 
 
 def addNoise(idealPt,sigma,cameraConfig):
     valid=False
     while(not valid):
         valid=True
-        n=np.random.normal(0,sigma,2)
+        nx=np.random.normal(0,sigma,1)
+        ny=np.random.normal(0,1,1)
         newPt=copy.deepcopy(idealPt)
-        newPt[0,0]=newPt[0,0]+n[0]
-        newPt[1,0]=newPt[1,0]+n[1]
+        newPt[0,0]=newPt[0,0]+nx
+        newPt[1,0]=newPt[1,0]+ny
 
         if((newPt[0,0]>0)and(newPt[0,0]<cameraConfig["width"])):
-            if((newPt[1,0]>0)and(newPt[1,0]<cameraConfig["height"])):
+            if((newPt[1,0]>0)and(newPt[1,0]<cameraConfig["height"])and(abs(ny)<1)):
                 valid=True
     return newPt
         #n=np.random.normal(0,noiseLevel,1)

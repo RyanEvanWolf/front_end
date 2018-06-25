@@ -1,0 +1,112 @@
+#!/usr/bin/env python
+
+import math
+import time
+
+import pickle
+
+import cv2
+import numpy as np
+import rospy
+from cv_bridge import CvBridge
+from front_end.motion import *
+from front_end.simulation import *
+from sensor_msgs.msg import CameraInfo, Image
+from tf.transformations import quaternion_from_euler, quaternion_matrix
+
+import argparse
+rospy.init_node('motionSimulation')
+cvb=CvBridge()
+
+
+parser =argparse.ArgumentParser()
+parser.add_argument("--root_dir",default="/media/ryan/EXTRA/output/Simulation",type=str)
+args,unknown=parser.parse_known_args()
+d=simDirectory(args.root_dir)
+c,m,n=d.getSettings()
+K=c["Pl"][0:3,0:3]
+f=open(args.root_dir+"/Nister.p", 'r')
+NisterSettings=pickle.load(f)
+f.close()
+
+pclExtractor=pclExtract("/media/ryan/EXTRA/output/Simulation",NisterSettings)
+
+####################
+###extract Slow Noisy Data
+
+ind=d.getOutlierDir()[0]
+ideal=d.getIdealWorldDir()[0]
+def extractDir(inDir,idealDir):
+    print(inDir)
+    levels=os.listdir(inDir)
+    for lvl in levels:
+        #####
+        worldFilesSet=os.listdir(inDir+"/"+lvl)
+        for Hpickle in worldFilesSet:
+            f=open(inDir+"/"+lvl+"/"+Hpickle,"r")
+            data=pickle.load(f)
+            f.close()  
+            f=open(idealDir+"/"+Hpickle,"r")
+            IdealData=pickle.load(f)
+            f.close()
+            print(inDir+"/"+lvl+"/"+Hpickle)
+            print(idealDir+"/"+Hpickle)
+            print(getMotion(IdealData["H"]),"ideal")
+            outData=[]
+            for curve in data:
+                currentPoints=[]
+                previousPoints=[]
+                currentLandmarks=[]
+                previousLandmarks=[]
+                for point in curve:
+                    currentPoints.append([point["Lb"][0,0],point["Lb"][1,0]])
+                    currentLandmarks.append(point["Xb"])
+                    previousPoints.append([point["La"][0,0],point["La"][1,0]])
+                    previousLandmarks.append(point["Xa"])
+                r=pclExtractor.closedForm(currentLandmarks,previousLandmarks)
+                print(getMotion(np.linalg.inv(r)))
+                print(getMotion(decomposeTransform(r)),"ttt")
+                # r=NisterExtractor.extractScaledMotion(currentPoints,currentLandmarks,previousPoints,previousLandmarks,True)
+                # print(getMotion(decomposeTransform(r["H"])),"measured")
+                # print(compareMotion(IdealData["H"],decomposeTransform(r["H"])),"percent")
+                # outData.append(r)
+            # newFile=NisterExtractor.output+inDir[inDir.rfind("/"):]+"/"+lvl
+            # if(not os.path.exists(newFile)):
+            #     os.makedirs(newFile)
+            # newFile+="/"+Hpickle
+            # print(newFile)
+            # f=open(newFile,"w")
+            # pickle.dump(outData,f)
+            # f.close()
+
+extractDir(ind,ideal)
+
+#####
+###get all the different variations
+
+        # print(getMotion(data["H"]),"ideal")
+        # for curve in data["Curves"]:
+        #     ###get each Curve ID and pack it into a list
+        #     currentPoints=[]
+        #     previousPoints=[]
+        #     currentLandmarks=[]
+        #     previousLandmarks=[]
+        #     curveID=str(len(curve))
+
+        #     for pointIndex in curve:
+        #         currentPoints.append([data["Points"][pointIndex]["Lb"][0,0],data["Points"][pointIndex]["Lb"][1,0]])
+        #         currentLandmarks.append(data["Points"][pointIndex]["Xb"])
+        #         previousPoints.append([data["Points"][pointIndex]["La"][0,0],data["Points"][pointIndex]["La"][1,0]])
+        #         previousLandmarks.append(data["Points"][pointIndex]["Xa"])
+                
+
+        #     r=NisterExtractor.extractScaledMotion(currentPoints,currentLandmarks,previousPoints,previousLandmarks,True)
+        #     pickleOut
+        #     f=open(self.output+"/"+inputFolder+"/"+Hpickle,"w")
+        #     pickle.dump(HResults,f)
+        #     f.close()
+        #     print(getMotion(decomposeTransform(r["H"])),"measured")
+        #     print(compareMotion(data["H"],decomposeTransform(r["H"])),"percent")
+        # print("---")
+ 
+ 

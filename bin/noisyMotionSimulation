@@ -31,13 +31,18 @@ cam,mot,nist=d.getSettings()
 
 idealDirs=d.getIdealWorldDir()
 outDirs=d.getNoisyWorldDir()
+outlierDirs=d.getOutlierDir()
 ############
 ##add slow noise
 ############
-for k in noiseLevels.keys():
-    newOutFolder=outDirs[0]+"/"+k
-    addGaussianNoise(noiseLevels[k],idealDirs[0],newOutFolder,cam)
-    print(k)
+# for k in noiseLevels.keys():
+#     newOutFolder=outDirs[0]+"/"+k
+#     addGaussianNoise(noiseLevels[k],idealDirs[0],newOutFolder,cam)
+
+for k in outlierLevels:
+    newOutFolder=outlierDirs[0]+"/"+str(int(k*100))
+    print(newOutFolder)
+    addOutlier(k,idealDirs[0],newOutFolder,cam)
 
 
 #addGaussianNoise(noiseLevels,idealDirs[0],idealDirs[0],cam)

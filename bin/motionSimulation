@@ -38,21 +38,11 @@ f.close()
 ####generate SlowData
 
 idealData=idealDataSet(rootDir+"/slow_ideal",mSettings["Slow"],kSettings,NisterSettings)
-idealData.generate(totalH=30)
+idealData.generate(totalH=40)
 
 idealMData=idealDataSet(rootDir+"/medium_ideal",mSettings["Medium"],kSettings,NisterSettings)
-idealMData.generate(totalH=30)
+idealMData.generate(totalH=40)
 
 idealHData=idealDataSet(rootDir+"/fast_ideal",mSettings["Fast"],kSettings,NisterSettings)
-idealHData.generate(totalH=30)
-# NisterSettings=genDefaultNisterSettings(kSettings)
+idealHData.generate(totalH=40)
 
-
-# NisterExtractor=nisterExtract("/media/ryan/EXTRA/output/Simulation",NisterSettings)
-# NisterExtractor.extractMotion(idealData)
-
-# with open("/media/ryan/EXTRA/output/Simulation/slow_ideal.p", 'wb') as handle:
-#         pickle.dump(idealData,handle)
-
-# with open(NisterExtractor.output+"/slow_ideal.p", 'wb') as handle:
-#         pickle.dump(NisterExtractor,handle)
