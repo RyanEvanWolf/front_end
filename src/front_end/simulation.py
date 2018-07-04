@@ -23,7 +23,7 @@ noiseLevels["1"]=1
 noiseLevels["1_5"]=1.5
 noiseLevels["2"]=2
 noiseLevels["2_5"]=2.5
-outlierLevels=[0.20,0.30,0.4,0.5,0.6]
+outlierLevels=[0.05,0.1,0.15,0.2,0.25]
 
 class simDirectory:
     def __init__(self,rootDir):
@@ -274,20 +274,22 @@ class idealDataSet:
             simulationData["Points"]=[]
             simulationData["Curves"]=[]
             simulationData["Stats"]={}
-            simulationData["Stats"]["percentError"]=[]
-            simulationData["Stats"]["Hestimate"]=[]
+            simulationData["nisterResult"]=[]
+            simulationData["rigidResult"]=[]
             for pointIndex in range(0,totalPoints):
                 simulationData["Points"].append(self.genStereoLandmark(simulationData["Htransform"]))###Htransform
             print(getMotion(simulationData["H"]),"ideal")
+            
             for curveIndex in pointsCurve:
                 simulationData["Curves"].append(random.sample(range(0, totalPoints), curveIndex))
             simulationData["Curves"].append(range(0,totalPoints))##add the 15000 set of indexes
+            print(pointsCurve)
             for curveArray in simulationData["Curves"]:
                 currentPoints=[]
                 previousPoints=[]
                 currentLandmarks=[]
                 previousLandmarks=[]
-                curveID=str(len(curveArray))
+                print(str(len(curveArray)))
                 for pointIndex in curveArray:
                     currentPoints.append([simulationData["Points"][pointIndex]["Lb"][0,0],simulationData["Points"][pointIndex]["Lb"][1,0]])
                     currentLandmarks.append(simulationData["Points"][pointIndex]["Xb"])
@@ -296,12 +298,12 @@ class idealDataSet:
                 r=self.NisterExtractor.extractScaledMotion(currentPoints,currentLandmarks,previousPoints,previousLandmarks,True)
                 s=self.pcl.rigid_transform_3D(previousLandmarks,currentLandmarks)
 
-                simulationData["nisterResult"]=r
-                simulationData["rigidResult"]=s
-                print(getMotion(decomposeTransform(np.linalg.inv(r["H"]))))
+                simulationData["nisterResult"].append(r)
+                simulationData["rigidResult"].append(s)
+                print(r["nInliers"],getMotion(decomposeTransform(np.linalg.inv(r["H"]))))
                 print(getMotion(decomposeTransform(s)))
-                print("---")
-            outFile=self.outDir+"/H_"+str(i)+".p"
+            print("---")
+            outFile=self.outDir+"/H_"+str(i).zfill(3)+".p"
             f=open(outFile, 'wb')
             pickle.dump(simulationData,f)
             f.close()
@@ -366,6 +368,7 @@ def addOutlier(percentage,inDir,outDir,cameraConfig):
         for operatingCurve in data["Curves"]:
             newCurve=[]
             nOutliers=int(percentage*len(operatingCurve))
+            print("nOutliers:"+str(nOutliers)+"Total:"+str(len(operatingCurve)))
             ##gen random subset
             outliers=random.sample(range(0, len(operatingCurve)),nOutliers)
             for individualIndex in operatingCurve:

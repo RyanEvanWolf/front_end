@@ -15,7 +15,7 @@ from sensor_msgs.msg import CameraInfo, Image
 from tf.transformations import quaternion_from_euler, quaternion_matrix
 from front_end.simulation import *
 import argparse
-
+import os
 rospy.init_node('noisyMotionSimulation')
 
 
@@ -40,8 +40,10 @@ outlierDirs=d.getOutlierDir()
 #     addGaussianNoise(noiseLevels[k],idealDirs[0],newOutFolder,cam)
 
 for k in outlierLevels:
-    newOutFolder=outlierDirs[0]+"/"+str(int(k*100))
+    newOutFolder=outlierDirs[0]+"/"+str(int(k*100)).zfill(3)
     print(newOutFolder)
+    if(not(os.path.exists(newOutFolder))):
+        os.makedirs(newOutFolder)
     addOutlier(k,idealDirs[0],newOutFolder,cam)
 
 

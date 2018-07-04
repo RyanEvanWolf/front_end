@@ -5,6 +5,14 @@ import rosbag
 import time
 import cv2
 import copy
+
+
+def getDNister():
+    out=np.zeros((3,3),dtype=np.float64)
+    out[0,1]=1
+    out[1,0]=-1
+    out[2,2]=1
+    return out
 def deserialHomography(arrayIn):
     outHomography=np.zeros((4,4),dtype=np.float64)
     row=0
@@ -31,6 +39,7 @@ def composeTransform(R,T):
     ######[0   1]
     return createHomog(R,-R.dot(T))
 
+
 def decomposeTransform(H):
     R=copy.deepcopy(H[0:3,0:3])
     T=-1*np.linalg.inv(R).dot(H[0:3,3])
@@ -49,6 +58,14 @@ def getMotion(H):
     Result["Z"]=copy.deepcopy(H[2,3])
     return Result
 
+def getRotationMotion(R):
+    Result={}
+    angles=copy.deepcopy(euler_from_matrix(R,'szxy'))
+    Result["Roll"]=57.2958*angles[0]
+    Result["Pitch"]=57.2958*angles[1]
+    Result["Yaw"]=57.2958*angles[2]
+    return Result
+
 def compareMotion(H,Hest):
     Hstruct=getMotion(H)
     HestStruct=getMotion(Hest)
@@ -60,6 +77,18 @@ def compareMotion(H,Hest):
     Result["Y"]=getPercentError(Hstruct["Y"],HestStruct["Y"])
     Result["Z"]=getPercentError(Hstruct["Z"],HestStruct["Z"])
     return Result
+
+def compareAbsoluteMotion(H,Hest):
+    Hstruct=getMotion(H)
+    HestStruct=getMotion(Hest)
+    Result={}
+    Result["Roll"]=getAbsoluteError(Hstruct["Roll"],HestStruct["Roll"])
+    Result["Pitch"]=getAbsoluteError(Hstruct["Pitch"],HestStruct["Pitch"])
+    Result["Yaw"]=getAbsoluteError(Hstruct["Yaw"],HestStruct["Yaw"])
+    Result["X"]=getAbsoluteError(Hstruct["X"],HestStruct["X"])
+    Result["Y"]=getAbsoluteError(Hstruct["Y"],HestStruct["Y"])
+    Result["Z"]=getAbsoluteError(Hstruct["Z"],HestStruct["Z"])
+    return Result   
 
 def compareUnitMotion(H,Hest):
     ###normalize the original to unit
@@ -81,6 +110,10 @@ def compareUnitMotion(H,Hest):
             np.sqrt(HestStruct["X"]**2+HestStruct["Y"]**2+HestStruct["Z"]))
     return Result
 
+
+def getAbsoluteError(ideal,measured):
+    diff=abs(ideal-measured)
+    return diff
 
 def getPercentError(ideal,measured):
     diff=ideal-measured
@@ -231,8 +264,8 @@ class nisterExtract:
             newPts[j,1]=currentPoints[j][1]#simulationPoints[j]["Lb"][1]
             oldPts[j,0]=previousPoints[j][0]#simulationPoints[j]["La"][0]
             oldPts[j,1]=previousPoints[j][1]#simulationPoints[j]["La"][1]      
-        #E,mask=cv2.findEssentialMat(oldPts,newPts,self.extract["f"],self.extract["pp"],method=cv2.RANSAC)#,threshold=2,prob=0.999)#,threshold=30,prob=0.99)#,threshold=self.extract["threshold"],prob=self.extract["probability"])
-        E,mask=cv2.findEssentialMat(newPts,oldPts,self.extract["f"],self.extract["pp"],method=cv2.RANSAC)
+        #E,mask=cv2.findEssentialMat(oldPts,newPts,self.extract["f"],self.extract["pp"],method=cv2.RANSAC)#,threshold=2,prob=0.999)#,threshold=30,prob=0.99)#
+        E,mask=cv2.findEssentialMat(newPts,oldPts,self.extract["f"],self.extract["pp"],method=cv2.RANSAC,threshold=self.extract["threshold"],prob=self.extract["probability"])
         nInliers=list(mask).count(1)
         
                 #nInliers,R,T,matchMask=cv2.recoverPose(E,oldPts,newPts,self.extract["k"])#,mask)
@@ -260,28 +293,93 @@ class nisterExtract:
             oldPts[j,0]=previousPoints[j][0]
             oldPts[j,1]=previousPoints[j][1]      
         nisterResults=self.extractMotion(currentPoints,previousPoints,True)
-        R1,R2,t=cv2.decomposeEssentialMat(nisterResults["E"])
-        h=[createHomog(R1,t),createHomog(R1,-t),createHomog(R2,t),createHomog(R2-t)]
+        decomp=self.essential(nisterResults["E"])
+        #R1,R2,t=cv2.decomposeEssentialMat(nisterResults["E"])
+        R1,R2,t=decomp["Ra"],decomp["Rb"],decomp["T"]
+        print(getRotationMotion(R1))
+        print(getRotationMotion(R2))
+        h=[createHomog(R1,t),createHomog(R1,-t),createHomog(R2,t),createHomog(R2,-t)]
+        
         P0=self.composeCamera(np.eye(3,dtype=np.float64),np.zeros((3,1),dtype=np.float64))
         Pa=self.composeCamera(R1,t)
+        Pb=self.composeCamera(R1,-t)
+        Pc =self.composeCamera(R2,t)
+        Pd=self.composeCamera(R2,-t)
+        votes=[0,0,0,0]
+        for i in range(0,len(currentPoints)):
+            if(nisterResults["inlierMask"][i,0]==1):
+                x=cv2.triangulatePoints(P0,Pa,oldPts[i],newPts[i])
+                x/=x[3,0]
 
-        x=cv2.triangulatePoints(P0,Pa,oldPts[0],newPts[0])
-        c1=x[3,0]*x[2,0]
-        c2=Pa.dot(x)[2,0]*x[3,0]
-        # for i in range(0,len(h)):
-        #     print(i,getMotion(decomposeTransform(np.linalg.inv(h[i]))))
-        if((c1>0)and(c2>0)):
+                x2=cv2.triangulatePoints(P0,Pb,oldPts[i],newPts[i])
+                x2/=x2[3,0]
+
+                x3=cv2.triangulatePoints(P0,Pc,oldPts[i],newPts[i])
+                x3/=x3[3,0]
+                x4=cv2.triangulatePoints(P0,Pd,oldPts[i],newPts[i])
+                x4/=x4[3,0]
+                if(x[2,0]>0):
+                    if(t[2,0]>0):
+                        votes[0]+=1
+                if(x2[2,0]>0):
+                    if(-t[2,0]>0):
+                        votes[1]+=1
+                if(x3[2,0]>0):
+                    if(t[2,0]>0):
+                        votes[2]+=1                    
+                if(x4[2,0]>0):
+                    if(-t[2,0]>0):
+                        votes[3]+=1                    
+                # print(xp)
+                # print(xp2)
+                # print(xp3)
+                # print(xp4)
+                # print(currentTriangulated[i])
+                # print(previousTriangulated[i])
+                # print(np.linalg.inv(h[0]).dot(x))
+                # print(x2)
+                # print(np.linalg.inv(h[1]).dot(x2))
+                # print(x3)
+                # print(np.linalg.inv(h[2]).dot(x3))
+                # print(x4)
+                # print(np.linalg.inv(h[3]).dot(x4))
+        print(votes)
+        # for i in range(0,len(currentPoints)):
+        #     if(nisterResults["inlierMask"][i,0]==1):
+        #         x=cv2.triangulatePoints(P0,Pa,oldPts[i],newPts[i])
+        #         c1=x[3,0]*x[2,0]
+        #         c2=Pa.dot(x)[2,0]*x[3,0]
+        #         if((c1>0)and(c2>0)):
+        #             votes[0]+=1
+        #         elif((c1<0)and(c2<0)):
+        #             votes[1]+=1
+        #         elif(c1*c2<0):
+        #             if(x[2,0]*decomp["Ht"].dot(x)[3,0]>0):
+        #                 votes[2]+=1
+        #             else:
+        #                 votes[3]+=1
+        #         else:
+        #             print("CUKC UP")
+        indexFound=votes.index(max(votes))
+        if(indexFound==0):
             R=R1
             T=t
-        elif((c1<0)and(c2<0)):
+        elif(indexFound==1):
             R=R1
             T=-t
-        elif(c1*c2<0):
+        elif(indexFound==2):
             R=R2
             T=t
         else:
             R=R2
-            T=-t
+            T=-t    
+        nisterResults["nInliers"]=max(votes)       
+        nisterResults["R"]=R
+        nisterResults["T"]=T
+        nisterResults["H"]=createHomog(nisterResults["R"],nisterResults["T"])
+
+
+
         if(nisterResults["nInliers"]>0):
             averageScale=np.zeros((3,3),dtype=np.float64)
             countedIn=0
@@ -289,8 +387,8 @@ class nisterExtract:
             T3x3=get3x3Translation(T)
             for index in range(0,len(currentPoints)):
                 if(nisterResults["inlierMask"][index,0]==1):
-                    Xa=currentTriangulated[index][0:3,0].reshape(3,1)
-                    Xb=previousTriangulated[index][0:3,0].reshape(3,1)
+                    Xb=currentTriangulated[index][0:3,0].reshape(3,1)
+                    Xa=previousTriangulated[index][0:3,0].reshape(3,1)
                     scale=(Xb-R.dot(Xa)).dot(np.transpose(T.reshape(3,1))).dot(Tinv)
                     averageScale+=scale 
                     countedIn+=1
@@ -303,13 +401,26 @@ class nisterExtract:
             return nisterResults["H"]
         else:
             return nisterResults
-    def extractMotionFull(self,currentPoints,PreviousPoints):
-        newPts=np.zeros((len(currentPoints),2),dtype=np.float64)
+    def essential(self,inE):
+        output={}
+        u,s,vT=np.linalg.svd(inE,True,True)
+
+        if(np.linalg.det(u)<0):
+            u*=-1
+        if(np.linalg.det(vT)<0):
+            vT*=-1
+        output["Ra"]=u.dot(getDNister()).dot(vT)
+        output["Rb"]=u.dot(np.transpose(getDNister())).dot(vT)
+        output["T"]=u[0:3,2].reshape(3,1)
+        output["Ht"]=np.eye(4,dtype=np.float64)
+        output["Ht"][3,3]=-1
+        output["Ht"][3,0:3]=-2*vT[0:3,2].reshape(1,3)
+        return output
     def composeCamera(self,R,T):
         P=np.zeros((3,4),dtype=np.float64)
         P[0:3,0:3]=R
         P[0:3,3]=T.reshape(3)
-        #P=self.extract["k"].dot(P)
+        P=self.extract["k"].dot(P)
         return P
         # curveID=str(len(curve))
         #         HResults[curveID]={}

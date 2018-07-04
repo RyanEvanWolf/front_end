@@ -30,7 +30,7 @@ NisterSettings=pickle.load(f)
 f.close()
 
 NisterExtractor=nisterExtract("/media/ryan/EXTRA/output/Simulation",NisterSettings)
-
+pcl=pclExtract("/media/ryan/EXTRA/output/Simulation",NisterSettings)
 ####################
 ###extract Slow Noisy Data
 
@@ -53,6 +53,9 @@ def extractDir(inDir,idealDir):
             print(idealDir+"/"+Hpickle)
             print(getMotion(IdealData["H"]),"ideal")
             outData=[]
+            outData={}
+            outData["nisterResult"]=[]
+            outData["rigidResult"]=[]
             for curve in data:
                 currentPoints=[]
                 previousPoints=[]
@@ -63,11 +66,13 @@ def extractDir(inDir,idealDir):
                     currentLandmarks.append(point["Xb"])
                     previousPoints.append([point["La"][0,0],point["La"][1,0]])
                     previousLandmarks.append(point["Xa"])
-                r=NisterExtractor.extractScaledMotion(currentPoints,currentLandmarks,previousPoints,previousLandmarks,True)
-                print(getMotion(decomposeTransform(r["H"])),"measured")
-                print(compareMotion(IdealData["H"],decomposeTransform(r["H"])),"percent")
-                outData.append(r)
-            newFile=NisterExtractor.output+inDir[inDir.rfind("/"):]+"/"+lvl
+                #r=NisterExtractor.extractScaledMotion(currentPoints,currentLandmarks,previousPoints,previousLandmarks,True)
+                #print(len(curve),r["nInliers"],getMotion(decomposeTransform(np.linalg.inv(r["H"]))))
+                s=pcl.rigid_transform_3D(previousLandmarks,currentLandmarks)
+                print(getMotion(decomposeTransform(s)))
+                print(compareAbsoluteMotion(IdealData["H"],decomposeTransform(s)),"abserr")
+                outData["rigidResult"].append(s)
+            newFile=NisterExtractor.root+"/extracted"+inDir[inDir.rfind("/"):]+"/"+lvl
             if(not os.path.exists(newFile)):
                 os.makedirs(newFile)
             newFile+="/"+Hpickle
