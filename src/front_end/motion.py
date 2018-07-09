@@ -249,6 +249,67 @@ class pclExtract:
 
         return createHomog(R, t)
 
+class cvExtract:
+    def __init__(self,rootDir,extractConfig):
+        self.root=rootDir
+        self.output=rootDir +"/cv"
+        self.extract=extractConfig
+    def extractMotion(self,currentPoints,previousPoints,dictionary=False):
+        newPts=np.zeros((len(currentPoints),2),dtype=np.float64)
+        oldPts=np.zeros((len(currentPoints),2),dtype=np.float64)
+        for j in range(0,len(currentPoints)):
+
+            newPts[j,0]=currentPoints[j][0]#simulationPoints[j]["Lb"][0]
+            newPts[j,1]=currentPoints[j][1]#simulationPoints[j]["Lb"][1]
+            oldPts[j,0]=previousPoints[j][0]#simulationPoints[j]["La"][0]
+            oldPts[j,1]=previousPoints[j][1]#simulationPoints[j]["La"][1]      
+        #E,mask=cv2.findEssentialMat(oldPts,newPts,self.extract["f"],self.extract["pp"],method=cv2.RANSAC)#,threshold=2,prob=0.999)#,threshold=30,prob=0.99)#
+        E,mask=cv2.findEssentialMat(newPts,oldPts,self.extract["f"],self.extract["pp"],method=cv2.RANSAC,threshold=self.extract["threshold"],prob=self.extract["probability"])
+        nInliers=list(mask).count(1)
+        if(not dictionary):
+            H=createHomog(R,T)
+            return E,nInliers,mask
+        else:
+            Results={}
+            Results["inlierMask"]=mask
+            Results["nInliers"]=nInliers
+            Results["inlierRatio"]=nInliers/float(len(currentPoints))
+            Results["E"]=E
+            return Results  
+    def extractScaledMotion(self,currentPoints,currentTriangulated,previousPoints,previousTriangulated,dictionary=False):
+        newPts=np.zeros((len(currentPoints),2),dtype=np.float64)
+        oldPts=np.zeros((len(currentPoints),2),dtype=np.float64)
+        for j in range(0,len(currentPoints)):
+
+            newPts[j,0]=currentPoints[j][0]
+            newPts[j,1]=currentPoints[j][1]
+            oldPts[j,0]=previousPoints[j][0]
+            oldPts[j,1]=previousPoints[j][1]      
+        nisterResults=self.extractMotion(currentPoints,previousPoints,True)
+        R1,R2,t=cv2.decomposeEssentialMat(nisterResults["E"])
+        nInliers,R,T,matchMask=cv2.recoverPose(nisterResults["E"],oldPts,newPts,self.extract["k"])
+        nisterResults["inlierMask"]=matchMask
+        if(nisterResults["nInliers"]>0):
+            averageScale=np.zeros((3,3),dtype=np.float64)
+            countedIn=0
+            Tinv=getPsudeoInverseColumn(T)
+            T3x3=get3x3Translation(T)
+            for index in range(0,len(currentPoints)):
+                if(nisterResults["inlierMask"][index,0]>0):
+                    Xb=currentTriangulated[index][0:3,0].reshape(3,1)
+                    Xa=previousTriangulated[index][0:3,0].reshape(3,1)
+                    scale=(Xb-R.dot(Xa)).dot(np.transpose(T.reshape(3,1))).dot(Tinv)
+                    averageScale+=scale 
+                    countedIn+=1
+            averageScale=averageScale/nisterResults["nInliers"]
+            newT=averageScale.dot(T)
+            nisterResults["T"]=newT
+            nisterResults["R"]=R
+            nisterResults["H"]=createHomog(nisterResults["R"],nisterResults["T"])
+        if(not dictionary):
+            return nisterResults["H"]
+        else:
+            return nisterResults
 
 class nisterExtract:
     def __init__(self,rootDir,extractConfig):

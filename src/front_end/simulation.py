@@ -102,6 +102,9 @@ def noisyRotations(noise=5):
     frame["matrix"]=quaternion_matrix(q)[0:3,0:3]    
     return frame
 
+def steeringRotation():
+    print("a")
+
 def dominantTranslation(zBase=0.2,noise=0.1):
     frame={}
     frame["X"]=np.random.normal(0,noise,1)
@@ -258,6 +261,7 @@ class idealDataSet:
         self.nisterConfig=nisterConfig
         self.NisterExtractor=nisterExtract("/media/ryan/EXTRA/output/Simulation",nisterConfig)
         self.pcl=pclExtract("/media/ryan/EXTRA/output/Simulation",nisterConfig)
+        self.cvE=cvExtract("/media/ryan/EXTRA/output/Simulation",nisterConfig)
     def generate(self,pointsCurve=[100,250,500,1000,2500],totalH=500): #,250,500,1000,2500]
         totalPoints=max(pointsCurve)
         pointsCurve.remove(totalPoints)
@@ -275,6 +279,7 @@ class idealDataSet:
             simulationData["Curves"]=[]
             simulationData["Stats"]={}
             simulationData["nisterResult"]=[]
+            simulationData["openCVResult"]=[]
             simulationData["rigidResult"]=[]
             for pointIndex in range(0,totalPoints):
                 simulationData["Points"].append(self.genStereoLandmark(simulationData["Htransform"]))###Htransform
@@ -297,10 +302,12 @@ class idealDataSet:
                     previousLandmarks.append(simulationData["Points"][pointIndex]["Xa"])
                 r=self.NisterExtractor.extractScaledMotion(currentPoints,currentLandmarks,previousPoints,previousLandmarks,True)
                 s=self.pcl.rigid_transform_3D(previousLandmarks,currentLandmarks)
-
+                c=self.cvE.extractScaledMotion(currentPoints,currentLandmarks,previousPoints,previousLandmarks,True)
                 simulationData["nisterResult"].append(r)
                 simulationData["rigidResult"].append(s)
+                simulationData["openCVResult"].append(c)
                 print(r["nInliers"],getMotion(decomposeTransform(np.linalg.inv(r["H"]))))
+                print(getMotion(decomposeTransform(np.linalg.inv(c["H"]))))
                 print(getMotion(decomposeTransform(s)))
             print("---")
             outFile=self.outDir+"/H_"+str(i).zfill(3)+".p"

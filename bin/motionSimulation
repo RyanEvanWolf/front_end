@@ -38,11 +38,11 @@ f.close()
 ####generate SlowData
 
 idealData=idealDataSet(rootDir+"/slow_ideal",mSettings["Slow"],kSettings,NisterSettings)
-idealData.generate(totalH=100)
+idealData.generate(totalH=15)
 
 # idealMData=idealDataSet(rootDir+"/medium_ideal",mSettings["Medium"],kSettings,NisterSettings)
 # idealMData.generate(totalH=3)
 
-idealHData=idealDataSet(rootDir+"/fast_ideal",mSettings["Fast"],kSettings,NisterSettings)
-idealHData.generate(totalH=100)
+# idealHData=idealDataSet(rootDir+"/fast_ideal",mSettings["Fast"],kSettings,NisterSettings)
+# idealHData.generate(totalH=100)
 
