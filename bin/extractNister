@@ -31,6 +31,7 @@ f.close()
 
 NisterExtractor=nisterExtract("/media/ryan/EXTRA/output/Simulation",NisterSettings)
 pcl=pclExtract("/media/ryan/EXTRA/output/Simulation",NisterSettings)
+cvE=cvExtract("/media/ryan/EXTRA/output/Simulation",NisterSettings)
 ####################
 ###extract Slow Noisy Data
 
@@ -44,41 +45,56 @@ def extractDir(inDir,idealDir):
         worldFilesSet=os.listdir(inDir+"/"+lvl)
         for Hpickle in worldFilesSet:
             f=open(inDir+"/"+lvl+"/"+Hpickle,"r")
-            data=pickle.load(f)
+            simulationData=pickle.load(f)
             f.close()  
             f=open(idealDir+"/"+Hpickle,"r")
             IdealData=pickle.load(f)
             f.close()
             print(inDir+"/"+lvl+"/"+Hpickle)
             print(idealDir+"/"+Hpickle)
-            print(getMotion(IdealData["H"]),"ideal")
-            outData=[]
-            outData={}
-            outData["nisterResult"]=[]
-            outData["rigidResult"]=[]
-            for curve in data:
-                currentPoints=[]
-                previousPoints=[]
-                currentLandmarks=[]
-                previousLandmarks=[]
-                for point in curve:
-                    currentPoints.append([point["Lb"][0,0],point["Lb"][1,0]])
-                    currentLandmarks.append(point["Xb"])
-                    previousPoints.append([point["La"][0,0],point["La"][1,0]])
-                    previousLandmarks.append(point["Xa"])
-                #r=NisterExtractor.extractScaledMotion(currentPoints,currentLandmarks,previousPoints,previousLandmarks,True)
-                #print(len(curve),r["nInliers"],getMotion(decomposeTransform(np.linalg.inv(r["H"]))))
-                s=pcl.rigid_transform_3D(previousLandmarks,currentLandmarks)
-                print(getMotion(decomposeTransform(s)))
-                print(compareAbsoluteMotion(IdealData["H"],decomposeTransform(s)),"abserr")
-                outData["rigidResult"].append(s)
-            newFile=NisterExtractor.root+"/extracted"+inDir[inDir.rfind("/"):]+"/"+lvl
+            print(simulationData.keys())
+            for name in simulationData:
+                curpts,prvpts,curLand,prevLand=packPoints(simulationData[name]["Pts"])
+                s=pcl.rigid_transform_3D(prevLand,curLand)
+                c=cvE.extractScaledMotion(curpts,curLand,prvpts,prevLand,True)
+                simulationData[name]["nisterResult"]=c
+                simulationData[name]["rigidResult"]=s
+                print(getMotion(IdealData["H"]),"ideal")
+                print(getMotion(decomposeTransform(c["H"])),"nister")
+                print(getMotion(decomposeTransform(s["H"])),"rigid")
+                print(compareAbsoluteMotion(IdealData["H"],decomposeTransform(c["H"])),"abserr")
+                print(compareAbsoluteMotion(IdealData["H"],decomposeTransform(s["H"])),"abserr2")
+            # outData=[]
+            # outData={}
+            # outData["nisterResult"]=[]
+            # outData["rigidResult"]=[]
+            # for curve in data:
+            #     currentPoints=[]
+            #     previousPoints=[]
+            #     currentLandmarks=[]
+            #     previousLandmarks=[]
+            #     for point in curve:
+            #         currentPoints.append([point["Lb"][0,0],point["Lb"][1,0]])
+            #         currentLandmarks.append(point["Xb"])
+            #         previousPoints.append([point["La"][0,0],point["La"][1,0]])
+            #         previousLandmarks.append(point["Xa"])
+            #     r=cvE.extractScaledMotion(currentPoints,currentLandmarks,previousPoints,previousLandmarks,True)
+            #     #print(len(curve),r["nInliers"],getMotion(decomposeTransform(np.linalg.inv(r["H"]))))
+            #     s=pcl.rigid_transform_3D(previousLandmarks,currentLandmarks)
+            #     print(getMotion(IdealData["H"]),"ideal")
+            #     print(getMotion(decomposeTransform(r["H"])),"nister")
+            #     print(getMotion(decomposeTransform(s["H"])),"rigid")
+            #     print(compareAbsoluteMotion(IdealData["H"],decomposeTransform(s["H"])),"abserr")
+            #     print(compareAbsoluteMotion(IdealData["H"],decomposeTransform(r["H"])),"abserr2")
+            #     outData["rigidResult"].append(s)
+            #     outData["nisterResult"].append(r)
+            newFile=cvE.root+"/extracted"+inDir[inDir.rfind("/"):]+"/"+lvl
             if(not os.path.exists(newFile)):
                 os.makedirs(newFile)
             newFile+="/"+Hpickle
             print(newFile)
             f=open(newFile,"w")
-            pickle.dump(outData,f)
+            pickle.dump(simulationData,f)
             f.close()
 
 extractDir(ind,ideal)

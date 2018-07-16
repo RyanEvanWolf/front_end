@@ -69,6 +69,7 @@ def MotionCategorySettings():
     Settings["Slow"]["RotationNoise"]=1        ##degrees
     return Settings
 
+
 def getCameraSettingsFromServer():
     cvb=CvBridge()
     ##assumes a node has been declared
@@ -253,6 +254,28 @@ def getReprojection(currentPoints,currentTriangulated,previousPoints,previousTri
     print(len(currentPoints))
 
 
+def stereo3DProject(l,r,Q):
+    disp=-l[0,0]+r[0,0]
+    v=np.ones((4,1),dtype=np.float64)
+    v[0,0]=l[0,0]
+    v[1,0]=l[1,0]
+    v[2,0]=float(disp)
+    proj=Q.dot(v)
+    return proj/proj[3,0]
+
+def packPoints(stereoLandmarks):
+    currentPoints=[]
+    previousPoints=[]
+    currentLandmarks=[]
+    previousLandmarks=[]
+    for pointIndex in stereoLandmarks:
+        currentPoints.append([pointIndex["Lb"][0,0],pointIndex["Lb"][1,0]])
+        currentLandmarks.append(pointIndex["Xb"])
+        previousPoints.append([pointIndex["La"][0,0],pointIndex["La"][1,0]])
+        previousLandmarks.append(pointIndex["Xa"])   
+    return currentPoints,previousPoints,currentLandmarks,previousLandmarks
+
+
 class idealDataSet:
     def __init__(self,outDir,motionConfig,cameraConfig,nisterConfig):
         self.motion=motionConfig
@@ -262,9 +285,9 @@ class idealDataSet:
         self.NisterExtractor=nisterExtract("/media/ryan/EXTRA/output/Simulation",nisterConfig)
         self.pcl=pclExtract("/media/ryan/EXTRA/output/Simulation",nisterConfig)
         self.cvE=cvExtract("/media/ryan/EXTRA/output/Simulation",nisterConfig)
-    def generate(self,pointsCurve=[100,250,500,1000,2500],totalH=500): #,250,500,1000,2500]
+    def generate(self,pointsCurve=[100,250,500,1000,2500],totalH=500):
         totalPoints=max(pointsCurve)
-        pointsCurve.remove(totalPoints)
+        #pointsCurve.remove(totalPoints)
         for i in range(0,totalH):
             print("H=",i)
             simulationData={}
@@ -275,40 +298,57 @@ class idealDataSet:
                                             simulationData["Tc"]["vector"])
             simulationData["Htransform"]=composeTransform(simulationData["R"]["matrix"],
                                             simulationData["Tc"]["vector"])
-            simulationData["Points"]=[]
-            simulationData["Curves"]=[]
-            simulationData["Stats"]={}
-            simulationData["nisterResult"]=[]
-            simulationData["openCVResult"]=[]
-            simulationData["rigidResult"]=[]
-            for pointIndex in range(0,totalPoints):
-                simulationData["Points"].append(self.genStereoLandmark(simulationData["Htransform"]))###Htransform
-            print(getMotion(simulationData["H"]),"ideal")
-            
-            for curveIndex in pointsCurve:
-                simulationData["Curves"].append(random.sample(range(0, totalPoints), curveIndex))
-            simulationData["Curves"].append(range(0,totalPoints))##add the 15000 set of indexes
-            print(pointsCurve)
-            for curveArray in simulationData["Curves"]:
-                currentPoints=[]
-                previousPoints=[]
-                currentLandmarks=[]
-                previousLandmarks=[]
-                print(str(len(curveArray)))
-                for pointIndex in curveArray:
-                    currentPoints.append([simulationData["Points"][pointIndex]["Lb"][0,0],simulationData["Points"][pointIndex]["Lb"][1,0]])
-                    currentLandmarks.append(simulationData["Points"][pointIndex]["Xb"])
-                    previousPoints.append([simulationData["Points"][pointIndex]["La"][0,0],simulationData["Points"][pointIndex]["La"][1,0]])
-                    previousLandmarks.append(simulationData["Points"][pointIndex]["Xa"])
-                r=self.NisterExtractor.extractScaledMotion(currentPoints,currentLandmarks,previousPoints,previousLandmarks,True)
-                s=self.pcl.rigid_transform_3D(previousLandmarks,currentLandmarks)
-                c=self.cvE.extractScaledMotion(currentPoints,currentLandmarks,previousPoints,previousLandmarks,True)
-                simulationData["nisterResult"].append(r)
-                simulationData["rigidResult"].append(s)
-                simulationData["openCVResult"].append(c)
-                print(r["nInliers"],getMotion(decomposeTransform(np.linalg.inv(r["H"]))))
-                print(getMotion(decomposeTransform(np.linalg.inv(c["H"]))))
-                print(getMotion(decomposeTransform(s)))
+            simulationData["OC"]={}##operating curve
+
+            for crvTotal in pointsCurve:
+                name=str(crvTotal).zfill(5)
+                simulationData["OC"][name]={}
+                simulationData["OC"][name]["Pts"]=[]
+                for pointIndex in range(0,crvTotal):
+                    simulationData["OC"][name]["Pts"].append(self.genStereoLandmark(simulationData["Htransform"]))
+                    p=simulationData["OC"][name]["Pts"][-1]
+                    # print(p["Xa"])
+                    # print(p["XaPred"])
+                    # print(p["XaQPred"])
+                    # print("**************")
+                curpts,prvpts,curLand,prevLand=packPoints(simulationData["OC"][name]["Pts"])
+                s=self.pcl.rigid_transform_3D(prevLand,curLand)
+                c=self.cvE.extractScaledMotion(curpts,curLand,prvpts,prevLand,True)
+                simulationData["OC"][name]["nisterResult"]=c
+                simulationData["OC"][name]["rigidResult"]=s
+                print(getMotion(simulationData["H"]),"ideal")
+                # print(getMotion(decomposeTransform(c["H"])),c["nInliers"],"oNister")
+                # print(getMotion(decomposeTransform(s["H"])),"rigidBody")
+                # print(compareAbsoluteMotion(simulationData["H"],decomposeTransform(s["H"])),"abserr")
+                # print(compareAbsoluteMotion(simulationData["H"],decomposeTransform(c["H"])),"abserr2")
+                #simulationData["Points"].append(self.genStereoLandmark(simulationData["Htransform"]))###Htransform
+            # print(getMotion(simulationData["H"]),"ideal")
+            # for curveIndex in pointsCurve:
+            #     simulationData["Curves"].append(random.sample(range(0, totalPoints), curveIndex))
+            # simulationData["Curves"].append(range(0,totalPoints))##add the 15000 set of indexes
+            # print(pointsCurve)
+            # for curveArray in simulationData["Curves"]:
+            #     currentPoints=[]
+            #     previousPoints=[]
+            #     currentLandmarks=[]
+            #     previousLandmarks=[]
+            #     print("OperatingCurveTotal = "+str(len(curveArray)))
+            #     for pointIndex in curveArray:
+            #         currentPoints.append([simulationData["Points"][pointIndex]["Lb"][0,0],simulationData["Points"][pointIndex]["Lb"][1,0]])
+            #         currentLandmarks.append(simulationData["Points"][pointIndex]["Xb"])
+            #         previousPoints.append([simulationData["Points"][pointIndex]["La"][0,0],simulationData["Points"][pointIndex]["La"][1,0]])
+            #         previousLandmarks.append(simulationData["Points"][pointIndex]["Xa"])
+            #     #r=self.NisterExtractor.extractScaledMotion(currentPoints,currentLandmarks,previousPoints,previousLandmarks,True)
+            #     s=self.pcl.rigid_transform_3D(previousLandmarks,currentLandmarks)
+            #     c=self.cvE.extractScaledMotion(currentPoints,currentLandmarks,previousPoints,previousLandmarks,True)
+            #     #simulationData["nisterResult"].append(r)
+            #     simulationData["rigidResult"].append(s)
+            #     simulationData["nisterResult"].append(c)
+            #     print(getMotion(simulationData["H"]),"ideal")
+            #     #print("ourNister",r["nInliers"],getMotion(decomposeTransform(r["H"])))
+            #     print("opencvNister",c["nInliers"],getMotion(decomposeTransform(c["H"])))
+            #     print("rigidBody",getMotion(decomposeTransform(s["H"])))
+            # print(len(simulationData["nisterResult"]),len(simulationData["rigidResult"]))
             print("---")
             outFile=self.outDir+"/H_"+str(i).zfill(3)+".p"
             f=open(outFile, 'wb')
@@ -343,11 +383,15 @@ class idealDataSet:
                 and (simPoint["Xa"][2,0]>0) and (simPoint["Xb"][2,0]>0)
                 and (simPoint["Xa"][1,0]>-0.5) and (simPoint["Xb"][1,0]>-0.5)):
                 validPoint=True
-                
-                #rp=cv2.triangulatePoints(self.cameraConfig["Pl"],self.cameraConfig["Pr"],
-                #                            (simPoint["La"][0,0],simPoint["La"][1,0]),
-                #                            (simPoint["Ra"][0,0],simPoint["Ra"][1,0]))
-                #rp=rp/rp[3,0]
+                simPoint["XaPred"]=cv2.triangulatePoints(self.cameraConfig["Pl"],self.cameraConfig["Pr"],
+                                    (simPoint["La"][0,0],simPoint["La"][1,0]),
+                                    (simPoint["Ra"][0,0],simPoint["Ra"][1,0]))
+                simPoint["XaPred"]/=simPoint["XaPred"][3,0]
+                simPoint["XbPred"]=cv2.triangulatePoints(self.cameraConfig["Pl"],self.cameraConfig["Pr"],
+                                    (simPoint["Lb"][0,0],simPoint["Lb"][1,0]),
+                                    (simPoint["Rb"][0,0],simPoint["Rb"][1,0]))
+                simPoint["XaQPred"]=stereo3DProject(simPoint["La"],simPoint["Ra"],self.cameraConfig["Q"])
+                simPoint["XbQPred"]=stereo3DProject(simPoint["Lb"],simPoint["Rb"],self.cameraConfig["Q"])
         return simPoint
     def withinROI(self,pt):
         if((pt[0]>0)and(pt[0]<self.cameraConfig["width"])):
@@ -371,38 +415,37 @@ def addOutlier(percentage,inDir,outDir,cameraConfig):
         f=open(inDir+"/"+Hpickle,"r")
         data=pickle.load(f)
         f.close()
-        outputData=[]
-        for operatingCurve in data["Curves"]:
-            newCurve=[]
-            nOutliers=int(percentage*len(operatingCurve))
-            print("nOutliers:"+str(nOutliers)+"Total:"+str(len(operatingCurve)))
-            ##gen random subset
-            outliers=random.sample(range(0, len(operatingCurve)),nOutliers)
-            for individualIndex in operatingCurve:
-                newCurve.append(data["Points"][individualIndex])
+        for operatingCurve in data["OC"]:
+            print(operatingCurve)
+            nOutliers=int(percentage*len(data["OC"][operatingCurve]["Pts"]))
+            outliers=random.sample(range(0, len(data["OC"][operatingCurve]["Pts"])),nOutliers)
+            data["OC"][operatingCurve]["OutlierIndexes"]=outliers
+            print(len(data["OC"][operatingCurve]["OutlierIndexes"]))
             for outlierIndex in outliers:
-                newCurve[outlierIndex]["La"]=genOutlier(newCurve[outlierIndex]["La"],
-                                                                    cameraConfig)
-                newCurve[outlierIndex]["Ra"]=genOutlier(newCurve[outlierIndex]["Ra"],
-                                                                    cameraConfig)
-                newCurve[outlierIndex]["Xa"]=cv2.triangulatePoints(cameraConfig["Pl"],cameraConfig["Pr"],
-                                            (newCurve[outlierIndex]["La"][0,0],newCurve[outlierIndex]["La"][1,0]),
-                                            (newCurve[outlierIndex]["Ra"][0,0],newCurve[outlierIndex]["Ra"][1,0]))
-                newCurve[outlierIndex]["Xa"]=newCurve[outlierIndex]["Xa"]/newCurve[outlierIndex]["Xa"][3,0]        
-                newCurve[outlierIndex]["Lb"]=genOutlier(newCurve[outlierIndex]["Lb"],
-                                                                    cameraConfig)
-                
-                newCurve[outlierIndex]["Rb"]=genOutlier(newCurve[outlierIndex]["Rb"],
-                                                                    cameraConfig)
-                newCurve[outlierIndex]["Xb"]=cv2.triangulatePoints(cameraConfig["Pl"],cameraConfig["Pr"],
-                                            (newCurve[outlierIndex]["Lb"][0,0],newCurve[outlierIndex]["Lb"][1,0]),
-                                            (newCurve[outlierIndex]["Rb"][0,0],newCurve[outlierIndex]["Rb"][1,0]))
-                newCurve[outlierIndex]["Xb"]=newCurve[outlierIndex]["Xb"]/newCurve[outlierIndex]["Xb"][3,0]
-            outputData.append(newCurve)        
+                Pt=copy.deepcopy(data["OC"][operatingCurve]["Pts"][outlierIndex])
+                Pt["La"],Pt["Ra"],Pt["Xa"]=genStereoOutlier(Pt["La"],Pt["Ra"],cameraConfig)
+                Pt["Lb"],Pt["Rb"],Pt["Xb"]=genStereoOutlier(Pt["Lb"],Pt["Rb"],cameraConfig)
+                data["OC"][operatingCurve]["Pts"][outlierIndex]=Pt
+    
         print("written" +outDir+"/"+Hpickle)
         f=open(outDir+"/"+Hpickle,"w")
-        pickle.dump(outputData,f)
+        pickle.dump(data["OC"],f)
         f.close() 
+def genStereoOutlier(l,r,cameraConfig,minNoise=3):
+    valid=False
+    while(not valid):
+        x=np.random.rand(1)*float(cameraConfig["width"])
+        y=np.random.rand(1)*float(cameraConfig["height"])#np.random.rand(0,cameraConfig["height"],1)
+        pts=np.ones((3,1),dtype=np.float64)
+        pts[0,0]=x
+        pts[1,0]=y 
+        diff=abs(l-pts  ) 
+        if((diff[0,0]>minNoise)and(diff[1,0]>minNoise)):
+            valid=True
+    X=stereo3DProject(pts,r,cameraConfig["Q"])
+    rr=cameraConfig["Pr"].dot(X)
+    rr/=rr[2,0]
+    return pts,rr,X    
 def genOutlier(idealPt,cameraConfig,minNoise=3):
     ####generate point from uniform distribution
     ####check if its within largest noise level
