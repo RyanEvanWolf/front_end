@@ -32,12 +32,13 @@ cam,mot,nist=d.getSettings()
 idealDirs=d.getIdealWorldDir()
 outDirs=d.getNoisyWorldDir()
 outlierDirs=d.getOutlierDir()
-############
-##add slow noise
-############
-# for k in noiseLevels.keys():
-#     newOutFolder=outDirs[0]+"/"+k
-#     addGaussianNoise(noiseLevels[k],idealDirs[0],newOutFolder,cam)
+
+
+
+
+
+
+###slow motion
 
 for k in outlierLevels:
     newOutFolder=outlierDirs[0]+"/"+str(int(k*100)).zfill(3)
@@ -46,7 +47,24 @@ for k in outlierLevels:
         os.makedirs(newOutFolder)
     addOutlier(k,idealDirs[0],newOutFolder,cam)
 
+###medium Motion
 
+for k in outlierLevels:
+    newOutFolder=outlierDirs[1]+"/"+str(int(k*100)).zfill(3)
+    print(newOutFolder)
+    if(not(os.path.exists(newOutFolder))):
+        os.makedirs(newOutFolder)
+    addOutlier(k,idealDirs[1],newOutFolder,cam)
+
+
+###fast motion
+
+for k in outlierLevels:
+    newOutFolder=outlierDirs[2]+"/"+str(int(k*100)).zfill(3)
+    print(newOutFolder)
+    if(not(os.path.exists(newOutFolder))):
+        os.makedirs(newOutFolder)
+    addOutlier(k,idealDirs[2],newOutFolder,cam)
 #addGaussianNoise(noiseLevels,idealDirs[0],idealDirs[0],cam)
 
 

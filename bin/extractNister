@@ -99,6 +99,15 @@ def extractDir(inDir,idealDir):
 
 extractDir(ind,ideal)
 
+
+
+ind=d.getOutlierDir()[1]
+ideal=d.getIdealWorldDir()[1]
+extractDir(ind,ideal)
+
+ind=d.getOutlierDir()[1]
+ideal=d.getIdealWorldDir()[1]
+extractDir(ind,ideal)
 #####
 ###get all the different variations
 

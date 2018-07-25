@@ -1,10 +1,22 @@
 import numpy as np
 from tf.transformations import quaternion_from_euler,quaternion_matrix,euler_from_matrix
-from math import pi
+from math import pi,radians,degrees
 import rosbag
 import time
 import cv2
 import copy
+
+
+def composeR(roll,pitch,yaw,degrees=True,dict=True):
+    if(degrees):
+        q=quaternion_from_euler(radians(roll),
+                                radians(pitch),
+                                radians(yaw),'szxy')
+    else:
+        q=quaternion_from_euler(roll,
+                                pitch,
+                                yaw,'szxy')     
+
 
 
 def getDNister():
@@ -163,7 +175,6 @@ def estimateScale(xPrev,xCurrent,R,T,inliers):
     averageScale=averageScale/countedIn
     T=averageScale.dot(Ti)
     return averageScale,T,countedIn
-
 
 # def getPCLmotion(currentTriangulated,previousTriangulated):
 #     ##find centroid
@@ -343,6 +354,14 @@ class cvExtract:
         else:
             return nisterResults
 
+
+# class simpleBundle(self,rootDir,extractConfig):
+#         self.root=rootDir
+#         self.output=rootDir+"/Nister"
+#         self.extract=extractConfig
+#     def frameBundle(self,currentPoints,currentTriangulated,previousPoints,previousTriangulated,dictionary=False):
+#     return 0
+
 class nisterExtract:
     def __init__(self,rootDir,extractConfig):
         self.root=rootDir
@@ -517,3 +536,76 @@ class nisterExtract:
         #             i=simulationPoints[index]
         #             if(matchMask[index,0]==255):
         #                 HResults[curveID]["PointResults"].append(self.getLandmarkReprojection(i,HResults[curveID]["H"]) )
+
+################################
+###RANSAC
+################################
+
+
+def pclRANSAC(previousTriangulated,currentTriangulated,Pl,Pr):
+    iterations=50
+    reprojThresh=2
+    bestfit=None
+    besterr=np.inf
+    best_inlier_idxs=None
+    k=0
+    print(previousTriangulated[0])
+    while k < iterations:
+        k+=1
+        ###get random subset
+        ###repack them
+        a=rigid_transform_3D(previousTriangulated,currentTriangulated)
+    return a
+
+
+def rigid_transform_3D(previousLandmarks, currentLandmarks):
+        #assert len(A) == len(B)
+        n=len(previousLandmarks)
+        A=np.mat(np.random.rand(n,3),dtype=np.float64)
+        B=np.mat(np.random.rand(n,3),dtype=np.float64)
+        for a in range(0,len(currentLandmarks)):
+            A[a,0]=previousLandmarks[a][0,0]
+            A[a,1]=previousLandmarks[a][1,0]
+            A[a,2]=previousLandmarks[a][2,0]
+            B[a,0]=currentLandmarks[a][0,0]
+            B[a,1]=currentLandmarks[a][1,0]
+            B[a,2]=currentLandmarks[a][2,0]
+
+        N = A.shape[0]; # total points
+
+        centroid_A = np.mean(A, axis=0)
+        centroid_B = np.mean(B, axis=0)
+        #print(centroid_A)
+        # centre the points
+        AA = A - np.tile(centroid_A, (N, 1))
+        BB = B - np.tile(centroid_B, (N, 1))
+        #print(AA.shape)
+        #print(BB.shape)
+        #print(np.transpose(AA).shape)
+        # dot is matrix multiplication for array
+        H = np.transpose(AA).dot(BB)
+        #print(H.shape)
+        U, S, Vt = np.linalg.svd(H)
+
+        R = Vt.T * U.T
+
+        # special reflection case
+        if(np.linalg.det(R) < 0):
+            #print "Reflection detected"
+            Vt[2,:] *= -1
+            R = Vt.T * U.T
+        #print(R.shape,centroid_A.T.shape,centroid_B.T.shape)
+        #print((-R*centroid_A.T).shape)
+        t = -R.dot(centroid_A.T) + centroid_B.T
+        #print(R,t)
+        #print(t.shape)
+        #print t
+        out={}
+        out["R"]=R
+        out["T"]=t
+        out["H"]=createHomog(R, t)
+        return out
+# class pclRANSAC:
+#     def estimate(currentPoints,previousPoints,currentLandmarks,previousLandmarks):
+#         print("AC")
+

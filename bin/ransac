@@ -1,0 +1,144 @@
+#!/usr/bin/env python
+
+import math
+import time
+from scipy.optimize import least_squares
+from front_end.ransac import *
+import pickle
+
+import cv2
+import numpy as np
+import rospy
+from cv_bridge import CvBridge
+from front_end.motion import *
+from front_end.simulation import *
+from sensor_msgs.msg import CameraInfo, Image
+from tf.transformations import quaternion_from_euler, quaternion_matrix
+
+
+def withinROI(cameraConfig,pt):
+    if((pt[0]>0)and(pt[0]<cameraConfig["width"])):
+        if((pt[1]>0)and(pt[1]<cameraConfig["height"])):
+            return True
+        else:
+            return False
+    else:
+        return False
+
+def genStereoLandmark(cameraConfig,H):
+        validPoint=False
+        while(not validPoint):
+            simPoint={}
+            x=np.random.normal(0,5,1)
+            y=np.random.normal(0,5,1)
+            z=np.random.normal(0,4,1)
+            Point=np.ones((4,1),dtype=np.float64)
+
+            simPoint["Xa"]=copy.deepcopy(Point)
+            simPoint["Xa"][0,0]=x
+            simPoint["Xa"][1,0]=y
+            simPoint["Xa"][2,0]=z
+            simPoint["La"]=cameraConfig["Pl"].dot(simPoint["Xa"])
+            simPoint["La"]=simPoint["La"]/simPoint["La"][2,0]
+            simPoint["Ra"]=cameraConfig["Pr"].dot(simPoint["Xa"])
+            simPoint["Ra"]=simPoint["Ra"]/simPoint["Ra"][2,0]
+
+            simPoint["Xb"]=np.dot(H,simPoint["Xa"])
+            simPoint["Xb"]=simPoint["Xb"]/simPoint["Xb"][3,0]
+            simPoint["Lb"]=cameraConfig["Pl"].dot(simPoint["Xb"])
+            simPoint["Lb"]=simPoint["Lb"]/simPoint["Lb"][2,0]
+            simPoint["Rb"]=cameraConfig["Pr"].dot(simPoint["Xb"])
+            simPoint["Rb"]=simPoint["Rb"]/simPoint["Rb"][2,0]
+            if(withinROI(cameraConfig,simPoint["La"])and withinROI(cameraConfig,simPoint["Lb"])
+                and withinROI(cameraConfig,simPoint["Ra"]) and withinROI(cameraConfig,simPoint["Rb"])
+                and (simPoint["Xa"][2,0]>0) and (simPoint["Xb"][2,0]>0)
+                and (simPoint["Xa"][1,0]>-0.5) and (simPoint["Xb"][1,0]>-0.5)):
+                validPoint=True
+                simPoint["XaPred"]=cv2.triangulatePoints(cameraConfig["Pl"],cameraConfig["Pr"],
+                                    (simPoint["La"][0,0],simPoint["La"][1,0]),
+                                    (simPoint["Ra"][0,0],simPoint["Ra"][1,0]))
+                simPoint["XaPred"]/=simPoint["XaPred"][3,0]
+                simPoint["XbPred"]=cv2.triangulatePoints(cameraConfig["Pl"],cameraConfig["Pr"],
+                                    (simPoint["Lb"][0,0],simPoint["Lb"][1,0]),
+                                    (simPoint["Rb"][0,0],simPoint["Rb"][1,0]))
+                simPoint["XaQPred"]=stereo3DProject(simPoint["La"],simPoint["Ra"],cameraConfig["Q"])
+                simPoint["XbQPred"]=stereo3DProject(simPoint["Lb"],simPoint["Rb"],cameraConfig["Q"])
+        return simPoint
+
+rospy.init_node('minTest')
+cvb=CvBridge()
+
+kSettings=getCameraSettingsFromServer()
+mSettings=MotionCategorySettings()
+NisterSettings=genDefaultNisterSettings(kSettings)
+
+idealR = noisyRotations(mSettings["Slow"]["RotationNoise"])
+Tc=dominantTranslation(mSettings["Slow"]["TranslationMean"],mSettings["Slow"]["TranslationNoise"])
+
+
+Htransform= composeTransform(idealR["matrix"],
+                                            Tc["vector"])          
+
+
+
+totalPoints=200
+data=[]
+
+for i in range(0,totalPoints):
+    data.append(genStereoLandmark(kSettings,Htransform))
+
+
+# n_samples = 500
+# n_inputs = 1
+# n_outputs = 1
+# A_exact = 20*numpy.random.random((n_samples,n_inputs) )
+# perfect_fit = 60*numpy.random.normal(size=(n_inputs,n_outputs) ) # the model
+# B_exact = scipy.dot(A_exact,perfect_fit)
+# assert B_exact.shape == (n_samples,n_outputs)
+
+# # add a little gaussian noise (linear least squares alone should handle this well)
+# A_noisy = A_exact + numpy.random.normal(size=A_exact.shape )
+# B_noisy = B_exact + numpy.random.normal(size=B_exact.shape )
+
+# if 1:
+#     # add some outliers
+#     n_outliers = 100
+#     all_idxs = numpy.arange( A_noisy.shape[0] )
+#     numpy.random.shuffle(all_idxs)
+#     outlier_idxs = all_idxs[:n_outliers]
+#     non_outlier_idxs = all_idxs[n_outliers:]
+#     A_noisy[outlier_idxs] =  20*numpy.random.random((n_outliers,n_inputs) )
+#     B_noisy[outlier_idxs] = 50*numpy.random.normal(size=(n_outliers,n_outputs) )
+
+# # setup model
+
+# all_data = numpy.hstack( (A_noisy,B_noisy) )
+# print(all_data.shape)
+
+# input_columns = range(n_inputs) # the first columns of the array
+# output_columns = [n_inputs+i for i in range(n_outputs)] # the last columns of the array
+# print(input_columns)
+# print(output_columns)
+
+
+# debug = False
+# model = LinearLeastSquaresModel(input_columns,output_columns,debug=debug)
+
+# # linear_fit,resids,rank,s = scipy.linalg.lstsq(all_data[:,input_columns],
+# #                                                 all_data[:,output_columns])
+
+# # run RANSAC algorithm
+# ransac_fit, ransac_data = ransac(all_data,model,
+#                                     50, 1000, 7e3, 300, # misc. parameters
+#                                     debug=debug,return_all=True)
+
+
+currentPoints,previousPoints,currentLandmarks,previousLandmarks =packPoints(data)
+
+
+h=pclRANSAC(previousLandmarks,currentLandmarks,kSettings["Pl"],kSettings["Pr"])
+print("original")
+print(idealR)
+print(h["R"])
+print(Tc)
+print("---")
