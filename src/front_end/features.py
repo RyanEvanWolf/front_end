@@ -128,27 +128,161 @@ def getSURF(params):
     detector.setExtended(int(params[3]))
     detector.setUpright(int(params[4]))
     return detector
-    #         detectorRef.setHessianThreshold(float(parts[1]))
-#         detectorRef.setNOctaves(int(parts[3]))
-#         detectorRef.setNOctaveLayers(int(parts[5]))
-#         detectorRef.setExtended(int(parts[7]))
-#         detectorRef.setUpright(int(parts[9]))
-#     for t in threshold:
-#         for n in nOctave:
-#             for nl in nOctaveLayers:
-#                 for e in extended:
-#                     for u in upright:
-#                         msg="HessianThreshold,"+str(t)+",nOctave,"+str(n)+",nOctaveLayers,"+str(nl)+",Extended,"+str(e)+",Upright,"+str(u)
-#                         detectorStrings.append(msg)
-#     ##descriptor Settings
-#     for e in extended:
-#         for u in upright:
-#             msg="SURF,HessianThreshold,"+str(threshold[0])+",nOctave,"+str(nOctave[0])+",nOctaveLayers,"+str(nOctaveLayers[1])+",Extended,"+str(e)+",Upright,"+str(u)
-#             descriptorStrings.append(msg)
-#     return output,detectorStrings,descriptorStrings
 
+######################
+###BRISK
+#####################
+
+
+def getBRISK_parameters():
+    threshold=np.arange(10,70,12)
+    nOctave=np.arange(2,6,2)
+    patternScale=np.linspace(0.8,2.0,5)
+    output={}
+    output["Threshold"]=threshold
+    output["nOctave"]=nOctave
+    output["patternScale"]=patternScale
+    return output
+
+def getBRISK_combinations():
+    output=[]
+    params=getBRISK_parameters()
+    for t in params["Threshold"]:
+        for n in params["nOctave"]:
+            for on in params["patternScale"]:
+                singleSettings={}
+                singleSettings["Name"]="BRISK"
+                singleSettings["Param"]=[]
+                singleSettings["Param"].append(str(t))
+                singleSettings["Param"].append(str(n))
+                singleSettings["Param"].append(str(on))
+                singleSettings["NormType"]="NORM_HAMMING"
+                output.append(singleSettings)
+    return output
+
+def getBRISK(params):
+    detector=cv2.BRISK_create(int(params[0]),
+                            int(params[1]),
+                            float(params[2]))
+    return detector
+
+####################
+###AKAZE
+####################
+def getAKAZE_parameters():
+    descriptorType=(cv2.AKAZE_DESCRIPTOR_KAZE,cv2.AKAZE_DESCRIPTOR_KAZE_UPRIGHT,
+                    cv2.AKAZE_DESCRIPTOR_MLDB,cv2.AKAZE_DESCRIPTOR_MLDB_UPRIGHT)
+    descriptorSize=(64,256,486)
+    thresh=np.linspace(0.0005,0.02,2)
+    nOctave=np.arange(2,6,2)
+    nOctaveLayers=np.arange(2,6,2)
+    diffuse=(cv2.KAZE_DIFF_WEICKERT,cv2.KAZE_DIFF_CHARBONNIER,
+            cv2.KAZE_DIFF_PM_G1,cv2.KAZE_DIFF_PM_G2)
+    output={}
+    output["Threshold"]=thresh
+    output["nOctave"]=nOctave
+    output["nOctaveLayers"]=nOctaveLayers
+    output["descriptorSize"]=descriptorSize
+    output["descriptorType"]=descriptorType
+    output["diffusivity"]=diffuse
+    return output
+
+def getAKAZE_combinations():
+    output=[]
+    params=getAKAZE_parameters()
+    for t in params["Threshold"]:
+        for n in params["nOctave"]:
+            for nl in params["nOctaveLayers"]:
+                for ds in params["descriptorSize"]:
+                    for dt in params["descriptorType"]:
+                        for diff in params["diffusivity"]:
+                            singleSettings={}
+                            singleSettings["Name"]="AKAZE"
+                            singleSettings["Param"]=[]
+                            singleSettings["Param"].append(str(dt))
+                            singleSettings["Param"].append(str(ds))
+                            singleSettings["Param"].append(str(t))
+                            singleSettings["Param"].append(str(n))
+                            singleSettings["Param"].append(str(nl))
+                            
+                            singleSettings["Param"].append(str(diff))
+                            singleSettings["NormType"]="NORM_HAMMING"
+                            output.append(singleSettings)
+    return output
+
+def getAKAZE(params):
+    detector=cv2.AKAZE_create(int(params[0]),
+                               int(params[1]),
+                               3,
+                               float(params[2]),
+                               int(params[3]),
+                               int(params[4]),
+                               int(params[5]))
+
+    return detector
+####################
+###ORB
+####################
+def getORB_parameters():
+    scaleFactor=np.linspace(1.1,2.0,4)
+    nlevels=np.arange(2,10,2)
+    Edgethreshold=np.arange(10,70,12)
+    wta=np.arange(2,4,1)
+    score=[cv2.ORB_FAST_SCORE,cv2.ORB_HARRIS_SCORE]
+    patchSize=np.arange(10,70,12)
+    threshold=np.arange(5,50,10)
+    output={}
+    output["scaleFactor"]=scaleFactor
+    output["edgeThreshold"]=Edgethreshold
+    output["nLevels"]=nlevels
+    output["wta"]=wta
+    output["scoreType"]=score
+    output["patchSize"]=patchSize
+    output["fastThreshold"]=threshold
+    return output
+
+def getORB_combinations():
+    output=[]
+    params=getORB_parameters()
+    for s in params["scaleFactor"]:
+        for n in params["nLevels"]:
+            for e in params["edgeThreshold"]:
+                for w in params["wta"]:
+                    for t in params["scoreType"]:
+                        for p in params["patchSize"]:
+                            for th in params["fastThreshold"]:
+                                singleSettings={}
+                                singleSettings["Name"]="ORB"
+                                singleSettings["Param"]=[]
+                                singleSettings["Param"].append(str(s))
+                                singleSettings["Param"].append(str(n))
+                                singleSettings["Param"].append(str(e))
+                                singleSettings["Param"].append(str(w))
+                                singleSettings["Param"].append(str(t))
+                                singleSettings["Param"].append(str(p))
+                                singleSettings["Param"].append(str(th))
+                                if(w==2):
+                                    singleSettings["NormType"]="NORM_HAMMING2"
+                                else:
+                                    singleSettings["NormType"]="NORM_HAMMING"
+                                output.append(singleSettings)
+    return output
+
+def getORB(params):
+    detector=cv2.ORB_create(25000,float(params[0]),
+                    int(params[1]),
+                    int(params[2]),
+                    0,
+                    int(params[3]),
+                    int(params[4]),
+                    int(params[5]),
+                    int(params[6]))
+    return detector
+########################################################################
 ##############
-####
+####Lookup Tables and ID assignment
+############
+########################################################################
 def getDetectorIDs(detectorName):
     table=detectorLookUpTable()
     results=[]
@@ -166,7 +300,15 @@ def getDescriptorIDs(descriptorName):
     return results
 def detectorLookUpTable():
     Table={}
-    allSettings=(getFAST_combinations()+getSURF_combinations())
+    allSettings=(getORB_combinations()+
+                 getBRISK_combinations()+
+                getFAST_combinations()+
+                getSURF_combinations()+
+                getBRISK_combinations()+
+                getAKAZE_combinations())
+    #getAKAZE_combinations()#getBRISK_combinations()#(getFAST_combinations()+
+               # getSURF_combinations()+#
+               # getBRISK_combinations())
     for d in range(0,len(allSettings)):
         ID="Det"+str("%X" % d).zfill(10)
         Table[ID]=allSettings[d]
@@ -194,6 +336,12 @@ def getDetector(Name,params):
         return getFAST(params),True
     elif(Name=="SURF"):
         return getSURF(params),True
+    elif(Name=="BRISK"):
+        return getBRISK(params),True
+    elif(Name=="AKAZE"):
+        return getAKAZE(params),True
+    elif(Name=="ORB"):
+        return getORB(params),True
     else:
         return None,False
 

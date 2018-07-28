@@ -9,9 +9,14 @@ from front_end.srv import *
 from front_end.msg import frameDetection,ProcTime,kPoint
 from front_end.features import getDescriptor,detectorLookUpTable,descriptorLookUpTable,getDetector
 from cv_bridge import CvBridge
+from dataset.utils import getDetectorTable
+import yaml
+
+
 
 cvb=CvBridge()
-detTable=detectorLookUpTable()
+
+detTable=getDetectorTable()
 descTable=descriptorLookUpTable()
 global imagesProcessed
 imagesProcessed=0
@@ -91,9 +96,11 @@ def singleImageDetection_fn(req):
 
     fullOutputMessage=singleImageDetectionResponse()
     for settingsIndex in req.detID:
-        print(settingsIndex)
+        
         detector,success=getDetector(detTable[settingsIndex]["Name"],
                                      detTable[settingsIndex]["Param"])
+        if(not success):
+            print("NOT FOUND DETECTOR SETTING !!!")
         latestFrame=frameDetection()
         startTime=time.time()
         leftKPTs=detector.detect(leftImg)
@@ -132,7 +139,7 @@ def singleImageDetection_fn(req):
         latestFrame.processingTime.append(rtime)
         latestFrame.detID=settingsIndex
         processCount+=1
-
+        print(settingsIndex,detTable[settingsIndex]["Name"],latestFrame.nLeft,latestFrame.nRight)
         fullOutputMessage.outputFrames.append(latestFrame)
     print("-----",imagesProcessed)
     imagesProcessed+=1

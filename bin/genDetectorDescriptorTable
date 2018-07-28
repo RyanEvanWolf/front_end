@@ -1,0 +1,13 @@
+#!/usr/bin/env python
+#####ros related imports 
+from front_end.features import *
+from dataset.utils import *
+import yaml
+
+print("creating output table")
+
+table=detectorLookUpTable()
+
+with open(detectorTableDirectory, 'w') as f:
+    yaml.dump(table, f)
+
