@@ -1,13 +1,65 @@
 from front_end.features import descriptorLookUpTable,detectorLookUpTable
+from dataset.utils import *
 import numpy as np
 from statistics import mean,stdev
 import pickle
 import cv2
 from cv_bridge import CvBridge
+import os
+
+
+def getOperatingCurves(folderDir):
+    table=getDetectorTable()
+    detectorType=folderDir.split("/")[-1]
+    Settings={}
+    Times={}
+    Results={}
+    for i in OperatingCurveIDs():
+        Settings[i]=[]
+        Results[i]=[]
+        Times[i]=[]
+    for fileName in os.listdir(folderDir):
+        ##open a single image detection results pickle object
+        f=open(folderDir+"/"+fileName,"r")
+        data=pickle.load(f)
+        f.close()
+        leftFeaturesNList=[]
+        #processingTime=[]
+        ####
+        ####get a list of left features detcted and the times for each for the image
+        for singleDetectionResult in data.outputFrames:
+            leftFeaturesNList.append(singleDetectionResult.nLeft)
+            #processingTime.append(singleDetectionResult.processingTime[0].seconds)
+        ###
+        ###determine the statistics of the features detected
+        ### and add them to a list with a label
+        MaxInFrame=np.amax(leftFeaturesNList)
+        MinInFrame=np.amin(leftFeaturesNList)
+        MeanInFrame=mean(leftFeaturesNList)
+        dev=stdev(leftFeaturesNList)
+        dev_mean=MeanInFrame+dev
+        IdealPerformanceTotals=[("Maximum",MaxInFrame),
+                        ("0.9Maximum",0.9*MaxInFrame),
+                        ("0.8Maximum",0.8*MaxInFrame),
+                        ("+Deviation",MeanInFrame+dev),
+                        ("Mean",MeanInFrame),
+                        ("-Deviation",np.clip(MeanInFrame-dev,0,MaxInFrame)),
+                        ("Minimum",MinInFrame)]
+        #####
+        ###for each statistic, find the detectorID with the closest index
+        for i in IdealPerformanceTotals:
+            closestIndex=np.abs(np.array(leftFeaturesNList)-i[1]).argmin()
+            # print(i)
+            # print(leftFeaturesNList[closestIndex])
+            Settings[i[0]].append(data.outputFrames[closestIndex].detID)
+            Results[i[0]].append(leftFeaturesNList[closestIndex])
+            Times[i[0]].append(data.outputFrames[closestIndex].processingTime[0].seconds*1000)##in milliSeconds
+    return Settings,Results,Times
+
 
 class featureDatabase:
     def __init__(self,pickleDir):
-        self.table=detectorLookUpTable()
+        self.table=getDetectorTable
         inputPickle=open(pickleDir,"rb")
         self.featurePickle=pickle.load(inputPickle)
         inputPickle.close()
@@ -24,25 +76,10 @@ class featureDatabase:
         #     print(i,table[allSettings[i]]["Name"])
 
         Settings={}
-        Settings["Maximum"]=[]
-        Settings["0.9Maximum"]=[]
-        Settings["0.8Maximum"]=[]
-        Settings["0.7Maximum"]=[]
-        Settings["0.6Maximum"]=[]
-        Settings["+Deviation"]=[]
-        Settings["Mean"]=[]
-        Settings["-Deviation"]=[]
-        Settings["Minimum"]=[]
         Results={}
-        Results["Maximum"]=[]
-        Results["0.9Maximum"]=[]
-        Results["0.8Maximum"]=[]
-        Results["0.7Maximum"]=[]
-        Results["0.6Maximum"]=[]
-        Results["+Deviation"]=[]
-        Results["Mean"]=[]
-        Results["-Deviation"]=[]
-        Results["Minimum"]=[]
+        for i in OperatingCurveIDs():
+            Settings[i]=[]
+            Results[i]=[]
         for imageIndex in self.featurePickle:
             ###make a list of nFeatures
             leftNFeatures=[]

@@ -24,7 +24,7 @@ cvb=CvBridge()
 ##############
 ##FAST FEATURES
 def getFAST_parameters():
-    threshold=np.arange(1, 60, 3)
+    threshold=np.arange(1, 60, 1)
     dType=(cv2.FAST_FEATURE_DETECTOR_TYPE_5_8,cv2.FAST_FEATURE_DETECTOR_TYPE_7_12,cv2.FAST_FEATURE_DETECTOR_TYPE_9_16)
     maxSuppression=(True,False)
     output={}
@@ -87,8 +87,8 @@ def getBRIEF(params):
 ####SURF
 
 def getSURF_parameters():
-    threshold=np.arange(200,500,50)
-    nOctave=np.arange(4,7,1)
+    threshold=np.arange(25,550,25)
+    nOctave=np.arange(2,6,2)
     nOctaveLayers=np.arange(3,6,1)
     extended=(1,0)
     upright=(1,0)   
@@ -135,9 +135,9 @@ def getSURF(params):
 
 
 def getBRISK_parameters():
-    threshold=np.arange(10,70,12)
+    threshold=np.arange(10,70,3)
     nOctave=np.arange(2,6,2)
-    patternScale=np.linspace(0.8,2.0,5)
+    patternScale=np.linspace(0.8,2.5,10)
     output={}
     output["Threshold"]=threshold
     output["nOctave"]=nOctave
@@ -173,7 +173,7 @@ def getAKAZE_parameters():
     descriptorType=(cv2.AKAZE_DESCRIPTOR_KAZE,cv2.AKAZE_DESCRIPTOR_KAZE_UPRIGHT,
                     cv2.AKAZE_DESCRIPTOR_MLDB,cv2.AKAZE_DESCRIPTOR_MLDB_UPRIGHT)
     descriptorSize=(64,256,486)
-    thresh=np.linspace(0.0005,0.02,2)
+    thresh=np.linspace(0.0005,0.02,6)
     nOctave=np.arange(2,6,2)
     nOctaveLayers=np.arange(2,6,2)
     diffuse=(cv2.KAZE_DIFF_WEICKERT,cv2.KAZE_DIFF_CHARBONNIER,
@@ -225,11 +225,11 @@ def getAKAZE(params):
 ####################
 def getORB_parameters():
     scaleFactor=np.linspace(1.1,2.0,4)
-    nlevels=np.arange(2,10,2)
-    Edgethreshold=np.arange(10,70,12)
+    nlevels=np.arange(2,6,2)
+    Edgethreshold=np.arange(5,50,10)
     wta=np.arange(2,4,1)
     score=[cv2.ORB_FAST_SCORE,cv2.ORB_HARRIS_SCORE]
-    patchSize=np.arange(10,70,12)
+    patchSize=np.arange(10,70,20)
     threshold=np.arange(5,50,10)
     output={}
     output["scaleFactor"]=scaleFactor

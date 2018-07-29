@@ -10,4 +10,12 @@ table=detectorLookUpTable()
 
 with open(detectorTableDirectory, 'w') as f:
     yaml.dump(table, f)
+###print all of the different Stats
+print("FAST",len(getFAST_combinations()))
+print("BRISK",len(getBRISK_combinations()))
+print("SURF",len(getSURF_combinations()))
+print("ORB",len(getORB_combinations()))
+print("AKAZE",len(getAKAZE_combinations()))
+
+
 
