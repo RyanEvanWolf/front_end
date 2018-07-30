@@ -1,0 +1,175 @@
+#!/usr/bin/env python
+from front_end.utils import *
+from dataset.utils import Directories,unpackBag
+from front_end.features import *
+from cv_bridge import CvBridge
+import pickle
+import argparse
+import cv2
+import sys
+import numpy as np
+
+sequenceData=unpackBag("/home/ryan/DATA3/Bags/stereo_A_1.bag",100)
+
+detName=sys.argv[-1]
+print(detName)
+surfParams={}
+surfParams["thresh"]=[1,550]
+surfParams["nOctave"]=[2,8]
+surfParams["layers"]=[2,8]
+surfParams["extended"]=[0,1]
+surfParams["upright"]=[0,1]
+
+akazeParams={}
+akazeParams["descType"]=[2,5]
+akazeParams["Diffuse"]=[0,3]
+akazeParams["Threshold"]=[0,1500]
+akazeParams["DescSize"]=[0,2]
+akazeParams["nOctave"]=[2,4]
+akazeParams["layers"]=[2,8]
+
+if(detName=="SURF"):
+    params=surfParams
+elif(detName=="AKAZE"):
+    params=akazeParams
+else:
+    print("EORREAN NOT FOUND DETECTOR")
+    while(1):
+        pass
+pts=[]
+
+
+
+global det
+det=None
+def nothing(x):
+    pass
+
+def updateDet(name):
+    global det
+    ##assume surf
+    ####'   
+    if(name=="SURF"):
+        p=[]
+        p.append(str(cv2.getTrackbarPos('thresh','image')))
+        p.append(str(cv2.getTrackbarPos('nOctave','image')))
+        p.append(str(cv2.getTrackbarPos('layers','image')))
+        p.append(str(cv2.getTrackbarPos('extended','image')))
+        p.append(str(cv2.getTrackbarPos('upright','image')))
+        det=getSURF(p)
+    if(name=="AKAZE"):
+        p=[]
+        p.append(str(cv2.getTrackbarPos('descType','image')))
+        if(cv2.getTrackbarPos('DescSize','image')==0):
+            p.append("64")
+        elif(cv2.getTrackbarPos('DescSize','image')==1):
+            p.append("256")
+        else:
+            p.append("486")
+        thre=np.linspace(0,0.001,1500)[cv2.getTrackbarPos('Threshold','image')]
+        print(thre)
+        p.append(str(thre))
+        p.append(str(cv2.getTrackbarPos('nOctave','image')))
+        p.append(str(cv2.getTrackbarPos('layers','image')))
+        p.append(str(cv2.getTrackbarPos('Diffuse','image')))
+        det=getAKAZE(p)
+    ####
+###explore SURF
+cvb=CvBridge()
+    # threshold=np.arange(25,550,25)
+    # nOctave=np.arange(2,6,2)
+    # nOctaveLayers=np.arange(3,6,1)
+    # extended=(1,0)
+    # upright=(1,0)  
+
+
+cv2.namedWindow('image')
+for i in sorted(params.keys()):
+    cv2.createTrackbar(i,"image",params[i][0],params[i][1],nothing)
+
+
+
+
+
+# # create trackbars for color change
+# cv2.createTrackbar('R','image',0,255,nothing)
+# cv2.createTrackbar('G','image',0,255,nothing)
+# cv2.createTrackbar('B','image',0,255,nothing)
+
+# # create switch for ON/OFF functionality
+# switch = '0 : OFF \n1 : ON'
+# cv2.createTrackbar(switch, 'image',0,1,nothing)
+
+imageIndex=0
+
+displayImage=cvb.imgmsg_to_cv2(sequenceData["Left"][imageIndex])
+
+print("A=UpdateDetector")
+print("S= A + detect+compute+draw")
+print("D=Detect")
+print("F=compute from previous keypoints and new detector")
+print("H=Draw Keypoints")
+print("G=increment image")
+def draw():
+    global imageIndex
+    displayImage=cv2.cvtColor(cvb.imgmsg_to_cv2(sequenceData["Left"][imageIndex]),cv2.COLOR_GRAY2RGB)
+    cv2.drawKeypoints(displayImage,pts,displayImage,(0,255,0))
+while(1):
+    cv2.imshow('image',displayImage)
+    k = cv2.waitKey(15) & 0xFF
+    if k == 113:
+        break
+    elif(k==97):
+        #A#
+        updateDet(detName)
+        print("---")
+    elif(k==115):
+        #S#
+        updateDet(detName)
+        displayImage=cv2.cvtColor(cvb.imgmsg_to_cv2(sequenceData["Left"][imageIndex]),cv2.COLOR_GRAY2RGB)
+        pts=det.detect(cvb.imgmsg_to_cv2(sequenceData["Left"][imageIndex]))
+        pts,dsc=det.compute(cvb.imgmsg_to_cv2(sequenceData["Left"][imageIndex]),pts)
+        if(len(pts)>0):
+            print(dsc[0,:])
+            print(dsc[0,:].shape)
+            print(pts[0])
+        cv2.drawKeypoints(displayImage,pts,displayImage,(0,255,0))
+        print("---")
+    elif(k==100):
+        #D#
+        updateDet(detName)
+        pts=det.detect(cvb.imgmsg_to_cv2(sequenceData["Left"][imageIndex]))
+        print("---")
+    elif(k==102):
+        ##F
+        ff,dsc=det.compute(cvb.imgmsg_to_cv2(sequenceData["Left"][imageIndex]),pts)
+        print(len(ff),len(pts),dsc.shape)
+        if(len(ff)>0):
+            print(dsc[0,:])
+            print(dsc[0,:].shape)
+            print(ff[0])     
+        print("--")
+    elif(k==104):
+        ##H
+        displayImage=cv2.cvtColor(cvb.imgmsg_to_cv2(sequenceData["Left"][imageIndex]),cv2.COLOR_GRAY2RGB)
+        cv2.drawKeypoints(displayImage,pts,displayImage,(0,255,0))
+       
+    elif(k==103):
+        ##H
+        imageIndex+=20
+        if(imageIndex>=100):
+            imageIndex=0    
+        displayImage=cv2.cvtColor(cvb.imgmsg_to_cv2(sequenceData["Left"][imageIndex]),cv2.COLOR_GRAY2RGB)
+   
+    # get current positions of four trackbars
+    # r = cv2.getTrackbarPos('R','image')
+    # g = cv2.getTrackbarPos('G','image')
+    # b = cv2.getTrackbarPos('B','image')
+    # s = cv2.getTrackbarPos(switch,'image')
+
+    # if s == 0:
+    #     img[:] = 0
+    # else:
+    #     img[:] = [b,g,r]
+
+cv2.destroyAllWindows()
