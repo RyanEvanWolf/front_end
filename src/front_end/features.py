@@ -227,7 +227,7 @@ def getORB_parameters():
     scaleFactor=np.linspace(1.1,2.0,4)
     nlevels=np.arange(2,6,2)
     Edgethreshold=np.arange(5,50,10)
-    wta=np.arange(2,4,1)
+    wta=(3,4)
     score=[cv2.ORB_FAST_SCORE,cv2.ORB_HARRIS_SCORE]
     patchSize=np.arange(10,70,20)
     threshold=np.arange(5,50,10)
@@ -261,10 +261,7 @@ def getORB_combinations():
                                 singleSettings["Param"].append(str(t))
                                 singleSettings["Param"].append(str(p))
                                 singleSettings["Param"].append(str(th))
-                                if(w==2):
-                                    singleSettings["NormType"]="NORM_HAMMING2"
-                                else:
-                                    singleSettings["NormType"]="NORM_HAMMING"
+                                singleSettings["NormType"]="NORM_HAMMING"
                                 output.append(singleSettings)
     return output
 
