@@ -86,15 +86,15 @@ def singleImageDetection_fn(req):
     ###update Detector
     processCount=0
 
-    ltime=ProcTime()
-    ltime.label="lKP"
 
-    rtime=ProcTime()
-    rtime.label="rKP"
 
     fullOutputMessage=singleImageDetectionResponse()
     for settingsIndex in req.detID:
-        
+        ltime=ProcTime()
+        ltime.label="lKP"
+
+        rtime=ProcTime()
+        rtime.label="rKP"
         detector,success=getDetector(detTable[settingsIndex]["Name"],
                                      detTable[settingsIndex]["Param"])
         if(not success):

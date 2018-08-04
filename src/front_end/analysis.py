@@ -24,12 +24,13 @@ def getOperatingCurves(folderDir):
         data=pickle.load(f)
         f.close()
         leftFeaturesNList=[]
-        #processingTime=[]
+        processingTime=[]
         ####
         ####get a list of left features detcted and the times for each for the image
         for singleDetectionResult in data.outputFrames:
             leftFeaturesNList.append(singleDetectionResult.nLeft)
-            #processingTime.append(singleDetectionResult.processingTime[0].seconds)
+            processingTime.append(singleDetectionResult.processingTime[0].seconds*1000)
+            print(singleDetectionResult.nLeft,singleDetectionResult.processingTime[0].seconds*1000)
         ###
         ###determine the statistics of the features detected
         ### and add them to a list with a label
@@ -53,7 +54,10 @@ def getOperatingCurves(folderDir):
             # print(leftFeaturesNList[closestIndex])
             Settings[i[0]].append(data.outputFrames[closestIndex].detID)
             Results[i[0]].append(leftFeaturesNList[closestIndex])
-            Times[i[0]].append(data.outputFrames[closestIndex].processingTime[0].seconds*1000)##in milliSeconds
+            #print(fileName,data.outputFrames[closestIndex].processingTime[0].seconds*1000)
+            print(processingTime[closestIndex])
+            Times[i[0]].append(processingTime[closestIndex])
+            #Times[i[0]].append(data.outputFrames[closestIndex].processingTime[0].seconds*1000)##in milliSeconds
     return Settings,Results,Times
 
 
