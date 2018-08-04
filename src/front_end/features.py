@@ -87,9 +87,9 @@ def getBRIEF(params):
 ####SURF
 
 def getSURF_parameters():
-    threshold=np.arange(25,550,25)
+    threshold=np.arange(10,550,10)
     nOctave=np.arange(2,6,2)
-    nOctaveLayers=np.arange(3,6,1)
+    nOctaveLayers=np.arange(2,6,1)
     extended=(1,0)
     upright=(1,0)   
     output={}
@@ -100,24 +100,39 @@ def getSURF_parameters():
     output["Upright"]=upright
     return output
 
-def getSURF_combinations():
+def getSURF_DetectorCombinations():
     output=[]
     params=getSURF_parameters()
     for t in params["HessianThreshold"]:
         for n in params["nOctave"]:
             for on in params["nOctaveLayers"]:
-                for e in params["Extended"]:
-                    for u in params["Upright"]:
-                        singleSettings={}
-                        singleSettings["Name"]="SURF"
-                        singleSettings["Param"]=[]
-                        singleSettings["Param"].append(str(t))
-                        singleSettings["Param"].append(str(n))
-                        singleSettings["Param"].append(str(on))
-                        singleSettings["Param"].append(str(e))
-                        singleSettings["Param"].append(str(u))
-                        singleSettings["NormType"]="NORM_L2"
-                        output.append(singleSettings)
+                singleSettings={}
+                singleSettings["Name"]="SURF"
+                singleSettings["Param"]=[]
+                singleSettings["Param"].append(str(t))
+                singleSettings["Param"].append(str(n))
+                singleSettings["Param"].append(str(on))
+                singleSettings["Param"].append(str(params["Extended"][0]))###not used in detection
+                singleSettings["Param"].append(str(params["Upright"][0]))###not used in detection
+                singleSettings["NormType"]="NORM_L2"
+                output.append(singleSettings)
+    return output    
+
+def getSURF_DescriptorCombinations():
+    output=[]
+    params=getSURF_parameters()
+    for e in params["Extended"]:
+        for u in params["Upright"]:
+            singleSettings={}
+            singleSettings["Name"]="SURF"
+            singleSettings["Param"]=[]
+            singleSettings["Param"].append(str(params["HessianThreshold"][0]))
+            singleSettings["Param"].append(str(params["nOctave"][0]))
+            singleSettings["Param"].append(str(params["nOctaveLayers"][0]))
+            singleSettings["Param"].append(str(e))
+            singleSettings["Param"].append(str(u))
+            singleSettings["NormType"]="NORM_L2"
+            output.append(singleSettings)
     return output
 
 def getSURF(params):
@@ -135,7 +150,7 @@ def getSURF(params):
 
 
 def getBRISK_parameters():
-    threshold=np.arange(10,70,3)
+    threshold=np.arange(4,70,3)
     nOctave=np.arange(2,6,2)
     patternScale=np.linspace(0.8,2.5,10)
     output={}
@@ -173,7 +188,7 @@ def getAKAZE_parameters():
     descriptorType=(cv2.AKAZE_DESCRIPTOR_KAZE,cv2.AKAZE_DESCRIPTOR_KAZE_UPRIGHT,
                     cv2.AKAZE_DESCRIPTOR_MLDB,cv2.AKAZE_DESCRIPTOR_MLDB_UPRIGHT)
     descriptorSize=(64,256,486)
-    thresh=np.linspace(0.0005,0.02,6)
+    thresh=np.linspace(0.0001,0.02,24)
     nOctave=np.arange(2,6,2)
     nOctaveLayers=np.arange(2,6,2)
     diffuse=(cv2.KAZE_DIFF_WEICKERT,cv2.KAZE_DIFF_CHARBONNIER,
@@ -187,28 +202,68 @@ def getAKAZE_parameters():
     output["diffusivity"]=diffuse
     return output
 
-def getAKAZE_combinations():
+def getAKAZE_DetectorCombinations():
     output=[]
     params=getAKAZE_parameters()
     for t in params["Threshold"]:
         for n in params["nOctave"]:
             for nl in params["nOctaveLayers"]:
-                for ds in params["descriptorSize"]:
-                    for dt in params["descriptorType"]:
-                        for diff in params["diffusivity"]:
-                            singleSettings={}
-                            singleSettings["Name"]="AKAZE"
-                            singleSettings["Param"]=[]
-                            singleSettings["Param"].append(str(dt))
-                            singleSettings["Param"].append(str(ds))
-                            singleSettings["Param"].append(str(t))
-                            singleSettings["Param"].append(str(n))
-                            singleSettings["Param"].append(str(nl))
+                for diff in params["diffusivity"]:
+                    singleSettings={}
+                    singleSettings["Name"]="AKAZE"
+                    singleSettings["Param"]=[]
+                    singleSettings["Param"].append(str(params["descriptorSize"][0]))
+                    singleSettings["Param"].append(str(params["descriptorType"][0]))
+                    singleSettings["Param"].append(str(t))
+                    singleSettings["Param"].append(str(n))
+                    singleSettings["Param"].append(str(nl))
+                    
+                    singleSettings["Param"].append(str(diff))
+                    singleSettings["NormType"]="NORM_HAMMING"
+                    output.append(singleSettings)
+    return output   
+
+def getAKAZE_DescriptorCombinations():
+    output=[]
+    params=getAKAZE_parameters()
+    for ds in params["descriptorSize"]:
+        for dt in params["descriptorType"]:
+            singleSettings={}
+            singleSettings["Name"]="AKAZE"
+            singleSettings["Param"]=[]
+            singleSettings["Param"].append(str(dt))
+            singleSettings["Param"].append(str(ds))
+            singleSettings["Param"].append(str(params["Threshold"][0]))
+            singleSettings["Param"].append(str(params["nOctave"][0]))
+            singleSettings["Param"].append(str(params["nOctaveLayers"][0]))
+            
+            singleSettings["Param"].append(str(params["diffusivity"][0]))
+            singleSettings["NormType"]="NORM_HAMMING"
+            output.append(singleSettings)
+    return output   
+
+# def getAKAZE_combinations():
+#     output=[]
+#     params=getAKAZE_parameters()
+#     for t in params["Threshold"]:
+#         for n in params["nOctave"]:
+#             for nl in params["nOctaveLayers"]:
+#                 for ds in params["descriptorSize"]:
+#                     for dt in params["descriptorType"]:
+#                         for diff in params["diffusivity"]:
+#                             singleSettings={}
+#                             singleSettings["Name"]="AKAZE"
+#                             singleSettings["Param"]=[]
+#                             singleSettings["Param"].append(str(dt))
+#                             singleSettings["Param"].append(str(ds))
+#                             singleSettings["Param"].append(str(t))
+#                             singleSettings["Param"].append(str(n))
+#                             singleSettings["Param"].append(str(nl))
                             
-                            singleSettings["Param"].append(str(diff))
-                            singleSettings["NormType"]="NORM_HAMMING"
-                            output.append(singleSettings)
-    return output
+#                             singleSettings["Param"].append(str(diff))
+#                             singleSettings["NormType"]="NORM_HAMMING"
+#                             output.append(singleSettings)
+#     return output
 
 def getAKAZE(params):
     detector=cv2.AKAZE_create(int(params[0]),
@@ -224,13 +279,13 @@ def getAKAZE(params):
 ###ORB
 ####################
 def getORB_parameters():
-    scaleFactor=np.linspace(1.1,2.0,4)
+    scaleFactor=np.linspace(1.1,2.0,22)
     nlevels=np.arange(2,6,2)
-    Edgethreshold=np.arange(5,50,10)
+    Edgethreshold=np.arange(5,50,5)
     wta=(3,4)
-    score=[cv2.ORB_FAST_SCORE,cv2.ORB_HARRIS_SCORE]
+    score=[cv2.ORB_FAST_SCORE]#,cv2.ORB_HARRIS_SCORE]
     patchSize=np.arange(10,70,20)
-    threshold=np.arange(5,50,10)
+    threshold=np.arange(1,50,2)
     output={}
     output["scaleFactor"]=scaleFactor
     output["edgeThreshold"]=Edgethreshold
@@ -241,29 +296,73 @@ def getORB_parameters():
     output["fastThreshold"]=threshold
     return output
 
-def getORB_combinations():
+def getORB_DetectorCombinations():
     output=[]
     params=getORB_parameters()
     for s in params["scaleFactor"]:
         for n in params["nLevels"]:
             for e in params["edgeThreshold"]:
-                for w in params["wta"]:
-                    for t in params["scoreType"]:
-                        for p in params["patchSize"]:
-                            for th in params["fastThreshold"]:
-                                singleSettings={}
-                                singleSettings["Name"]="ORB"
-                                singleSettings["Param"]=[]
-                                singleSettings["Param"].append(str(s))
-                                singleSettings["Param"].append(str(n))
-                                singleSettings["Param"].append(str(e))
-                                singleSettings["Param"].append(str(w))
-                                singleSettings["Param"].append(str(t))
-                                singleSettings["Param"].append(str(p))
-                                singleSettings["Param"].append(str(th))
-                                singleSettings["NormType"]="NORM_HAMMING"
-                                output.append(singleSettings)
+                #for w in params["wta"]:
+                    #for t in params["scoreType"]:
+                    #    for p in params["patchSize"]:
+                    #        for th in params["fastThreshold"]:
+                singleSettings={}
+                singleSettings["Name"]="ORB"
+                singleSettings["Param"]=[]
+                singleSettings["Param"].append(str(s))
+                singleSettings["Param"].append(str(n))
+                singleSettings["Param"].append(str(e))
+                singleSettings["Param"].append(str(params["wta"][0]))
+                singleSettings["Param"].append(str(params["scoreType"][0]))
+                singleSettings["Param"].append(str(e))
+                singleSettings["Param"].append(str(params["fastThreshold"][0]))
+                singleSettings["NormType"]="NORM_HAMMING"
+                output.append(singleSettings)
     return output
+
+def getORB_DescriptorCombinations():
+    output=[]
+    params=getORB_parameters()
+    for w in params["wta"]:
+        for p in params["patchSize"]:
+            singleSettings={}
+            singleSettings["Name"]="ORB"
+            singleSettings["Param"]=[]
+            singleSettings["Param"].append(str(params["scaleFactor"][0]))
+
+            singleSettings["Param"].append(str(params["nLevels"][0]))
+            singleSettings["Param"].append(str(params["edgeThreshold"][0]))
+            singleSettings["Param"].append(str(w))
+            singleSettings["Param"].append(str(params["scoreType"][0]))
+            singleSettings["Param"].append(str(params["edgeThreshold"][0]))
+            singleSettings["Param"].append(str(params["fastThreshold"][0]))
+            singleSettings["NormType"]="NORM_HAMMING"
+            output.append(singleSettings)
+    return output    
+
+# def getORB_combinations():
+#     output=[]
+#     params=getORB_parameters()
+#     for s in params["scaleFactor"]:
+#         for n in params["nLevels"]:
+#             for e in params["edgeThreshold"]:
+#                 for w in params["wta"]:
+#                     for t in params["scoreType"]:
+#                         for p in params["patchSize"]:
+#                             for th in params["fastThreshold"]:
+#                                 singleSettings={}
+#                                 singleSettings["Name"]="ORB"
+#                                 singleSettings["Param"]=[]
+#                                 singleSettings["Param"].append(str(s))
+#                                 singleSettings["Param"].append(str(n))
+#                                 singleSettings["Param"].append(str(e))
+#                                 singleSettings["Param"].append(str(w))
+#                                 singleSettings["Param"].append(str(t))
+#                                 singleSettings["Param"].append(str(p))
+#                                 singleSettings["Param"].append(str(th))
+#                                 singleSettings["NormType"]="NORM_HAMMING"
+#                                 output.append(singleSettings)
+#     return output
 
 def getORB(params):
     detector=cv2.ORB_create(25000,float(params[0]),
@@ -297,12 +396,12 @@ def getDescriptorIDs(descriptorName):
     return results
 def detectorLookUpTable():
     Table={}
-    allSettings=(getORB_combinations()+
+    allSettings=(getORB_DetectorCombinations()+
                  getBRISK_combinations()+
                 getFAST_combinations()+
-                getSURF_combinations()+
+                getSURF_DetectorCombinations()+
                 getBRISK_combinations()+
-                getAKAZE_combinations())
+                getAKAZE_DetectorCombinations())
     #getAKAZE_combinations()#getBRISK_combinations()#(getFAST_combinations()+
                # getSURF_combinations()+#
                # getBRISK_combinations())
@@ -313,7 +412,7 @@ def detectorLookUpTable():
 
 def descriptorLookUpTable():
     Table={}
-    allSettings=getSURF_combinations()#(getBRIEF_combinations()
+    allSettings=getSURF_DescriptorCombinations()#(getBRIEF_combinations()
                 #+ getSURF_combinations())
     for d in range(0,len(allSettings)):
         ID="Desc"+str("%X" % d).zfill(10)

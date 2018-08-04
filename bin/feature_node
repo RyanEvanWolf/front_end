@@ -49,6 +49,7 @@ def getStereoFeatures_fn(req):
     startTime=time.time()
     leftKPTs=detector.detect(leftImg)
     lTime.seconds=time.time()-startTime
+    print(lTime)
     startTime=time.time()
     newKP,Descr=extractor.compute(leftImg,leftKPTs)
     ldTime.seconds=time.time()-startTime
@@ -67,18 +68,15 @@ def getStereoFeatures_fn(req):
     fullOutputMessage.latestFeatures.rightFeatures=packKP(newKP)
     fullOutputMessage.latestFeatures.rightDescr=cvb.cv2_to_imgmsg(Descr)
 
-    ###############################
-    startTime=time.time()
-    rightKPTs=detector.detect(leftImg)
-    rTime.seconds=time.time()-startTime
 
-    fullOutputMessage.latestFeatures.proc.append(lTime)
-    fullOutputMessage.latestFeatures.proc.append(ldTime)
-    fullOutputMessage.latestFeatures.proc.append(rTime)
-    fullOutputMessage.latestFeatures.proc.append(rdTime)
+    fullOutputMessage.latestFeatures.proc.append(lTime.total_seconds())
+    fullOutputMessage.latestFeatures.proc.append(ldTime.total_seconds())
+    fullOutputMessage.latestFeatures.proc.append(rTime.total_seconds())
+    fullOutputMessage.latestFeatures.proc.append(rdTime.total_seconds())
     imagesProcessed+=1
     print(imagesProcessed)
     print("---Description---"+str(imagesProcessed))
+    print(fullOutputMessage.latestFeatures.proc[0],fullOutputMessage.latestFeatures.proc[1])
     return fullOutputMessage
 
 def singleImageDetection_fn(req):
@@ -104,10 +102,13 @@ def singleImageDetection_fn(req):
         latestFrame=frameDetection()
         startTime=time.time()
         leftKPTs=detector.detect(leftImg)
+        delta=time.time()-startTime
         ltime.seconds=time.time()-startTime
+        print(ltime)
         startTime=time.time()
         rightKPTs=detector.detect(rightImg)
         rtime.seconds=time.time()-startTime
+        print(rtime)
         ##pack into frames
         lstat=getKPstats(leftKPTs)
         rstat=getKPstats(rightKPTs)
@@ -139,7 +140,11 @@ def singleImageDetection_fn(req):
         latestFrame.processingTime.append(rtime)
         latestFrame.detID=settingsIndex
         processCount+=1
-        print(settingsIndex,detTable[settingsIndex]["Name"],latestFrame.nLeft,latestFrame.nRight)
+        print(settingsIndex,detTable[settingsIndex]["Name"],
+                latestFrame.nLeft,
+                ltime.seconds,
+                latestFrame.nRight,
+                rtime.seconds)
         fullOutputMessage.outputFrames.append(latestFrame)
     print("-----",imagesProcessed)
     imagesProcessed+=1
