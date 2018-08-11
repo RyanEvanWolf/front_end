@@ -279,13 +279,13 @@ def getAKAZE(params):
 ###ORB
 ####################
 def getORB_parameters():
-    scaleFactor=np.linspace(1.1,2.0,22)
+    scaleFactor=np.linspace(1.1,2.0,8)
     nlevels=np.arange(2,6,2)
-    Edgethreshold=np.arange(5,50,5)
+    Edgethreshold=np.arange(5,50,10)
     wta=(3,4)
     score=[cv2.ORB_FAST_SCORE]#,cv2.ORB_HARRIS_SCORE]
     patchSize=np.arange(10,70,20)
-    threshold=np.arange(1,50,2)
+    threshold=np.arange(1,50,6)
     output={}
     output["scaleFactor"]=scaleFactor
     output["edgeThreshold"]=Edgethreshold
@@ -305,19 +305,19 @@ def getORB_DetectorCombinations():
                 #for w in params["wta"]:
                     #for t in params["scoreType"]:
                     #    for p in params["patchSize"]:
-                    #        for th in params["fastThreshold"]:
-                singleSettings={}
-                singleSettings["Name"]="ORB"
-                singleSettings["Param"]=[]
-                singleSettings["Param"].append(str(s))
-                singleSettings["Param"].append(str(n))
-                singleSettings["Param"].append(str(e))
-                singleSettings["Param"].append(str(params["wta"][0]))
-                singleSettings["Param"].append(str(params["scoreType"][0]))
-                singleSettings["Param"].append(str(e))
-                singleSettings["Param"].append(str(params["fastThreshold"][0]))
-                singleSettings["NormType"]="NORM_HAMMING"
-                output.append(singleSettings)
+                for th in params["fastThreshold"]:
+                    singleSettings={}
+                    singleSettings["Name"]="ORB"
+                    singleSettings["Param"]=[]
+                    singleSettings["Param"].append(str(s))
+                    singleSettings["Param"].append(str(n))
+                    singleSettings["Param"].append(str(e))
+                    singleSettings["Param"].append(str(params["wta"][0]))
+                    singleSettings["Param"].append(str(params["scoreType"][0]))
+                    singleSettings["Param"].append(str(e))
+                    singleSettings["Param"].append(str(th))
+                    singleSettings["NormType"]="NORM_HAMMING"
+                    output.append(singleSettings)
     return output
 
 def getORB_DescriptorCombinations():
