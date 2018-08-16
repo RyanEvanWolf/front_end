@@ -14,6 +14,8 @@
 
 #include <front_end/singleImageDetection.h>
 
+
+
 ros::ServiceServer singleImageDetectionSrv;
 cv::FileStorage fs;
 image_transport::ImageTransport *it;
@@ -30,8 +32,33 @@ bool fn_singleImageDetection(front_end::singleImageDetection::Request& req,front
 	std::vector<std::string>::iterator it;  // declare an iterator to a vector of strings
 	for(it = req.detID.begin(); it != req.detID.end(); it++)
 	{
-		std::cout<<(*it)<<":";
-		std::cout<<getKeypoints(left,fs[(*it)],lKP)<<"||"<<lKP.size()<<std::endl;
+		front_end::frameDetection ans;
+		ans.detID=(*it);
+		front_end::ProcTime lTime,rTime;
+		lTime.label="lKP";
+		rTime.label="rKP";
+		
+		lTime.seconds=getKeypoints(left,fs[(*it)],lKP);
+		rTime.seconds=getKeypoints(right,fs[(*it)],rKP);
+		ans.processingTime.push_back(lTime);
+		ans.processingTime.push_back(rTime);
+		if(req.returnKP)
+		{
+			int kpCount=0;
+			///////////
+			//NOT IMPLEMENTED YET
+		}
+		cv::Mat displayL,displayR;
+		drawKeypoints(left,lKP,displayL);
+		drawKeypoints(right,rKP,displayR);
+		cv::imshow("left",displayL);
+		cv::imshow("right",displayR);
+		cv::waitKey(1);
+		//ans.nLeft=getKeypoints(left,fs[(*it)],lKP)
+		std::cout<<(*it)<<":LEFT=";
+		std::cout<<lTime.seconds<<"|"<<lKP.size();
+		std::cout<<"|"<<rKP.size()<<std::endl;
+		res.outputFrames.push_back(ans);
 	}
 	
 	//cv::FileNode fn = fs.root();
@@ -51,6 +78,12 @@ bool fn_singleImageDetection(front_end::singleImageDetection::Request& req,front
 
 int main(int argc,char *argv[])
 {	
+
+	cv::initModule_nonfree();
+	std::cout<<"OpenCV version : " << CV_VERSION << std::endl;
+	std::cout << "Major version : " << CV_MAJOR_VERSION << std::endl;
+	std::cout << "Minor version : " << CV_MINOR_VERSION << std::endl;
+	std::cout << "Subminor version : " << CV_SUBMINOR_VERSION << std::endl;
 	std::string nodeName="feature_node_cpp";
     ros::init(argc,argv,nodeName);
     ros::NodeHandle n;

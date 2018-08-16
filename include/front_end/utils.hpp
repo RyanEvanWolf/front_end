@@ -1,9 +1,10 @@
 #include <string>
  #include <unistd.h>
-//#include <opencv2/xfeatures2d.hpp>
+#include <front_end/nonfree.hpp>
+#include <front_end/features2d.hpp>
 #include <opencv2/core.hpp>
 #include <opencv2/features2d.hpp>
-
+#include <front_end/AKAZE.h>
 
 #include <iostream>
 

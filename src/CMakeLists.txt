@@ -8,6 +8,30 @@ target_link_libraries(feature_node_cpp
 	${BasicSLAMStructures_LIBS}
 )
 else()
+
+add_library(non_free nonfree_init.cpp sift.cpp surf.cpp)
+add_dependencies(non_free ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(non_free 
+	${catkin_LIBRARIES}
+	${OpenCV_LIBS}
+	${BasicSLAMStructures_LIBS}
+)
+
+
+# Create projects
+include_directories("lib/")
+
+# AKAZE libraries
+set(AKAZE_SRCS
+    lib/AKAZEConfig.h
+    lib/AKAZE.h                  lib/AKAZE.cpp
+    lib/fed.h                    lib/fed.cpp
+    lib/nldiffusion_functions.h  lib/nldiffusion_functions.cpp
+    lib/utils.h                  lib/utils.cpp)
+
+add_library(AKAZE ${AKAZE_SRCS})
+target_link_libraries(AKAZE ${OpenCV_LIBS} ${catkin_LIBRARIES})
+
 add_executable(front_end_node front_end_node.cpp StereoCamera.cpp)
 add_dependencies(front_end_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 target_link_libraries(front_end_node 
@@ -33,6 +57,8 @@ target_link_libraries(feature_node_cpp
 	${OpenCV_LIBS}
 	${BasicSLAMStructures_LIBS}
 	${RelativePoseEstimation_LIBS}
+	non_free
+  AKAZE
 )
 
 endif()
