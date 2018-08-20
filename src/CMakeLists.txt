@@ -1,12 +1,12 @@
 if(${BUILD_ONLY_INTERFACES} STREQUAL "ON")
-include_directories(${OpenCV_INCLUDE_DIRS})
-add_executable(feature_node_cpp feature_node_cpp.cpp)
-add_dependencies(feature_node_cpp ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries(feature_node_cpp 
-	${catkin_LIBRARIES}
-	${OpenCV_LIBS}
-	${BasicSLAMStructures_LIBS}
-)
+#include_directories(${OpenCV_INCLUDE_DIRS})
+#add_executable(feature_node_cpp feature_node_cpp.cpp)
+#add_dependencies(feature_node_cpp ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+#target_link_libraries(feature_node_cpp 
+#	${catkin_LIBRARIES}
+#	${OpenCV_LIBS}
+#	${BasicSLAMStructures_LIBS}
+#)
 else()
 
 add_library(non_free nonfree_init.cpp sift.cpp surf.cpp)
