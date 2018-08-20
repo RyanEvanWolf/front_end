@@ -8,8 +8,11 @@ from cv_bridge import CvBridge
 import os
 
 
-def getOperatingCurves(folderDir):
-    table=getDetectorTable()
+def getOperatingCurves(folderDir,defaultDetectorTable=""):
+    if(defaultDetectorTable==""):
+        table=getDetectorTable()
+    else:
+        table=getDetectorTable(defaultDetectorTable)
     detectorType=folderDir.split("/")[-1]
     Settings={}
     Times={}
@@ -18,6 +21,7 @@ def getOperatingCurves(folderDir):
         Settings[i]=[]
         Results[i]=[]
         Times[i]=[]
+    print(folderDir)
     for fileName in os.listdir(folderDir):
         ##open a single image detection results pickle object
         f=open(folderDir+"/"+fileName,"r")

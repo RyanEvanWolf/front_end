@@ -3,12 +3,18 @@
 from front_end.features import *
 from dataset.utils import *
 import yaml
+import argparse
+import os
+parser =argparse.ArgumentParser()
+parser.add_argument("--output_table",help="the full path and file name for the detector output table",default=detectorTableDirectory)
+args,unknown=parser.parse_known_args()
 
-print("creating output table")
-
+print("creating output table@"+args.output_table)
+if(not os.path.exists(os.path.dirname(args.output_table))):
+    os.makedirs(os.path.dirname(args.output_table))
 table=detectorLookUpTable()
 
-with open(detectorTableDirectory, 'w') as f:
+with open(args.output_table, 'w') as f:
     yaml.dump(table, f)
 ###print all of the different Stats
 print("FAST",len(getFAST_combinations()))
