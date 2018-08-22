@@ -48,31 +48,20 @@ bool fn_singleImageDetection(front_end::singleImageDetection::Request& req,front
 			///////////
 			//NOT IMPLEMENTED YET
 		}
-		cv::Mat displayL,displayR;
-		drawKeypoints(left,lKP,displayL);
-		drawKeypoints(right,rKP,displayR);
-		cv::imshow("left",displayL);
-		cv::imshow("right",displayR);
-		cv::waitKey(1);
-		//ans.nLeft=getKeypoints(left,fs[(*it)],lKP)
+// 		cv::Mat displayL,displayR;
+// 		drawKeypoints(left,lKP,displayL);
+// 		drawKeypoints(right,rKP,displayR);
+// 		cv::imshow("left",displayL);
+// 		cv::imshow("right",displayR);
+// 		cv::waitKey(1);
+//for debugging purposes only
 		std::cout<<(*it)<<":LEFT=";
 		std::cout<<lTime.seconds<<"|"<<lKP.size();
 		std::cout<<"|"<<rKP.size()<<std::endl;
+        ans.nLeft= lKP.size();
+        ans.nRight=rKP.size();
 		res.outputFrames.push_back(ans);
 	}
-	
-	//cv::FileNode fn = fs.root();
-	//for (cv::FileNodeIterator fit = fn.begin(); fit != fn.end(); ++fit)
-	//{
-	//	cv::FileNode item = *fit;
-	//	std::cout<<"seconds:"<<getKeypoints(left,item,lKP)<<std::endl;
-		//std::string somekey = item.name();
-		//std::cout << somekey <<","<<(std::string)item["Name"]<<":";
-		
-		
-		
-		//std::cout<<(std::string)item["Param"][0]<< std::endl;
-	//}
 	return true;
 }
 
