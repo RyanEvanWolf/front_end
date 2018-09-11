@@ -69,6 +69,16 @@ def MotionCategorySettings():
     Settings["Slow"]["RotationNoise"]=1        ##degrees
     return Settings
 
+def getSimulatedLandmarkSettings():
+    Settings={}
+    Settings["Xdepth"]=5.0
+    Settings["Ydepth"]=5.0
+    Settings["Zdepth"]=4.0
+    Settings["HeightMinimum"]=-0.5
+    Settings["MinimumOutlier"]=3.0 #pixels
+    Settings["OutlierLevels"]=[0.05,0.1,0.15,0.2,0.25]
+    Settings["GaussianNoise"]=[0.25,0.5,0.75,1.0,1.5,2,2.5]
+    return Settings
 
 def getCameraSettingsFromServer():
     cvb=CvBridge()
@@ -246,6 +256,121 @@ def genDefaultStraightSimulationConfig(Pl,Pr,Q,width,height):
 #                             rb_estimate-simPoint["Rb"]]
 #         return simResult
 
+def checkROI(inPoint,width,height):
+        if((inPoint[0]>0)and(inPoint[0]<width)):
+            if((inPoint[1]>0)and(inPoint[1]<height)):
+                return True
+            else:
+                return False
+        else:
+            return False
+
+def checkValidSimulatedPoint(inPoint,imageWidth,imageHeight,minHeight):
+    if(checkROI(inPoint["La"],imageWidth,imageHeight)
+        and checkROI(inPoint["Ra"],imageWidth,imageHeight)
+        and checkROI(inPoint["Lb"],imageWidth,imageHeight)
+        and checkROI(inPoint["Rb"],imageWidth,imageHeight)
+        and (inPoint["Xa"][1,0]>minHeight)
+        and (inPoint["Xb"][1,0]>minHeight)
+        and (inPoint["Xa"][2,0]>0)
+        and (inPoint["Xb"][2,0]>0)):
+        return True
+    else:
+        return False
+
+class simulatedLandmark:
+    def __init__(self,Ha2b,CameraConfig,landmarkSettings=getSimulatedLandmarkSettings()):
+        validPoint=False
+        while(not validPoint):
+            self.Data={}    
+            x=np.random.normal(0,5,1)
+            y=np.random.normal(0,5,1)
+            z=np.random.normal(0,4,1)
+            Point=np.ones((4,1),dtype=np.float64)
+            self.Data["Xa"]=copy.deepcopy(Point)
+            self.Data["Xa"][0,0]=x
+            self.Data["Xa"][1,0]=y
+            self.Data["Xa"][2,0]=z
+            self.Data["La"]=CameraConfig["Pl"].dot(self.Data["Xa"])
+            self.Data["La"]=self.Data["La"]/self.Data["La"][2,0]
+            self.Data["Ra"]=CameraConfig["Pr"].dot(self.Data["Xa"])
+            self.Data["Ra"]=self.Data["Ra"]/self.Data["Ra"][2,0]
+            ##transform to second coordinate system
+            self.Data["Xb"]=np.dot(Ha2b,self.Data["Xa"])
+            self.Data["Xb"]=self.Data["Xb"]/self.Data["Xb"][3,0]
+            self.Data["Lb"]=CameraConfig["Pl"].dot(self.Data["Xb"])
+            self.Data["Lb"]=self.Data["Lb"]/self.Data["Lb"][2,0]
+            self.Data["Rb"]=CameraConfig["Pr"].dot(self.Data["Xb"])
+            self.Data["Rb"]=self.Data["Rb"]/self.Data["Rb"][2,0]   
+            if(checkValidSimulatedPoint(self.Data,CameraConfig["width"],
+                                        CameraConfig["height"],
+                                        landmarkSettings["HeightMinimum"])):
+                validPoint=True
+                #####
+                ###create gaussian noise simulations
+                self.Noise=[]
+                for i in landmarkSettings["GaussianNoise"]:
+                    validNoise=False
+                    while(not validNoise):
+                        noisyData=copy.deepcopy(self.Data)
+                        noisyData["La"][0,0]+=np.random.normal(0,i,1)
+                        noisyData["La"][1,0]+=np.random.uniform()
+                        noisyData["Ra"][0,0]+=np.random.normal(0,i,1)
+                        noisyData["Ra"][1,0]+=np.random.uniform()
+                        ##re triangulate
+                        noisyData["Xa"]=cv2.triangulatePoints(CameraConfig["Pl"],CameraConfig["Pr"],
+                                                                (noisyData["La"][0,0],noisyData["La"][1,0]),
+                                                                (noisyData["Ra"][0,0],noisyData["Ra"][1,0]))
+                        noisyData["Xa"]/=noisyData["Xa"][3,0]
+                        noisyData["Lb"][0,0]+=np.random.normal(0,i,1)
+                        noisyData["Lb"][1,0]+=np.random.uniform()
+                        noisyData["Rb"][0,0]+=np.random.normal(0,i,1)
+                        noisyData["Rb"][1,0]+=np.random.uniform()
+                        #re triangulate
+                        noisyData["Xb"]=cv2.triangulatePoints(CameraConfig["Pl"],CameraConfig["Pr"],
+                                        (noisyData["Lb"][0,0],noisyData["Lb"][1,0]),
+                                        (noisyData["Rb"][0,0],noisyData["Rb"][1,0]))
+                        noisyData["Xb"]/=noisyData["Xb"][3,0]
+                        if(checkValidSimulatedPoint(noisyData,CameraConfig["width"],
+                            CameraConfig["height"],
+                            landmarkSettings["HeightMinimum"])):
+                                validNoise=True
+                                self.Noise.append(noisyData)
+                validOutlier=False
+                self.Outlier=copy.deepcopy(self.Data)
+                while(not validOutlier):
+                    x=np.random.uniform(0.0,CameraConfig["width"])
+                    y=np.random.uniform(0.0,CameraConfig["height"])
+                    pts=np.ones((3,1),dtype=np.float64)
+                    pts[0,0]=x
+                    pts[1,0]=y 
+                    diff=abs(self.Data["La"]-pts) 
+                    if((diff[0,0]>landmarkSettings["MinimumOutlier"])
+                        and(diff[1,0]>landmarkSettings["MinimumOutlier"])):
+                        validOutlier=True
+                        self.Outlier["La"]=pts
+                        self.Outlier["Ra"]=np.random.uniform(0.0,CameraConfig["width"])
+                validOutlier=False
+                while(not validOutlier):
+                    x=np.random.uniform(0.0,CameraConfig["width"])
+                    y=np.random.uniform(0.0,CameraConfig["height"])
+                    pts=np.ones((3,1),dtype=np.float64)
+                    pts[0,0]=x
+                    pts[1,0]=y 
+                    diff=abs(self.Data["Lb"]-pts) 
+                    if((diff[0,0]>landmarkSettings["MinimumOutlier"])
+                        and(diff[1,0]>landmarkSettings["MinimumOutlier"])):
+                        validOutlier=True
+                        self.Outlier["Lb"]=pts
+                        self.Outlier["Rb"]=np.random.uniform(0.0,CameraConfig["width"])   
+      
+class structDataset:
+    def __init__(self,motionConfig,cameraConfig,nisterConfig):
+        pass
+
+class motionDataset:
+    def __init__(self,outDir,motionConfig,cameraConfig,nisterConfig):
+        pass
 
 def getReprojection(currentPoints,currentTriangulated,previousPoints,previousTriangulated,Pl,Pr,scaledH):
     reprojections=[]

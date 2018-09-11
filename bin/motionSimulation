@@ -23,26 +23,52 @@ NisterSettings=genDefaultNisterSettings(kSettings)
 rootDir="/media/ryan/EXTRA/output/Simulation"
 
 
+    # newOutFolder=outlierDirs[0]+"/"+str(int(k*100)).zfill(3)
+    # print(newOutFolder)
+    # if(not(os.path.exists(newOutFolder))):
+    #     os.makedirs(newOutFolder)
 
-f=open(rootDir+"/camera.p", 'wb')
-pickle.dump(kSettings,f)
-f.close()
+totalMotions=15
+totalLandmarks=300
 
-f=open(rootDir+"/motion.p", 'wb')
-pickle.dump(mSettings,f)
-f.close()
+for m in mSettings.keys():
+    print(m)
+    outDir=rootDir+"/"+m+"/straight" 
+    if(not(os.path.exists(outDir))):
+        os.makedirs(outDir)
+    for j in range(0,totalMotions):
+        filename=outDir+"/"+str(j+1).zfill(4)+".p"
+        print(filename)
+        Results={}
+        Results["Settings"]=(mSettings,kSettings)
+        Results["Points"]={}
+        ##gen Operating Levels and Indexes
+        for land in range(0,totalLandmarks):
+            PointID=str(land+1).zfill(4)
+            print(PointID)
 
-f=open(rootDir+"/Nister.p", 'wb')
-pickle.dump(NisterSettings,f)
-f.close()
-####generate SlowData
 
-idealData=idealDataSet(rootDir+"/slow_ideal",mSettings["Slow"],kSettings,NisterSettings)
-idealData.generate(totalH=15)
+#
 
-idealMData=idealDataSet(rootDir+"/medium_ideal",mSettings["Medium"],kSettings,NisterSettings)
-idealMData.generate(totalH=15)
+# f=open(rootDir+"/camera.p", 'wb')
+# pickle.dump(kSettings,f)
+# f.close()
 
-idealHData=idealDataSet(rootDir+"/fast_ideal",mSettings["Fast"],kSettings,NisterSettings)
-idealHData.generate(totalH=15)
+# f=open(rootDir+"/motion.p", 'wb')
+# pickle.dump(mSettings,f)
+# f.close()
+
+# f=open(rootDir+"/Nister.p", 'wb')
+# pickle.dump(NisterSettings,f)
+# f.close()
+# ####generate SlowData
+
+# idealData=idealDataSet(rootDir+"/slow_ideal",mSettings["Slow"],kSettings,NisterSettings)
+# idealData.generate(totalH=15)
+
+# idealMData=idealDataSet(rootDir+"/medium_ideal",mSettings["Medium"],kSettings,NisterSettings)
+# idealMData.generate(totalH=15)
+
+# idealHData=idealDataSet(rootDir+"/fast_ideal",mSettings["Fast"],kSettings,NisterSettings)
+# idealHData.generate(totalH=15)
 
