@@ -5,7 +5,8 @@ import rosbag
 import time
 import cv2
 import copy
-
+from scipy.optimize import least_squares
+import decimal
 
 def composeR(roll,pitch,yaw,degrees=True,dict=True):
     if(degrees):
@@ -16,8 +17,12 @@ def composeR(roll,pitch,yaw,degrees=True,dict=True):
         q=quaternion_from_euler(roll,
                                 pitch,
                                 yaw,'szxy')     
+    return quaternion_matrix(q)[0:3,0:3]  
 
-
+    # q=quaternion_from_euler(math.radians(frame["Roll"]),
+    #                         math.radians(frame["Pitch"]),
+    #                         math.radians(frame["Yaw"]),'szxy')
+    # frame["matrix"]=quaternion_matrix(q)[0:3,0:3]  
 
 def getDNister():
     out=np.zeros((3,3),dtype=np.float64)
@@ -114,12 +119,12 @@ def compareAbsoluteMotion(H,Hest):
     Hstruct=getMotion(H)
     HestStruct=getMotion(Hest)
     Result={}
-    Result["Roll"]=getAbsoluteError(Hstruct["Roll"],HestStruct["Roll"])
-    Result["Pitch"]=getAbsoluteError(Hstruct["Pitch"],HestStruct["Pitch"])
-    Result["Yaw"]=getAbsoluteError(Hstruct["Yaw"],HestStruct["Yaw"])
-    Result["X"]=getAbsoluteError(Hstruct["X"],HestStruct["X"])
-    Result["Y"]=getAbsoluteError(Hstruct["Y"],HestStruct["Y"])
-    Result["Z"]=getAbsoluteError(Hstruct["Z"],HestStruct["Z"])
+    Result["Roll"]=round(getAbsoluteError(Hstruct["Roll"],HestStruct["Roll"]),3)
+    Result["Pitch"]=round(getAbsoluteError(Hstruct["Pitch"],HestStruct["Pitch"]),3)
+    Result["Yaw"]=round(getAbsoluteError(Hstruct["Yaw"],HestStruct["Yaw"]),3)
+    Result["X"]=round(getAbsoluteError(Hstruct["X"],HestStruct["X"])*1000,3)###in mm
+    Result["Y"]=round(getAbsoluteError(Hstruct["Y"],HestStruct["Y"])*1000,3)
+    Result["Z"]=round(getAbsoluteError(Hstruct["Z"],HestStruct["Z"])*1000,3)
     return Result   
 
 def compareUnitMotion(H,Hest):
@@ -141,6 +146,10 @@ def compareUnitMotion(H,Hest):
     print(np.sqrt(Hstruct["X"]**2+Hstruct["Y"]**2+Hstruct["Z"]),
             np.sqrt(HestStruct["X"]**2+HestStruct["Y"]**2+HestStruct["Z"]))
     return Result
+
+def getUnitTranslation(H):
+    T=copy.deepcopy(H[0:3,3])
+    return T
 
 
 def getAbsoluteError(ideal,measured):
@@ -609,3 +618,52 @@ def rigid_transform_3D(previousLandmarks, currentLandmarks):
 #     def estimate(currentPoints,previousPoints,currentLandmarks,previousLandmarks):
 #         print("AC")
 
+
+def composeCam(R,T):
+    P=np.zeros((3,4),dtype=np.float64)
+    P[0:3,0:3]=R
+    P[0:3,3]=T 
+    P= kSettings["k"].dot(P)
+    return P
+
+class BAextractor:
+    def __init__(self,cameraSettings):
+        self.settings=copy.deepcopy(cameraSettings)
+    def extract(self,currentPoints,currentLandmarks,
+                previousPoints,previousLandmarks):
+        print("--")
+        ans=least_squares(self.error,np.array([0,0,0,0,0,0]),verbose=True,max_nfev=500,
+                            args=(currentPoints,currentLandmarks,
+                        previousPoints,previousLandmarks))
+        result={}
+        result["Stats"]=ans
+        result["T"]=np.zeros((3,1),dtype=np.float64)
+        result["T"][0,0]=ans.x[3]
+        result["T"][1,0]=ans.x[4]
+        result["T"][2,0]=ans.x[5]
+        # result["Roll"]=math.degrees(ans.x[0])
+        # result["Pitch"]=math.degrees(ans.x[1])
+        # result["Yaw"]=math.degrees(ans.x[2])
+        result["R"]=composeR(math.degrees(ans.x[0]),
+                            math.degrees(ans.x[1]),
+                            math.degrees(ans.x[2]))
+        result["H"]=createHomog(result["R"],result["T"])
+        return result
+    def error(self,x, *args, **kwargs):
+        q=quaternion_from_euler(x[0],x[1],x[2],'szxy')
+        Rest=quaternion_matrix(q)[0:3,0:3]  
+        T=x[3:]
+        Ht=createHomog(Rest,T)
+        totalRMS=0
+        index=0
+        P=np.zeros((3,4),dtype=np.float64)
+        P[0:3,0:3]=Rest
+        P[0:3,3]=T 
+        Pb= self.settings["k"].dot(P)
+        for dataIndex in range(0,len(args[0])):
+            newPixel=Pb.dot(args[1][dataIndex])
+            newPixel= newPixel/newPixel[2,0]
+            e=abs(args[2][dataIndex][0]-newPixel[0,0])+abs(args[2][dataIndex][1]-newPixel[1,0])
+            totalRMS+=e
+            index+=1
+        return totalRMS

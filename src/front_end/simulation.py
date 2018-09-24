@@ -74,10 +74,11 @@ def getSimulatedLandmarkSettings():
     Settings["Xdepth"]=5.0
     Settings["Ydepth"]=5.0
     Settings["Zdepth"]=4.0
-    Settings["HeightMinimum"]=-0.5
+    Settings["HeightMinimum"]=0.5
     Settings["MinimumOutlier"]=3.0 #pixels
     Settings["OutlierLevels"]=[0.05,0.1,0.15,0.2,0.25]
     Settings["GaussianNoise"]=[0.25,0.5,0.75,1.0,1.5,2,2.5]
+    Settings["operatingCurves"]=[0.3,0.5,0.7,0.9,1.0]
     return Settings
 
 def getCameraSettingsFromServer():
@@ -85,8 +86,8 @@ def getCameraSettingsFromServer():
     ##assumes a node has been declared
     cameraSettings={}
     cameraSettings["Q"]=cvb.imgmsg_to_cv2(rospy.wait_for_message("/bumblebee_configuration/Q",Image))
-    cameraSettings["lInfo"]=rospy.wait_for_message("/bumblebee_configuration/idealLeft/CameraInfo",CameraInfo)
-    cameraSettings["rInfo"]=rospy.wait_for_message("/bumblebee_configuration/idealRight/CameraInfo",CameraInfo)
+    cameraSettings["lInfo"]=rospy.wait_for_message("/bumblebee_configuration/ideal/leftRectified/CameraInfo",CameraInfo)
+    cameraSettings["rInfo"]=rospy.wait_for_message("/bumblebee_configuration/ideal/rightRectified/CameraInfo",CameraInfo)
     cameraSettings["Pl"]=np.zeros((3,4),dtype=np.float64)
     cameraSettings["Pr"]=np.zeros((3,4),dtype=np.float64)
     for row in range(0,3):
@@ -100,6 +101,7 @@ def getCameraSettingsFromServer():
     cameraSettings["pp"]=(cameraSettings["Pl"][0:2,2][0],
                         cameraSettings["Pl"][0:2,2][1])
     cameraSettings["k"]=cameraSettings["Pl"][0:3,0:3]
+    print("Loaded")
     return cameraSettings
 
 def noisyRotations(noise=5):
@@ -270,8 +272,8 @@ def checkValidSimulatedPoint(inPoint,imageWidth,imageHeight,minHeight):
         and checkROI(inPoint["Ra"],imageWidth,imageHeight)
         and checkROI(inPoint["Lb"],imageWidth,imageHeight)
         and checkROI(inPoint["Rb"],imageWidth,imageHeight)
-        and (inPoint["Xa"][1,0]>minHeight)
-        and (inPoint["Xb"][1,0]>minHeight)
+        and (inPoint["Xa"][1,0]<minHeight)
+        and (inPoint["Xb"][1,0]<minHeight)
         and (inPoint["Xa"][2,0]>0)
         and (inPoint["Xb"][2,0]>0)):
         return True

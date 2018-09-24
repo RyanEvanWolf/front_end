@@ -14,61 +14,65 @@ from front_end.simulation import *
 from sensor_msgs.msg import CameraInfo, Image
 from tf.transformations import quaternion_from_euler, quaternion_matrix
 
+def createDir(newDir):
+    if(not os.path.exists(newDir)):
+        os.makedirs(newDir)
+
 rospy.init_node('motionSimulation')
 cvb=CvBridge()
 
 kSettings=getCameraSettingsFromServer()
 mSettings=MotionCategorySettings()
-NisterSettings=genDefaultNisterSettings(kSettings)
+lSettings=getSimulatedLandmarkSettings()
+#NisterSettings=genDefaultNisterSettings(kSettings)
 rootDir="/media/ryan/EXTRA/output/Simulation"
+createDir(rootDir)
 
+f=open(rootDir+"/camera.p", 'wb')
+pickle.dump(kSettings,f)
+f.close()
+f=open(rootDir+"/motion.p", 'wb')
+pickle.dump(mSettings,f)
+f.close()
+f=open(rootDir+"/landmark.p", 'wb')
+pickle.dump(lSettings,f)
+f.close()
 
-    # newOutFolder=outlierDirs[0]+"/"+str(int(k*100)).zfill(3)
-    # print(newOutFolder)
-    # if(not(os.path.exists(newOutFolder))):
-    #     os.makedirs(newOutFolder)
-
-totalMotions=15
-totalLandmarks=300
+totalMotions=4
+totalLandmarks=800
 
 for m in mSettings.keys():
-    print(m)
-    outDir=rootDir+"/"+m+"/straight" 
-    if(not(os.path.exists(outDir))):
-        os.makedirs(outDir)
+    motionDir=rootDir+"/"+m+"/straight/Data" 
+    createDir(motionDir)
+    print("generating "+m+" @ "+motionDir)
     for j in range(0,totalMotions):
-        filename=outDir+"/"+str(j+1).zfill(4)+".p"
-        print(filename)
-        Results={}
-        Results["Settings"]=(mSettings,kSettings)
-        Results["Points"]={}
+        filename=motionDir+"/"+str(j+1).zfill(4)+".p"
+        simulationData={}
+        ####generate homography
+        simulationData["R"]=noisyRotations(mSettings[m]["RotationNoise"])
+        simulationData["Tc"]=dominantTranslation(mSettings[m]["TranslationMean"],mSettings[m]["TranslationNoise"])
+        simulationData["H"]=createHomog(simulationData["R"]["matrix"],
+                                        simulationData["Tc"]["vector"])
+        simulationData["Htransform"]=composeTransform(simulationData["R"]["matrix"],
+                                        simulationData["Tc"]["vector"])
+        simulationData["Points"]={}
+        simulationData["OperatingCurves"]=[]
         ##gen Operating Levels and Indexes
         for land in range(0,totalLandmarks):
             PointID=str(land+1).zfill(4)
-            print(PointID)
-
-
-#
-
-# f=open(rootDir+"/camera.p", 'wb')
-# pickle.dump(kSettings,f)
-# f.close()
-
-# f=open(rootDir+"/motion.p", 'wb')
-# pickle.dump(mSettings,f)
-# f.close()
-
-# f=open(rootDir+"/Nister.p", 'wb')
-# pickle.dump(NisterSettings,f)
-# f.close()
-# ####generate SlowData
-
-# idealData=idealDataSet(rootDir+"/slow_ideal",mSettings["Slow"],kSettings,NisterSettings)
-# idealData.generate(totalH=15)
-
-# idealMData=idealDataSet(rootDir+"/medium_ideal",mSettings["Medium"],kSettings,NisterSettings)
-# idealMData.generate(totalH=15)
-
-# idealHData=idealDataSet(rootDir+"/fast_ideal",mSettings["Fast"],kSettings,NisterSettings)
-# idealHData.generate(totalH=15)
-
+            simulationData["Points"][PointID]=simulatedLandmark(simulationData["Htransform"],kSettings,lSettings)
+        ####
+        ##generate outliers, generate selection curves
+        for i in lSettings["operatingCurves"]:
+            nFeatures=int(i*totalLandmarks)
+            currentSamples=random.sample(sorted(simulationData["Points"].keys()),nFeatures)#range(0,totalLandmarks),nFeatures)
+            outlierSelections=[]
+            for j in lSettings["OutlierLevels"]:
+                nOutliers=int(j*nFeatures)
+                currentSampleOutliers=random.sample(sorted(currentSamples),nOutliers)#range(0,nFeatures),nOutliers)
+                outlierSelections.append(currentSampleOutliers)
+            simulationData["OperatingCurves"].append((currentSamples,outlierSelections))
+        print(filename)
+        f=open(filename,"wb")
+        pickle.dump(simulationData,f)
+        f.close()

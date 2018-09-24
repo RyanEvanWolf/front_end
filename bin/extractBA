@@ -1,0 +1,142 @@
+#!/usr/bin/env python
+
+import math
+import time
+
+import pickle
+
+import cv2
+import numpy as np
+import rospy
+from cv_bridge import CvBridge
+from front_end.motion import *
+from front_end.simulation import *
+from sensor_msgs.msg import CameraInfo, Image
+from tf.transformations import quaternion_from_euler, quaternion_matrix
+import bumblebee.utils as butil
+
+import argparse
+rospy.init_node('NisterSimulation')
+cvb=CvBridge()
+
+parser =argparse.ArgumentParser()
+parser.add_argument("root_dir",help="The absolute directory to the motion simulation directory",type=str)
+parser.add_argument("--type",help="The type of motion simulation, either straight or steering",
+                    default="straight",type=str)
+args,unknown=parser.parse_known_args()
+
+cameraSettings=butil.getPickledObject(args.root_dir+"/camera.p")
+landmarkSettings=butil.getPickledObject(args.root_dir+"/landmark.p")
+
+ba=BAextractor(cameraSettings)
+
+
+simulationFiles=os.listdir(args.root_dir+"/Slow/"+args.type+"/Data")
+####
+outDirectory=args.root_dir+"/Slow/"+args.type+"/BA"
+
+
+
+################
+###slow simulation
+################
+
+for hFile in simulationFiles:
+    currentFileDir=args.root_dir+"/Slow/"+args.type+"/Data/"+hFile
+    outDirectory=args.root_dir+"/Slow/"+args.type+"/BA"
+    currentFile=butil.getPickledObject(currentFileDir)
+    ###gen Ideal data
+    print("IDEAL DATA")
+    for operatingLvL in currentFile["OperatingCurves"]:
+        #####
+        ##get the Points associated with each operating curve
+        currentPoints=[]
+        previousPoints=[]
+        currentLandmarks=[]
+        previousLandmarks=[]
+        for pointIndex in operatingLvL[0]:
+            selectedSimPoint=currentFile["Points"][pointIndex]
+            currentPoints.append([selectedSimPoint.Data["Lb"][0,0],
+                                selectedSimPoint.Data["Lb"][1,0]]) 
+            currentLandmarks.append(selectedSimPoint.Data["Xb"]) 
+            previousPoints.append([selectedSimPoint.Data["La"][0,0],
+                    selectedSimPoint.Data["La"][1,0]])  
+            previousLandmarks.append(selectedSimPoint.Data["Xa"])
+        estimate=ba.extract(currentPoints,currentLandmarks,
+                            previousPoints,previousLandmarks)
+        print(getMotion(currentFile["H"]),"Original")
+        print(getMotion(decomposeTransform(np.linalg.inv(estimate["H"]))),"est")
+        outFile=outDirectory+"/ideal/"+str(len(operatingLvL[0])).zfill(5)+"/"+hFile
+        if(not os.path.exists(outDirectory+"/ideal/"+str(len(operatingLvL[0])).zfill(5))):
+            os.makedirs(outDirectory+"/ideal/"+str(len(operatingLvL[0])).zfill(5))
+        f=open(outFile,"w")
+        pickle.dump(estimate,f)
+        f.close()        
+        print(outFile)
+    print("--")
+    print("NOISY DATA")
+    for operatingLvL in currentFile["OperatingCurves"]:
+        #####
+        ##get the Points associated with each operating curve and gaussian noise level
+        for gaussianIndex in range(0,len(landmarkSettings["GaussianNoise"])):
+            print("Noise Level = " +str(landmarkSettings["GaussianNoise"][gaussianIndex]))
+            currentPoints=[]
+            previousPoints=[]
+            currentLandmarks=[]
+            previousLandmarks=[]
+            for pointIndex in operatingLvL[0]:
+                selectedSimPoint=currentFile["Points"][pointIndex].Noise[gaussianIndex]
+                currentPoints.append([selectedSimPoint["Lb"][0,0],
+                                    selectedSimPoint["Lb"][1,0]]) 
+                currentLandmarks.append(selectedSimPoint["Xb"]) 
+                previousPoints.append([selectedSimPoint["La"][0,0],
+                        selectedSimPoint["La"][1,0]])  
+                previousLandmarks.append(selectedSimPoint["Xa"])
+            estimate=ba.extract(currentPoints,currentLandmarks,
+                            previousPoints,previousLandmarks)
+            print(getMotion(currentFile["H"]),"Original")
+            print(getMotion(decomposeTransform(np.linalg.inv(estimate["H"]))),"est")
+            noise_string=str(landmarkSettings["GaussianNoise"][gaussianIndex]).replace(".","_")
+            outFile=outDirectory+"/noise/"+str(len(operatingLvL[0])).zfill(5)+"/"+noise_string+"/"+hFile
+            
+            if(not os.path.exists(outDirectory+"/noise/"+str(len(operatingLvL[0])).zfill(5)+"/"+noise_string)):
+                os.makedirs(outDirectory+"/noise/"+str(len(operatingLvL[0])).zfill(5)+"/"+noise_string)
+            f=open(outFile,"w")
+            pickle.dump(estimate,f)
+            f.close()        
+            print(outFile)
+    print("--")
+    print("Outlier DATA")
+    for operatingLvL in currentFile["OperatingCurves"]:
+        #####
+        ##get the Points associated with each operating curve and outlier Level
+        for outlierSet in range(0,len(operatingLvL[1])):
+            outlierMaskedIndexes=operatingLvL[1][outlierSet]
+            currentPoints=[]
+            previousPoints=[]
+            currentLandmarks=[]
+            previousLandmarks=[]
+            for pointIndex in operatingLvL[0]:
+                if(pointIndex in outlierMaskedIndexes):
+                    selectedSimPoint=currentFile["Points"][pointIndex].Outlier
+                else:
+                    selectedSimPoint=currentFile["Points"][pointIndex].Data
+                currentPoints.append([selectedSimPoint["Lb"][0,0],
+                                    selectedSimPoint["Lb"][1,0]]) 
+                currentLandmarks.append(selectedSimPoint["Xb"]) 
+                previousPoints.append([selectedSimPoint["La"][0,0],
+                        selectedSimPoint["La"][1,0]])  
+                previousLandmarks.append(selectedSimPoint["Xa"])
+            estimate=ba.extract(currentPoints,currentLandmarks,
+                            previousPoints,previousLandmarks)
+            print(getMotion(currentFile["H"]),"Original")
+            print(getMotion(decomposeTransform(np.linalg.inv(estimate["H"]))),"est")
+            outlier_string=str(landmarkSettings["OutlierLevels"][outlierSet]*100).replace(".","_")
+            outFile=outDirectory+"/outlier/"+str(len(operatingLvL[0])).zfill(5)+"/"+outlier_string+"/"+hFile
+            if(not os.path.exists(outDirectory+"/outlier/"+str(len(operatingLvL[0])).zfill(5)+"/"+outlier_string)):
+                os.makedirs(outDirectory+"/outlier/"+str(len(operatingLvL[0])).zfill(5)+"/"+outlier_string)
+            f=open(outFile,"w")
+            pickle.dump(estimate,f)
+            f.close()        
+            print(outFile)      
+        print("---")

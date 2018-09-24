@@ -1,4 +1,5 @@
 from front_end.features import descriptorLookUpTable,detectorLookUpTable
+from front_end.motion import *
 from dataset.utils import *
 import numpy as np
 from statistics import mean,stdev
@@ -6,8 +7,96 @@ import pickle
 import cv2
 from cv_bridge import CvBridge
 import os
+import bumblebee.utils as butil
 
 
+class simulationAnalyser:
+    def __init__(self,rootDir,spd="Slow",extractionMethod="BA",motionType="straight"):
+        self.rootDir=rootDir
+        self.extractMethod=extractionMethod
+        self.type=motionType
+        self.speed=spd
+    def getDataFolder(self):
+        return self.rootDir+"/"+self.speed+"/"+self.type+"/Data"
+    def getExtractedFolder(self):
+        return self.rootDir+"/"+self.speed +"/"+self.type+"/"+self.extractMethod
+    def getMotionNames(self):
+        return os.listdir(self.getDataFolder())
+    def getGroupMotionStats(self):
+        '''
+        Categorize by the operational curve such that
+        each result shows the operation curve + the outlier or noise level
+        associated with each experiment.
+        This can then be used to create a violin  plot.
+        '''
+        ygroudError=[]
+        xgroupError=[]
+        zGroupError=[]
+        motionFiles=self.getMotionNames()
+        for motionIndex in motionFiles:
+            print(motionIndex)
+            print(self.getSingleMotionStats(motionIndex))
+            print("So far each motion I am doing things")
+
+    def getSingleMotionStats(self,fileName):
+        originalFile=butil.getPickledObject(self.getDataFolder()+"/"+fileName)
+        results={}
+        results["ideal"]={}
+        results["noise"]={}
+        results["outlier"]={}
+        ###########
+        ###Get the Ideal Data
+        OperatingCurves=os.listdir(self.getExtractedFolder()+"/ideal")
+        for currentOperatingCurve in OperatingCurves:
+            #####
+            ##Get the Ideal Data
+            results["ideal"][currentOperatingCurve]={}
+            idealFile=butil.getPickledObject(self.getExtractedFolder()+"/ideal/"+currentOperatingCurve+"/"+fileName)
+            print(getMotion(originalFile["H"]))
+            print(getMotion(decomposeTransform(np.linalg.inv(idealFile["H"]))))
+            ###gen e1
+            results["ideal"][currentOperatingCurve]=compareAbsoluteMotion(originalFile["H"],
+                                                                    decomposeTransform(np.linalg.inv(idealFile["H"])))
+            print(results["ideal"][currentOperatingCurve])
+            print("*")
+        #########
+        ###get the Noisy Data
+        #################
+        OperatingCurves=os.listdir(self.getExtractedFolder()+"/noise")
+        print(":Noisy")
+        for currentOperatingCurve in OperatingCurves:
+            #####
+            ##Get the Noisy Data Curve 
+            noiseLevels=os.listdir(self.getExtractedFolder()+"/noise/"+currentOperatingCurve)
+            for noiseLevel in noiseLevels:
+                ####
+                ##extract data per noise level
+                extractedDataFile=butil.getPickledObject(self.getExtractedFolder()+"/noise/"+currentOperatingCurve+"/"+noiseLevel+"/"+fileName)
+                print(getMotion(originalFile["H"]))
+                print(getMotion(decomposeTransform(np.linalg.inv(extractedDataFile["H"]))))
+                ###gen e1
+                results["ideal"][currentOperatingCurve]=compareAbsoluteMotion(originalFile["H"],
+                                                                        decomposeTransform(np.linalg.inv(extractedDataFile["H"])))
+                print(results["ideal"][currentOperatingCurve])
+                print("*")
+        #########
+        ###get the Outlier Data
+        #################
+        OperatingCurves=os.listdir(self.getExtractedFolder()+"/outlier")
+        print(":Outlier")
+        for currentOperatingCurve in OperatingCurves:
+            #####
+            ##Get the Outlier Data Curve 
+            outlierLevels=os.listdir(self.getExtractedFolder()+"/outlier/"+currentOperatingCurve)
+            for outlierLevel in outlierLevels:
+                extractedDataFile=butil.getPickledObject(self.getExtractedFolder()+"/outlier/"+currentOperatingCurve+"/"+outlierLevel+"/"+fileName)
+                print(getMotion(originalFile["H"]))
+                print(getMotion(decomposeTransform(np.linalg.inv(extractedDataFile["H"]))))
+                ###gen e1
+                results["ideal"][currentOperatingCurve]=compareAbsoluteMotion(originalFile["H"],
+                                                                        decomposeTransform(np.linalg.inv(extractedDataFile["H"])))
+                print(results["ideal"][currentOperatingCurve])
+                print("*")
 def getOperatingCurves(folderDir,defaultDetectorTable=""):
     if(defaultDetectorTable==""):
         table=getDetectorTable()
