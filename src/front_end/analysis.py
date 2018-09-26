@@ -29,15 +29,49 @@ class simulationAnalyser:
         associated with each experiment.
         This can then be used to create a violin  plot.
         '''
-        ygroudError=[]
-        xgroupError=[]
-        zGroupError=[]
+        groupResults={}
+        groupResults["noise"]={}
+        groupResults["outlier"]={}
+        
+        simSettings=butil.getPickledObject(self.rootDir+"/landmark.p")
+        OperatingCurves=os.listdir(self.getExtractedFolder()+"/ideal")
+
+        params=("X","Y","Z","Roll","Pitch","Yaw")
+        for o in params:
+            groupResults["noise"][o]={}
+            groupResults["outlier"][o]={}
+
+            for c in OperatingCurves:
+                groupResults["noise"][o][c.lstrip("0")]={}
+                for levels in simSettings["GaussianNoise"]:
+                    groupResults["noise"][o][c.lstrip("0")][str(levels)]=[]
+                groupResults["noise"][o][c.lstrip("0")]["ideal"]=[]
+                groupResults["outlier"][o][c.lstrip("0")]={}
+                for levels in simSettings["OutlierLevels"]:
+                    groupResults["outlier"][o][c.lstrip("0")][str(int(levels*100))]=[]
+                groupResults["outlier"][o][c.lstrip("0")]["ideal"]=[]
+
         motionFiles=self.getMotionNames()
         for motionIndex in motionFiles:
             print(motionIndex)
-            print(self.getSingleMotionStats(motionIndex))
-            print("So far each motion I am doing things")
-
+            singleError=self.getSingleMotionStats(motionIndex)
+            ###add the ideal curves
+            for j in singleError["ideal"].keys():
+                for p in params:
+                    groupResults["noise"][p][j]["ideal"].append(singleError["ideal"][j][p])
+                    groupResults["outlier"][p][j]["ideal"].append(singleError["ideal"][j][p])
+            for j in singleError["outlier"].keys():
+                for p in params:
+                    for l in groupResults["outlier"][p][j].keys():
+                        if(l!="ideal"):
+                        
+                            groupResults["outlier"][p][j][l].append(singleError["outlier"][j][l][p])
+            for j in singleError["noise"].keys():
+                for p in params:
+                    for l in groupResults["noise"][p][j].keys():
+                        if(l!="ideal"):
+                            groupResults["noise"][p][j][l].append(singleError["noise"][j][l][p])
+        return groupResults
     def getSingleMotionStats(self,fileName):
         originalFile=butil.getPickledObject(self.getDataFolder()+"/"+fileName)
         results={}
@@ -50,53 +84,45 @@ class simulationAnalyser:
         for currentOperatingCurve in OperatingCurves:
             #####
             ##Get the Ideal Data
-            results["ideal"][currentOperatingCurve]={}
+            results["ideal"][currentOperatingCurve.lstrip("0")]={}
             idealFile=butil.getPickledObject(self.getExtractedFolder()+"/ideal/"+currentOperatingCurve+"/"+fileName)
-            print(getMotion(originalFile["H"]))
-            print(getMotion(decomposeTransform(np.linalg.inv(idealFile["H"]))))
             ###gen e1
-            results["ideal"][currentOperatingCurve]=compareAbsoluteMotion(originalFile["H"],
+            results["ideal"][currentOperatingCurve.lstrip("0")]=compareAbsoluteMotion(originalFile["H"],
                                                                     decomposeTransform(np.linalg.inv(idealFile["H"])))
-            print(results["ideal"][currentOperatingCurve])
-            print("*")
-        #########
-        ###get the Noisy Data
-        #################
+        ########
+        ##get the Noisy Data
+        ################
         OperatingCurves=os.listdir(self.getExtractedFolder()+"/noise")
-        print(":Noisy")
         for currentOperatingCurve in OperatingCurves:
             #####
             ##Get the Noisy Data Curve 
             noiseLevels=os.listdir(self.getExtractedFolder()+"/noise/"+currentOperatingCurve)
+            results["noise"][currentOperatingCurve.lstrip("0")]={}
             for noiseLevel in noiseLevels:
                 ####
                 ##extract data per noise level
+                results["noise"][currentOperatingCurve.lstrip("0")][noiseLevel.replace("_",".")]={}
                 extractedDataFile=butil.getPickledObject(self.getExtractedFolder()+"/noise/"+currentOperatingCurve+"/"+noiseLevel+"/"+fileName)
-                print(getMotion(originalFile["H"]))
-                print(getMotion(decomposeTransform(np.linalg.inv(extractedDataFile["H"]))))
                 ###gen e1
-                results["ideal"][currentOperatingCurve]=compareAbsoluteMotion(originalFile["H"],
+                results["noise"][currentOperatingCurve.lstrip("0")][noiseLevel.replace("_",".")]=compareAbsoluteMotion(originalFile["H"],
                                                                         decomposeTransform(np.linalg.inv(extractedDataFile["H"])))
-                print(results["ideal"][currentOperatingCurve])
-                print("*")
         #########
         ###get the Outlier Data
         #################
         OperatingCurves=os.listdir(self.getExtractedFolder()+"/outlier")
-        print(":Outlier")
         for currentOperatingCurve in OperatingCurves:
             #####
             ##Get the Outlier Data Curve 
             outlierLevels=os.listdir(self.getExtractedFolder()+"/outlier/"+currentOperatingCurve)
+            results["outlier"][currentOperatingCurve.lstrip("0")]={}
             for outlierLevel in outlierLevels:
+                results["outlier"][currentOperatingCurve.lstrip("0")][outlierLevel[:outlierLevel.find("_")]]={}
                 extractedDataFile=butil.getPickledObject(self.getExtractedFolder()+"/outlier/"+currentOperatingCurve+"/"+outlierLevel+"/"+fileName)
-                print(getMotion(originalFile["H"]))
-                print(getMotion(decomposeTransform(np.linalg.inv(extractedDataFile["H"]))))
                 ###gen e1
-                results["ideal"][currentOperatingCurve]=compareAbsoluteMotion(originalFile["H"],
+                results["outlier"][currentOperatingCurve.lstrip("0")][outlierLevel[:outlierLevel.find("_")]]=compareAbsoluteMotion(originalFile["H"],
                                                                         decomposeTransform(np.linalg.inv(extractedDataFile["H"])))
-                print(results["ideal"][currentOperatingCurve])
-                print("*")
+        return results
+
 def getOperatingCurves(folderDir,defaultDetectorTable=""):
     if(defaultDetectorTable==""):
         table=getDetectorTable()
