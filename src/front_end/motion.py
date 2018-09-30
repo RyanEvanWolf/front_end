@@ -644,9 +644,9 @@ class BAextractor:
         # result["Roll"]=math.degrees(ans.x[0])
         # result["Pitch"]=math.degrees(ans.x[1])
         # result["Yaw"]=math.degrees(ans.x[2])
-        result["R"]=composeR(math.degrees(ans.x[0]),
-                            math.degrees(ans.x[1]),
-                            math.degrees(ans.x[2]))
+        result["R"]=composeR(degrees(ans.x[0]),
+                            degrees(ans.x[1]),
+                            degrees(ans.x[2]))
         result["H"]=createHomog(result["R"],result["T"])
         return result
     def error(self,x, *args, **kwargs):

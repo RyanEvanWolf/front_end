@@ -38,8 +38,8 @@ f=open(rootDir+"/landmark.p", 'wb')
 pickle.dump(lSettings,f)
 f.close()
 
-totalMotions=4
-totalLandmarks=800
+totalMotions=30
+totalLandmarks=1500
 
 for m in mSettings.keys():
     motionDir=rootDir+"/"+m+"/straight/Data" 
