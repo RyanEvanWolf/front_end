@@ -13,6 +13,7 @@ from front_end.motion import *
 from front_end.simulation import *
 from sensor_msgs.msg import CameraInfo, Image
 from tf.transformations import quaternion_from_euler, quaternion_matrix
+from bumblebee.stereo import getCameraSettingsFromServer
 
 def createDir(newDir):
     if(not os.path.exists(newDir)):

@@ -32,22 +32,22 @@ set(AKAZE_SRCS
 add_library(AKAZE ${AKAZE_SRCS})
 target_link_libraries(AKAZE ${OpenCV_LIBS} ${catkin_LIBRARIES})
 
-add_executable(front_end_node front_end_node.cpp StereoCamera.cpp)
-add_dependencies(front_end_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries(front_end_node 
-	${catkin_LIBRARIES}
-	${OpenCV_LIBS}
-	${BasicSLAMStructures_LIBS}
-)
+# add_executable(front_end_node front_end_node.cpp StereoCamera.cpp)
+# add_dependencies(front_end_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+# target_link_libraries(front_end_node 
+# 	${catkin_LIBRARIES}
+# 	${OpenCV_LIBS}
+# 	${BasicSLAMStructures_LIBS}
+# )
 
-add_executable(front_end_window_node front_end_window_node.cpp WindowMatcher.cpp)
-add_dependencies(front_end_window_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
-target_link_libraries(front_end_window_node 
-	${catkin_LIBRARIES}
-	${OpenCV_LIBS}
-	${BasicSLAMStructures_LIBS}
-	${RelativePoseEstimation_LIBS}
-)
+# add_executable(front_end_window_node front_end_window_node.cpp WindowMatcher.cpp)
+# add_dependencies(front_end_window_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+# target_link_libraries(front_end_window_node 
+# 	${catkin_LIBRARIES}
+# 	${OpenCV_LIBS}
+# 	${BasicSLAMStructures_LIBS}
+# 	${RelativePoseEstimation_LIBS}
+# )
 
 
 add_executable(feature_node_cpp feature_node_cpp.cpp utils.cpp)

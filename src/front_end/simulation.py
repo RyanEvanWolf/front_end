@@ -81,28 +81,28 @@ def getSimulatedLandmarkSettings():
     Settings["operatingCurves"]=[0.3,0.5,0.7,0.9,1.0]
     return Settings
 
-def getCameraSettingsFromServer():
-    cvb=CvBridge()
-    ##assumes a node has been declared
-    cameraSettings={}
-    cameraSettings["Q"]=cvb.imgmsg_to_cv2(rospy.wait_for_message("/bumblebee_configuration/Q",Image))
-    cameraSettings["lInfo"]=rospy.wait_for_message("/bumblebee_configuration/ideal/leftRectified/CameraInfo",CameraInfo)
-    cameraSettings["rInfo"]=rospy.wait_for_message("/bumblebee_configuration/ideal/rightRectified/CameraInfo",CameraInfo)
-    cameraSettings["Pl"]=np.zeros((3,4),dtype=np.float64)
-    cameraSettings["Pr"]=np.zeros((3,4),dtype=np.float64)
-    for row in range(0,3):
-            for col in range(0,4):
-                cameraSettings["Pl"][row,col]=cameraSettings["lInfo"].P[row*4 +col]
-                cameraSettings["Pr"][row,col]=cameraSettings["rInfo"].P[row*4 +col]
+# def getCameraSettingsFromServer():
+#     cvb=CvBridge()
+#     ##assumes a node has been declared
+#     cameraSettings={}
+#     cameraSettings["Q"]=cvb.imgmsg_to_cv2(rospy.wait_for_message("/bumblebee_configuration/Q",Image))
+#     cameraSettings["lInfo"]=rospy.wait_for_message("/bumblebee_configuration/ideal/leftRectified/CameraInfo",CameraInfo)
+#     cameraSettings["rInfo"]=rospy.wait_for_message("/bumblebee_configuration/ideal/rightRectified/CameraInfo",CameraInfo)
+#     cameraSettings["Pl"]=np.zeros((3,4),dtype=np.float64)
+#     cameraSettings["Pr"]=np.zeros((3,4),dtype=np.float64)
+#     for row in range(0,3):
+#             for col in range(0,4):
+#                 cameraSettings["Pl"][row,col]=cameraSettings["lInfo"].P[row*4 +col]
+#                 cameraSettings["Pr"][row,col]=cameraSettings["rInfo"].P[row*4 +col]
 
-    cameraSettings["width"]=cameraSettings["lInfo"].width
-    cameraSettings["height"]=cameraSettings["lInfo"].height
-    cameraSettings["f"]=cameraSettings["Pl"][0,0]
-    cameraSettings["pp"]=(cameraSettings["Pl"][0:2,2][0],
-                        cameraSettings["Pl"][0:2,2][1])
-    cameraSettings["k"]=cameraSettings["Pl"][0:3,0:3]
-    print("Loaded")
-    return cameraSettings
+#     cameraSettings["width"]=cameraSettings["lInfo"].width
+#     cameraSettings["height"]=cameraSettings["lInfo"].height
+#     cameraSettings["f"]=cameraSettings["Pl"][0,0]
+#     cameraSettings["pp"]=(cameraSettings["Pl"][0:2,2][0],
+#                         cameraSettings["Pl"][0:2,2][1])
+#     cameraSettings["k"]=cameraSettings["Pl"][0:3,0:3]
+#     print("Loaded")
+#     return cameraSettings
 
 def noisyRotations(noise=5):
     frame={}
@@ -304,8 +304,8 @@ class simulatedLandmark:
             self.Data["Lb"]=self.Data["Lb"]/self.Data["Lb"][2,0]
             self.Data["Rb"]=CameraConfig["Pr"].dot(self.Data["Xb"])
             self.Data["Rb"]=self.Data["Rb"]/self.Data["Rb"][2,0]   
-            if(checkValidSimulatedPoint(self.Data,CameraConfig["width"],
-                                        CameraConfig["height"],
+            if(checkValidSimulatedPoint(self.Data,CameraConfig["roi_width"],
+                                        CameraConfig["roi_height"],
                                         landmarkSettings["HeightMinimum"])):
                 validPoint=True
                 #####
@@ -333,16 +333,16 @@ class simulatedLandmark:
                                         (noisyData["Lb"][0,0],noisyData["Lb"][1,0]),
                                         (noisyData["Rb"][0,0],noisyData["Rb"][1,0]))
                         noisyData["Xb"]/=noisyData["Xb"][3,0]
-                        if(checkValidSimulatedPoint(noisyData,CameraConfig["width"],
-                            CameraConfig["height"],
-                            landmarkSettings["HeightMinimum"])):
+                        if(checkValidSimulatedPoint(noisyData,CameraConfig["roi_width"],
+                                        CameraConfig["roi_height"],
+                                        landmarkSettings["HeightMinimum"])):
                                 validNoise=True
                                 self.Noise.append(noisyData)
                 validOutlier=False
                 self.Outlier=copy.deepcopy(self.Data)
                 while(not validOutlier):
-                    x=np.random.uniform(0.0,CameraConfig["width"])
-                    y=np.random.uniform(0.0,CameraConfig["height"])
+                    x=np.random.uniform(0.0,CameraConfig["roi_width"])
+                    y=np.random.uniform(0.0,CameraConfig["roi_height"])
                     pts=np.ones((3,1),dtype=np.float64)
                     pts[0,0]=x
                     pts[1,0]=y 
@@ -351,11 +351,11 @@ class simulatedLandmark:
                         and(diff[1,0]>landmarkSettings["MinimumOutlier"])):
                         validOutlier=True
                         self.Outlier["La"]=pts
-                        self.Outlier["Ra"]=np.random.uniform(0.0,CameraConfig["width"])
+                        self.Outlier["Ra"]=np.random.uniform(0.0,CameraConfig["roi_width"])
                 validOutlier=False
                 while(not validOutlier):
-                    x=np.random.uniform(0.0,CameraConfig["width"])
-                    y=np.random.uniform(0.0,CameraConfig["height"])
+                    x=np.random.uniform(0.0,CameraConfig["roi_width"])
+                    y=np.random.uniform(0.0,CameraConfig["roi_height"])
                     pts=np.ones((3,1),dtype=np.float64)
                     pts[0,0]=x
                     pts[1,0]=y 
@@ -364,7 +364,7 @@ class simulatedLandmark:
                         and(diff[1,0]>landmarkSettings["MinimumOutlier"])):
                         validOutlier=True
                         self.Outlier["Lb"]=pts
-                        self.Outlier["Rb"]=np.random.uniform(0.0,CameraConfig["width"])   
+                        self.Outlier["Rb"]=np.random.uniform(0.0,CameraConfig["roi_width"])   
       
 class structDataset:
     def __init__(self,motionConfig,cameraConfig,nisterConfig):
