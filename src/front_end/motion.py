@@ -8,7 +8,7 @@ import copy
 from scipy.optimize import least_squares
 import decimal
 
-def composeR(roll,pitch,yaw,degrees=True,dict=True):
+def composeR(roll,pitch,yaw,degrees=True):
     if(degrees):
         q=quaternion_from_euler(radians(roll),
                                 radians(pitch),
@@ -220,6 +220,7 @@ def estimateScale(xPrev,xCurrent,R,T,inliers):
     #         Bcentroid+=i["Xb"]
     #     Acentroid=(Acentroid/len(simulationData["Points"]))[0:3,0].reshape((3,1))
     #     Bcentroid=(Bcentroid/len(simulationData["Points"]))[0:3,0].reshape((3,1))
+
 
 
 class pclExtract:

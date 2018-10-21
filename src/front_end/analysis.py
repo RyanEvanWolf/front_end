@@ -49,8 +49,8 @@ class simulationAnalyser:
                 groupResults["outlier"][o][c.lstrip("0")]={}
                 for levels in simSettings["OutlierLevels"]:
                     groupResults["outlier"][o][c.lstrip("0")][str(int(levels*100))]=[]
+                    print(o,c.lstrip("0"),str(int(levels*100)))
                 groupResults["outlier"][o][c.lstrip("0")]["ideal"]=[]
-
         motionFiles=self.getMotionNames()
         for motionIndex in motionFiles:
             print(motionIndex)
@@ -60,11 +60,11 @@ class simulationAnalyser:
                 for p in params:
                     groupResults["noise"][p][j]["ideal"].append(singleError["ideal"][j][p])
                     groupResults["outlier"][p][j]["ideal"].append(singleError["ideal"][j][p])
+            
             for j in singleError["outlier"].keys():
                 for p in params:
                     for l in groupResults["outlier"][p][j].keys():
                         if(l!="ideal"):
-                        
                             groupResults["outlier"][p][j][l].append(singleError["outlier"][j][l][p])
             for j in singleError["noise"].keys():
                 for p in params:
@@ -87,8 +87,8 @@ class simulationAnalyser:
             results["ideal"][currentOperatingCurve.lstrip("0")]={}
             idealFile=butil.getPickledObject(self.getExtractedFolder()+"/ideal/"+currentOperatingCurve+"/"+fileName)
             ###gen e1
-            results["ideal"][currentOperatingCurve.lstrip("0")]=compareAbsoluteMotion(originalFile["H"],
-                                                                    decomposeTransform(np.linalg.inv(idealFile["H"])))
+            results["ideal"][currentOperatingCurve.lstrip("0")]=compareAbsoluteMotion(originalFile.motionEdge,
+                                                                    decomposeTransform(np.linalg.inv(idealFile)))
         ########
         ##get the Noisy Data
         ################
@@ -104,8 +104,8 @@ class simulationAnalyser:
                 results["noise"][currentOperatingCurve.lstrip("0")][noiseLevel.replace("_",".")]={}
                 extractedDataFile=butil.getPickledObject(self.getExtractedFolder()+"/noise/"+currentOperatingCurve+"/"+noiseLevel+"/"+fileName)
                 ###gen e1
-                results["noise"][currentOperatingCurve.lstrip("0")][noiseLevel.replace("_",".")]=compareAbsoluteMotion(originalFile["H"],
-                                                                        decomposeTransform(np.linalg.inv(extractedDataFile["H"])))
+                results["noise"][currentOperatingCurve.lstrip("0")][noiseLevel.replace("_",".")]=compareAbsoluteMotion(originalFile.motionEdge,
+                                                                        decomposeTransform(np.linalg.inv(extractedDataFile)))
         #########
         ###get the Outlier Data
         #################
@@ -116,11 +116,11 @@ class simulationAnalyser:
             outlierLevels=os.listdir(self.getExtractedFolder()+"/outlier/"+currentOperatingCurve)
             results["outlier"][currentOperatingCurve.lstrip("0")]={}
             for outlierLevel in outlierLevels:
-                results["outlier"][currentOperatingCurve.lstrip("0")][outlierLevel[:outlierLevel.find("_")]]={}
+                results["outlier"][currentOperatingCurve.lstrip("0")][outlierLevel]={}
                 extractedDataFile=butil.getPickledObject(self.getExtractedFolder()+"/outlier/"+currentOperatingCurve+"/"+outlierLevel+"/"+fileName)
                 ###gen e1
-                results["outlier"][currentOperatingCurve.lstrip("0")][outlierLevel[:outlierLevel.find("_")]]=compareAbsoluteMotion(originalFile["H"],
-                                                                        decomposeTransform(np.linalg.inv(extractedDataFile["H"])))
+                results["outlier"][currentOperatingCurve.lstrip("0")][outlierLevel]=compareAbsoluteMotion(originalFile.motionEdge,
+                                                                        decomposeTransform(np.linalg.inv(extractedDataFile)))
         return results
 
 def getOperatingCurves(folderDir,defaultDetectorTable=""):
