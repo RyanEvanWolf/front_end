@@ -21,7 +21,7 @@ cvb=CvBridge()
 
 parser =argparse.ArgumentParser()
 parser.add_argument("root_dir",help="The absolute directory to the motion simulation directory",type=str)
-parser.add_argument("--type",help="The type of motion simulation, either straight or steering",
+parser.add_argument("--type",help="The type of motion simulation, either straight or turn",
                     default="straight",type=str)
 args,unknown=parser.parse_known_args()
 
@@ -31,114 +31,73 @@ landmarkSettings=butil.getPickledObject(args.root_dir+"/landmark.p")
 ba=BAextractor(cameraSettings)
 
 
-simulationFiles=os.listdir(args.root_dir+"/Slow/"+args.type+"/Data")
-####
-outDirectory=args.root_dir+"/Slow/"+args.type+"/PCL"
+for j in ["Slow","Medium","Fast"]:
 
-NisterSettings=genDefaultNisterSettings(cameraSettings)
+    simulationFiles=os.listdir(args.root_dir+"/"+j+"/"+args.type+"/Data")
+    ####
+    outDirectory=args.root_dir+"/"+j+"/"+args.type+"/PCL"
 
-pclExtractor=pclExtract("/media/ryan/EXTRA/output/Simulation",NisterSettings)
+    NisterSettings=genDefaultNisterSettings(cameraSettings)
 
-################
-###slow simulation
-################
+    pclExtractor=pclExtract("/media/ryan/EXTRA/output/Simulation",NisterSettings)
 
-for hFile in simulationFiles:
-    currentFileDir=args.root_dir+"/Slow/"+args.type+"/Data/"+hFile
-    outDirectory=args.root_dir+"/Slow/"+args.type+"/PCL"
-    currentFile=butil.getPickledObject(currentFileDir)
-    ###gen Ideal data
-    print("IDEAL DATA")
-    for operatingLvL in currentFile["OperatingCurves"]:
-        #####
-        ##get the Points associated with each operating curve
-        currentPoints=[]
-        previousPoints=[]
-        currentLandmarks=[]
-        previousLandmarks=[]
-        for pointIndex in operatingLvL[0]:
-            selectedSimPoint=currentFile["Points"][pointIndex]
-            currentPoints.append([selectedSimPoint.Data["Lb"][0,0],
-                                selectedSimPoint.Data["Lb"][1,0]]) 
-            currentLandmarks.append(selectedSimPoint.Data["Xb"]) 
-            previousPoints.append([selectedSimPoint.Data["La"][0,0],
-                    selectedSimPoint.Data["La"][1,0]])  
-            previousLandmarks.append(selectedSimPoint.Data["Xa"])
-        estimate=rigid_transform_3D(currentLandmarks,previousLandmarks)
-        print(getMotion(currentFile["H"]),"Original")
-        print(getMotion(decomposeTransform(np.linalg.inv(estimate["H"]))),"est")
-        outFile=outDirectory+"/ideal/"+str(len(operatingLvL[0])).zfill(5)+"/"+hFile
-        if(not os.path.exists(outDirectory+"/ideal/"+str(len(operatingLvL[0])).zfill(5))):
-            os.makedirs(outDirectory+"/ideal/"+str(len(operatingLvL[0])).zfill(5))
-        f=open(outFile,"w")
-        pickle.dump(estimate,f)
-        f.close()        
-        print(outFile)
-    print("--")
-    print("NOISY DATA")
-    for operatingLvL in currentFile["OperatingCurves"]:
-        #####
-        ##get the Points associated with each operating curve and gaussian noise level
-        for gaussianIndex in range(0,len(landmarkSettings["GaussianNoise"])):
-            print("Noise Level = " +str(landmarkSettings["GaussianNoise"][gaussianIndex]))
-            currentPoints=[]
-            previousPoints=[]
-            currentLandmarks=[]
-            previousLandmarks=[]
-            for pointIndex in operatingLvL[0]:
-                selectedSimPoint=currentFile["Points"][pointIndex].Noise[gaussianIndex]
-                currentPoints.append([selectedSimPoint["Lb"][0,0],
-                                    selectedSimPoint["Lb"][1,0]]) 
-                currentLandmarks.append(selectedSimPoint["Xb"]) 
-                previousPoints.append([selectedSimPoint["La"][0,0],
-                        selectedSimPoint["La"][1,0]])  
-                previousLandmarks.append(selectedSimPoint["Xa"])
-            estimate=rigid_transform_3D(currentLandmarks,previousLandmarks)
-            print(getMotion(currentFile["H"]),"Original")
-            print(getMotion(decomposeTransform(np.linalg.inv(estimate["H"]))),"est")
-            noise_string=str(landmarkSettings["GaussianNoise"][gaussianIndex]).replace(".","_")
-            outFile=outDirectory+"/noise/"+str(len(operatingLvL[0])).zfill(5)+"/"+noise_string+"/"+hFile
-            
-            if(not os.path.exists(outDirectory+"/noise/"+str(len(operatingLvL[0])).zfill(5)+"/"+noise_string)):
-                os.makedirs(outDirectory+"/noise/"+str(len(operatingLvL[0])).zfill(5)+"/"+noise_string)
+    ################
+    ###slow simulation
+    ################
+    for hFile in simulationFiles:
+        currentFileDir=args.root_dir+"/"+j+"/"+args.type+"/Data/"+hFile
+        outDirectory=args.root_dir+"/"+j+"/"+args.type+"/PCL"
+        currentFile=butil.getPickledObject(currentFileDir)
+        ###gen Ideal data
+        print("IDEAL DATA")
+        for operatingLvL in sorted(currentFile.OperatingCurves.keys()):
+            print("idealLevel",operatingLvL)
+            ideal=currentFile.getIdealInterFrameEdge(operatingLvL)
+            estimate=rigid_transform_3D(ideal.getCurrentX(),ideal.getPreviousX())
+            print(getMotion(currentFile.motionEdge))
+            print(getMotion(decomposeTransform(np.linalg.inv(estimate["H"]))))
+            extractDirectory=outDirectory+"/ideal/"+str(len(ideal.currentEdges)).zfill(5)
+            outFile=extractDirectory+"/"+hFile
+            if(not os.path.exists(extractDirectory)):
+                os.makedirs(extractDirectory)
             f=open(outFile,"w")
-            pickle.dump(estimate,f)
+            pickle.dump(estimate["H"],f)
             f.close()        
             print(outFile)
-    print("--")
-    print("Outlier DATA")
-    for operatingLvL in currentFile["OperatingCurves"]:
-        #####
-        ##get the Points associated with each operating curve and outlier Level
-        for outlierSet in range(0,len(operatingLvL[1])):
-            outlierMaskedIndexes=operatingLvL[1][outlierSet]
-            currentPoints=[]
-            previousPoints=[]
-            currentLandmarks=[]
-            previousLandmarks=[]
-            for pointIndex in operatingLvL[0]:
-                if(pointIndex in outlierMaskedIndexes):
-                    selectedSimPoint=currentFile["Points"][pointIndex].Outlier
-                else:
-                    selectedSimPoint=currentFile["Points"][pointIndex].Data
-                currentPoints.append([selectedSimPoint["Lb"][0,0],
-                                    selectedSimPoint["Lb"][1,0]]) 
-                currentLandmarks.append(selectedSimPoint["Xb"]) 
-                previousPoints.append([selectedSimPoint["La"][0,0],
-                        selectedSimPoint["La"][1,0]])  
-                previousLandmarks.append(selectedSimPoint["Xa"])
-            estimate=rigid_transform_3D(currentLandmarks,previousLandmarks)
-            print(getMotion(currentFile["H"]),"Original")
-            print(getMotion(decomposeTransform(np.linalg.inv(estimate["H"]))),"est")
-            outlier_string=str(landmarkSettings["OutlierLevels"][outlierSet]*100).replace(".","_")
-            outFile=outDirectory+"/outlier/"+str(len(operatingLvL[0])).zfill(5)+"/"+outlier_string+"/"+hFile
-            if(not os.path.exists(outDirectory+"/outlier/"+str(len(operatingLvL[0])).zfill(5)+"/"+outlier_string)):
-                os.makedirs(outDirectory+"/outlier/"+str(len(operatingLvL[0])).zfill(5)+"/"+outlier_string)
-            f=open(outFile,"w")
-            pickle.dump(estimate,f)
-            f.close()        
-            print(outFile)      
-        print("---")
+        print("NOISY DATA")
+        for operatingLvL in sorted(currentFile.OperatingCurves.keys()):
+            for noiseLvL in landmarkSettings["GaussianNoise"]:
+
+                print("NOISY curve Level",operatingLvL,noiseLvL)
+                noise=currentFile.getNoisyInterFrameEdge(operatingLvL,str(noiseLvL).replace(".","_"))
+                estimate=rigid_transform_3D(noise.getCurrentX(),noise.getPreviousX())
+                print(getMotion(currentFile.motionEdge))
+                print(getMotion(decomposeTransform(np.linalg.inv(estimate["H"]))))
+                extractDirectory=outDirectory+"/noise/"+str(len(noise.currentEdges)).zfill(5)+"/"+str(noiseLvL).replace(".","_")
+                outFile=extractDirectory+"/"+hFile
+                if(not os.path.exists(extractDirectory)):
+                    os.makedirs(extractDirectory)
+                f=open(outFile,"w")
+                pickle.dump(estimate["H"],f)
+                f.close()        
+                print(outFile)
+        for operatingLvL in sorted(currentFile.OperatingCurves.keys()):
+            for outLvL in landmarkSettings["OutlierLevels"]:
+
+                print("Outlier curve Level",operatingLvL,outLvL)
+                outEdge=currentFile.getOutlierInterFrameEdge(operatingLvL,str(int(outLvL *100)))
+                estimate=rigid_transform_3D(outEdge.getCurrentX(),outEdge.getPreviousX())
+                print(getMotion(currentFile.motionEdge))
+                print(getMotion(decomposeTransform(np.linalg.inv(estimate["H"]))))
+                extractDirectory=outDirectory+"/outlier/"+str(len(outEdge.currentEdges)).zfill(5)+"/"+str(int(outLvL *100))
+                outFile=extractDirectory+"/"+hFile
+                if(not os.path.exists(extractDirectory)):
+                    os.makedirs(extractDirectory)
+                f=open(outFile,"w")
+                pickle.dump(estimate["H"],f)
+                f.close()        
+                print(outFile)
+
 
 
  
