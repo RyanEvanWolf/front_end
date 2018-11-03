@@ -1,15 +1,121 @@
 import numpy as np
-# from front_end.utils import *
-# from front_end.features import *
-# from front_end.srv import *
 from cv_bridge import CvBridge
-# from front_end.msg import ProcTime,kPoint,stereoLandmarks,interFrameTracks
-# from front_end.motion import createHomog
 
+import copy
 from scipy.optimize import least_squares
 from bumblebee.motion import *
 from math import pi,radians,degrees
 from bumblebee.stereo import *
+import ransac
+
+def rigid_transform_3D(previousLandmarks, currentLandmarks):
+        #assert len(A) == len(B)
+        n=len(previousLandmarks)
+        A=np.mat(np.random.rand(n,3),dtype=np.float64)
+        B=np.mat(np.random.rand(n,3),dtype=np.float64)
+        for a in range(0,len(currentLandmarks)):
+            A[a,0]=previousLandmarks[a][0,0]
+            A[a,1]=previousLandmarks[a][1,0]
+            A[a,2]=previousLandmarks[a][2,0]
+            B[a,0]=currentLandmarks[a][0,0]
+            B[a,1]=currentLandmarks[a][1,0]
+            B[a,2]=currentLandmarks[a][2,0]
+
+        N = A.shape[0]; # total points
+
+        centroid_A = np.mean(A, axis=0)
+        centroid_B = np.mean(B, axis=0)
+        #print(centroid_A)
+        # centre the points
+        AA = A - np.tile(centroid_A, (N, 1))
+        BB = B - np.tile(centroid_B, (N, 1))
+        #print(AA.shape)
+        #print(BB.shape)
+        #print(np.transpose(AA).shape)
+        # dot is matrix multiplication for array
+        H = np.transpose(AA).dot(BB)
+        #print(H.shape)
+        U, S, Vt = np.linalg.svd(H)
+
+        R = Vt.T * U.T
+
+        # special reflection case
+        if(np.linalg.det(R) < 0):
+            #print "Reflection detected"
+            Vt[2,:] *= -1
+            R = Vt.T * U.T
+        #print(R.shape,centroid_A.T.shape,centroid_B.T.shape)
+        #print((-R*centroid_A.T).shape)
+        t = -R.dot(centroid_A.T) + centroid_B.T
+        #print(R,t)
+        #print(t.shape)
+        #print t
+        out={}
+        out["R"]=R
+        out["T"]=t
+        out["H"]=createHomog(R, t)
+        return out
+
+class pclRANSAC(ransac.Model):
+    def __init__(self,ksettings):
+        self.kSettings=copy.deepcopy(ksettings)
+    def fit(self,data):
+        fit=rigid_transform_3D(data[0],data[1])
+        
+        self.params=[0,0]
+        self.residual=0
+    def distance(self,samples):
+        return 0
+
+class BAextractor:
+    def __init__(self,cameraSettings):
+        self.settings=copy.deepcopy(cameraSettings)
+    def extract(self,currentPoints,currentLandmarks,
+                previousPoints,previousLandmarks):
+        print("--")
+        ans=least_squares(self.error,np.array([0,0,0,0,0,0]),verbose=True,max_nfev=500,
+                            args=(currentPoints,currentLandmarks,
+                        previousPoints,previousLandmarks))
+        result={}
+        result["Stats"]=ans
+        result["T"]=np.zeros((3,1),dtype=np.float64)
+        result["T"][0,0]=ans.x[3]
+        result["T"][1,0]=ans.x[4]
+        result["T"][2,0]=ans.x[5]
+        # result["Roll"]=math.degrees(ans.x[0])
+        # result["Pitch"]=math.degrees(ans.x[1])
+        # result["Yaw"]=math.degrees(ans.x[2])
+        result["R"]=composeR(degrees(ans.x[0]),
+                            degrees(ans.x[1]),
+                            degrees(ans.x[2]))
+        result["H"]=createHomog(result["R"],result["T"])
+        return result
+    def error(self,x, *args, **kwargs):
+        q=quaternion_from_euler(x[0],x[1],x[2],'szxy')
+        Rest=quaternion_matrix(q)[0:3,0:3]  
+        T=x[3:]
+        Ht=createHomog(Rest,T)
+        totalRMS=0
+        index=0
+        P=np.zeros((3,4),dtype=np.float64)
+        P[0:3,0:3]=Rest
+        P[0:3,3]=T 
+        Pb= self.settings["k"].dot(P)
+        for dataIndex in range(0,len(args[0])):
+            newPixel=Pb.dot(args[1][dataIndex])
+            newPixel= newPixel/newPixel[2,0]
+            e=abs(args[2][dataIndex][0]-newPixel[0,0])+abs(args[2][dataIndex][1]-newPixel[1,0])
+            totalRMS+=e
+            index+=1
+        return totalRMS
+
+
+class slidingWindow:
+    def __init__(self,cameraSettings,frames=2,coarseExtractor=None):
+        self.extractor=coarseExtractor
+        self.kSettings=copy.deepcopy(cameraSettings)
+
+
 # EPI_THRESHOLD=2.0
 # LOWE_THRESHOLD=0.8
 # defaultK=np.zeros((3,3),np.float64)
@@ -270,27 +376,6 @@ class BAextractor:
         T=ans.x[3:].reshape(3,1)
         H=createHomog(composeR(degrees(angles[0,0]),degrees(angles[0,1]),degrees(angles[0,2])),T)
         return H,ans
-        
-
-        # H=createHomog(composeR(angles[0,0],angles[0,1],angles[0,2]),T)
-        # m=motionEdge()
-        # m.initH(np.linalg.inv(H))
-        # print(getMotion(m.H))
-        # result["Stats"]=ans
-        # result["Edge"]=motionEdge()
-        # result["Edge"].
-        # result["T"]=np.zeros((3,1),dtype=np.float64)
-        # result["T"][0,0]=ans.x[3]
-        # result["T"][1,0]=ans.x[4]
-        # result["T"][2,0]=ans.x[5]
-        # # result["Roll"]=math.degrees(ans.x[0])
-        # # result["Pitch"]=math.degrees(ans.x[1])
-        # # result["Yaw"]=math.degrees(ans.x[2])
-        # result["R"]=composeR(degrees(ans.x[0]),
-        #                     degrees(ans.x[1]),
-        #                     degrees(ans.x[2]))
-        # result["H"]=createHomog(result["R"],result["T"])
-
     def error(self,x, *args, **kwargs):
         Rest=composeR(x[0],x[1],x[2],False)
         T=x[3:]
@@ -308,3 +393,330 @@ class BAextractor:
             totalRMS+=e
             index+=1
         return totalRMS
+
+class pclExtract:
+    def __init__(self,rootDir,extractConfig):
+        self.root=rootDir
+        self.output=rootDir+"/pcl"
+        self.extract=extractConfig
+    def closedForm(self,currentTriangulated,previousTriangulated):
+        ##find centroid
+        Acentroid=np.zeros((4,1),dtype=np.float64)
+        Bcentroid=np.zeros((4,1),dtype=np.float64)
+        for i in previousTriangulated:
+            Acentroid+=i
+        for i in currentTriangulated:
+            Bcentroid+=i
+        Acentroid=(Acentroid/len(previousTriangulated))[0:3,0].reshape((3,1))
+        Bcentroid=(Bcentroid/len(currentTriangulated))[0:3,0].reshape((3,1))
+        H=np.zeros(3,dtype=np.float64)
+
+        for i in range(0,len(currentTriangulated)):    
+            H = H + ((previousTriangulated[i][0:3,0].reshape((3,1))-Acentroid).dot(
+                        np.transpose(currentTriangulated[i][0:3,0].reshape((3,1))-Bcentroid)))
+        H/=float(len(currentTriangulated))
+
+        u,s,v=np.linalg.svd(H,True,True)
+        #print('u',u)
+        #print('s',s)
+        #print(s.shape)
+        #print('v',v)
+        #####
+        checkCount=np.linalg.det(u)*np.linalg.det(np.transpose(v))
+        s=np.eye(3,dtype=np.float64)
+        if(checkCount==1):
+            s=np.eye(3,dtype=np.float64)
+        else:
+            s[-1,-1]=-1
+        print('s2',s)
+        R=u.dot(s).dot(np.transpose(v))
+        T=-R.dot(Acentroid)+Bcentroid
+        return createHomog(R,T)
+    def rigid_transform_3D(self,previousLandmarks, currentLandmarks):
+        n=len(previousLandmarks)
+        A=np.mat(np.random.rand(n,3),dtype=np.float64)
+        B=np.mat(np.random.rand(n,3),dtype=np.float64)
+        for a in range(0,len(currentLandmarks)):
+            A[a,0]=previousLandmarks[a][0,0]
+            A[a,1]=previousLandmarks[a][1,0]
+            A[a,2]=previousLandmarks[a][2,0]
+            B[a,0]=currentLandmarks[a][0,0]
+            B[a,1]=currentLandmarks[a][1,0]
+            B[a,2]=currentLandmarks[a][2,0]
+
+        N = A.shape[0]; # total points
+
+        centroid_A = np.mean(A, axis=0)
+        centroid_B = np.mean(B, axis=0)
+        #print(centroid_A)
+        # centre the points
+        AA = A - np.tile(centroid_A, (N, 1))
+        BB = B - np.tile(centroid_B, (N, 1))
+        # dot is matrix multiplication for array
+        H = np.transpose(AA).dot(BB)
+        U, S, Vt = np.linalg.svd(H)
+
+        R = Vt.T * U.T
+
+        # special reflection case
+        if(np.linalg.det(R) < 0):
+            Vt[2,:] *= -1
+            R = Vt.T * U.T
+        t = -R.dot(centroid_A.T) + centroid_B.T
+        out={}
+        out["R"]=R
+        out["T"]=t
+        out["H"]=createHomog(R, t)
+        return out
+    def RANSAC_rigid_body(self,currentPoints,previousPoints,maxIterations=100):
+        currentIteration=0
+        out={}
+        currentSetInliers=[]
+        while(currentIteration<maxIterations):
+            randomSubset=random.sample(range(0,len(currentPoints)),8)
+            possibleCurrentPoints=[currentPoints[i] for i in randomSubset]
+            possiblePreviousPoints=[previousPoints[i] for i in randomSubset]
+            hEst=self.rigid_transform_3D(possiblePreviousPoints,possibleCurrentPoints)
+            currentIteration+=1
+        return out
+
+class cvExtract:
+    def __init__(self,rootDir,extractConfig):
+        self.root=rootDir
+        self.output=rootDir +"/cv"
+        self.extract=extractConfig
+    def extractMotion(self,currentPoints,previousPoints,dictionary=False):
+        newPts=np.zeros((len(currentPoints),2),dtype=np.float64)
+        oldPts=np.zeros((len(currentPoints),2),dtype=np.float64)
+        for j in range(0,len(currentPoints)):
+
+            newPts[j,0]=currentPoints[j][0]#simulationPoints[j]["Lb"][0]
+            newPts[j,1]=currentPoints[j][1]#simulationPoints[j]["Lb"][1]
+            oldPts[j,0]=previousPoints[j][0]#simulationPoints[j]["La"][0]
+            oldPts[j,1]=previousPoints[j][1]#simulationPoints[j]["La"][1]      
+        E,mask=cv2.findEssentialMat(oldPts,newPts,self.extract["f"],self.extract["pp"],method=cv2.RANSAC,threshold=self.extract["threshold"],prob=self.extract["probability"])
+        nInliers=list(mask).count(1)
+        #print(nInliers,"first")
+        if(not dictionary):
+            H=createHomog(R,T)
+            return E,nInliers,mask
+        else:
+            Results={}
+            Results["inlierMask"]=mask
+            Results["nInliers"]=nInliers
+            Results["inlierRatio"]=nInliers/float(len(currentPoints))
+            Results["E"]=E
+            return Results  
+    def extractScaledMotion(self,currentPoints,currentTriangulated,previousPoints,previousTriangulated,dictionary=False):
+        newPts=np.zeros((len(currentPoints),2),dtype=np.float64)
+        oldPts=np.zeros((len(currentPoints),2),dtype=np.float64)
+        for j in range(0,len(currentPoints)):
+
+            newPts[j,0]=currentPoints[j][0]
+            newPts[j,1]=currentPoints[j][1]
+            oldPts[j,0]=previousPoints[j][0]
+            oldPts[j,1]=previousPoints[j][1]      
+        nisterResults=self.extractMotion(currentPoints,previousPoints,True)
+        R1,R2,t=cv2.decomposeEssentialMat(nisterResults["E"])
+        nInliers,R,T,matchMask=cv2.recoverPose(nisterResults["E"],oldPts,newPts,self.extract["k"])
+        nisterResults["inlierMask"]=matchMask
+        nisterResults["nInliers"]=nInliers
+        #print(nInliers)
+        nisterResults["T"]=T
+        nisterResults["R"]=R
+        nisterResults["H"]=createHomog(R,T)
+        if(nisterResults["nInliers"]>0):
+            s,t,inl=estimateScale(previousTriangulated,currentTriangulated,R,T,matchMask)
+            nisterResults["T"]=t
+            nisterResults["nInliers"]=inl
+        nisterResults["H"]=createHomog(nisterResults["R"],nisterResults["T"])
+        if(not dictionary):
+            return nisterResults["H"]
+        else:
+            return nisterResults
+
+
+class nisterExtract:
+    def __init__(self,rootDir,extractConfig):
+        self.root=rootDir
+        self.output=rootDir+"/Nister"
+        self.extract=extractConfig
+    def extractMotion(self,currentPoints,previousPoints,dictionary=False):
+        newPts=np.zeros((len(currentPoints),2),dtype=np.float64)
+        oldPts=np.zeros((len(currentPoints),2),dtype=np.float64)
+        for j in range(0,len(currentPoints)):
+
+            newPts[j,0]=currentPoints[j][0]#simulationPoints[j]["Lb"][0]
+            newPts[j,1]=currentPoints[j][1]#simulationPoints[j]["Lb"][1]
+            oldPts[j,0]=previousPoints[j][0]#simulationPoints[j]["La"][0]
+            oldPts[j,1]=previousPoints[j][1]#simulationPoints[j]["La"][1]      
+        E,mask=cv2.findEssentialMat(oldPts,newPts,self.extract["f"],self.extract["pp"],method=cv2.RANSAC,threshold=self.extract["threshold"],prob=self.extract["probability"])
+        nInliers=list(mask).count(1)
+        if(not dictionary):
+            H=createHomog(R,T)
+            return E,nInliers,mask
+        else:
+            Results={}
+            Results["inlierMask"]=mask
+            Results["nInliers"]=nInliers
+            Results["inlierRatio"]=nInliers/float(len(currentPoints))
+            Results["E"]=E
+            return Results          
+    def extractScaledMotion(self,currentPoints,currentTriangulated,previousPoints,previousTriangulated,dictionary=False):
+        newPts=np.zeros((len(currentPoints),2),dtype=np.float64)
+        oldPts=np.zeros((len(currentPoints),2),dtype=np.float64)
+        for j in range(0,len(currentPoints)):
+
+            newPts[j,0]=currentPoints[j][0]
+            newPts[j,1]=currentPoints[j][1]
+            oldPts[j,0]=previousPoints[j][0]
+            oldPts[j,1]=previousPoints[j][1]      
+        nisterResults=self.extractMotion(currentPoints,previousPoints,True)
+        decomp=self.essential(nisterResults["E"])
+        R1,R2,t=decomp["Ra"],decomp["Rb"],decomp["T"]
+        h=[createHomog(R1,t),createHomog(R1,-t),createHomog(R2,t),createHomog(R2,-t)]
+        #print(getRotationMotion(R1),getRotationMotion(R2))
+        P0=self.composeCamera(np.eye(3,dtype=np.float64),np.zeros((3,1),dtype=np.float64))
+        Pa=self.composeCamera(R1,t)
+        Pb=self.composeCamera(R1,-t)
+        Pc =self.composeCamera(R2,t)
+        Pd=self.composeCamera(R2,-t)
+        votes=[0,0,0,0]
+        for i in range(0,len(currentPoints)):
+            if(nisterResults["inlierMask"][i,0]>0):
+                x=cv2.triangulatePoints(P0,Pa,oldPts[i],newPts[i])
+                x/=x[3,0]
+
+                x2=cv2.triangulatePoints(P0,Pb,oldPts[i],newPts[i])
+                x2/=x2[3,0]
+
+                x3=cv2.triangulatePoints(P0,Pc,oldPts[i],newPts[i])
+                x3/=x3[3,0]
+                x4=cv2.triangulatePoints(P0,Pd,oldPts[i],newPts[i])
+                x4/=x4[3,0]
+                if(x[2,0]>0):
+                    if(t[2,0]>0):
+                        votes[0]+=1
+                if(x2[2,0]>0):
+                    if(-t[2,0]>0):
+                        votes[1]+=1
+                if(x3[2,0]>0):
+                    if(t[2,0]>0):
+                        votes[2]+=1                    
+                if(x4[2,0]>0):
+                    if(-t[2,0]>0):
+                        votes[3]+=1                    
+        print(votes)
+        # for i in range(0,len(currentPoints)):
+        #     if(nisterResults["inlierMask"][i,0]==1):
+        #         x=cv2.triangulatePoints(P0,Pa,oldPts[i],newPts[i])
+        #         c1=x[3,0]*x[2,0]
+        #         c2=Pa.dot(x)[2,0]*x[3,0]
+        #         if((c1>0)and(c2>0)):
+        #             votes[0]+=1
+        #         elif((c1<0)and(c2<0)):
+        #             votes[1]+=1
+        #         elif(c1*c2<0):
+        #             if(x[2,0]*decomp["Ht"].dot(x)[3,0]>0):
+        #                 votes[2]+=1
+        #             else:
+        #                 votes[3]+=1
+        #         else:
+        #             print("CUKC UP")
+        indexFound=votes.index(max(votes))
+        if(indexFound==0):
+            R=R1
+            T=t
+        elif(indexFound==1):
+            R=R1
+            T=-t
+        elif(indexFound==2):
+            R=R2
+            T=t
+        else:
+            R=R2
+            T=-t    
+        nisterResults["nInliers"]=max(votes)       
+        nisterResults["R"]=R
+        nisterResults["T"]=T
+        if(nisterResults["nInliers"]>0):
+            s,t,inl=estimateScale(previousTriangulated,currentTriangulated,R,T,nisterResults["inlierMask"])
+            nisterResults["T"]=t
+            nisterResults["nInliers"]=inl
+        nisterResults["H"]=createHomog(nisterResults["R"],nisterResults["T"])
+        if(not dictionary):
+            return nisterResults["H"]
+        else:
+            return nisterResults
+    def essential(self,inE):
+        output={}
+        u,s,vT=np.linalg.svd(inE,True,True)
+
+        if(np.linalg.det(u)<0):
+            u*=-1
+        if(np.linalg.det(vT)<0):
+            vT*=-1
+        output["Ra"]=u.dot(getDNister()).dot(vT)
+        output["Rb"]=u.dot(np.transpose(getDNister())).dot(vT)
+        output["T"]=u[0:3,2].reshape(3,1)
+        output["Ht"]=np.eye(4,dtype=np.float64)
+        output["Ht"][3,3]=-1
+        output["Ht"][3,0:3]=-2*vT[0:3,2].reshape(1,3)
+        return output
+    def composeCamera(self,R,T):
+        P=np.zeros((3,4),dtype=np.float64)
+        P[0:3,0:3]=R
+        P[0:3,3]=T.reshape(3)
+        P=self.extract["k"].dot(P)
+        return P
+        # curveID=str(len(curve))
+        #         HResults[curveID]={}
+        #         simulationPoints=[]
+        #         for pointIndex in curve:
+        #             simulationPoints.append(data["Points"][pointIndex])
+        #             newPts=np.zeros((len(simulationPoints),2),dtype=np.float64)
+        #             oldPts=np.zeros((len(simulationPoints),2),dtype=np.float64)
+        #         for j in range(0,len(simulationPoints)):
+        #             newPts[j,0]=simulationPoints[j]["Lb"][0]
+        #             newPts[j,1]=simulationPoints[j]["Lb"][1]
+        #             oldPts[j,0]=simulationPoints[j]["La"][0]
+        #             oldPts[j,1]=simulationPoints[j]["La"][1]
+        #         E,mask=cv2.findEssentialMat(newPts,oldPts,self.extract["f"],self.extract["pp"])
+        #                                     #,prob=self.extract["probability"],threshold=self.extract["threshold"])#,threshold=1)    #
+        #         nInliers,R,T,matchMask=cv2.recoverPose(E,newPts,oldPts,self.extract["k"],mask)
+        #         averageScale=np.zeros((3,3),dtype=np.float64)
+        #         countedIn=0
+        #         for index in range(0,len(simulationPoints)):
+        #             i=simulationPoints[index]
+        #             if(matchMask[index,0]==255):
+        #                 scale=(i["Xa"][0:3,0]-R.dot(i["Xb"][0:3,0])).reshape(3,1).dot(np.transpose(T.reshape(3,1))).dot(np.linalg.pinv(T.dot(np.transpose(T))))
+        #                 averageScale+=scale 
+        #                 countedIn+=1
+        #         averageScale=averageScale/nInliers
+        #         T=averageScale.dot(T)  
+        #         original=createHomog(R,T)
+        #         HResults[curveID]["H"]=np.linalg.inv(original)
+        #         print(getMotion(HResults[curveID]["H"]))
+        #         HResults[curveID]["Motion"]=getMotion(HResults[curveID]["H"]) 
+        #         HResults[curveID]["inlierMask"]=matchMask
+        #         HResults[curveID]["nInlier"]=nInliers
+        #         HResults[curveID]["inlierRatio"]=nInliers/float(len(simulationPoints))
+        #         HResults[curveID]["E"]=E
+        #         HResults[curveID]["MotionError"]=compareMotion(HResults[curveID]["H"],data["H"])
+        #         HResults[curveID]["CurveID"]=len(simulationPoints)
+        #         HResults[curveID]["PointResults"]=[]
+        #         #####get reprojection results
+        #         for index in range(0,len(simulationPoints)):
+        #             i=simulationPoints[index]
+        #             if(matchMask[index,0]==255):
+        #                 HResults[curveID]["PointResults"].append(self.getLandmarkReprojection(i,HResults[curveID]["H"]) )
+
+################################
+###RANSAC
+################################
+
+
+
+
+
+

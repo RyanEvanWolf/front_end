@@ -1,0 +1,284 @@
+#!/usr/bin/env python
+
+
+import math
+import time
+
+import pickle
+
+import cv2
+import numpy as np
+import rospy
+from cv_bridge import CvBridge
+from sensor_msgs.msg import CameraInfo, Image
+from tf.transformations import quaternion_from_euler, quaternion_matrix
+import bumblebee.utils as butil
+from dataset.simulation import *
+from front_end.algorithm import BAextractor
+import os 
+
+
+import argparse
+rospy.init_node('Nistersimulation')
+cvb=CvBridge()
+
+parser =argparse.ArgumentParser()
+parser.add_argument("root_dir",help="The absolute directory to the motion simulation directory",type=str)
+args,unknown=parser.parse_known_args()
+
+cameraSettings=butil.getPickledObject(args.root_dir+"/camera.p")
+landmarkSettings=butil.getPickledObject(args.root_dir+"/landmark.p")
+NisterSettings=genDefaultNisterSettings(cameraSettings)
+f=open(args.root_dir+"/Nister.p","w")
+pickle.dump(NisterSettings,f)
+f.close()
+
+NisterExtractor=cvExtract("/media/ryan/EXTRA/output/Simulation",NisterSettings)
+for j in ["Slow","Medium","Fast"]:
+    for spdType in ["straight","turn"]:
+        simulationFiles=os.listdir(args.root_dir+"/"+j+"/"+spdType+"/Data")
+        ####
+        outDirectory=args.root_dir+"/"+j+"/"+spdType+"/Nister"
+        
+        for hFile in simulationFiles:
+            currentFileDir=args.root_dir+"/"+j+"/"+spdType+"/Data/"+hFile
+            outDirectory=args.root_dir+"/"+j+"/"+spdType+"/Nister"
+            currentFile=butil.getPickledObject(currentFileDir)
+            ##gen Ideal data
+            print("IDEAL DATA")
+            for operatingLvL in sorted(currentFile.OperatingCurves.keys()):
+                print("idealLevel",operatingLvL)
+                ideal=currentFile.getIdealInterFrameEdge(operatingLvL)
+                estimate=NisterExtractor.extractScaledMotion(ideal.getCurrentL(),
+                                    ideal.getCurrentX(),
+                                    ideal.getPreviousL(),
+                                    ideal.getPreviousX(),True)
+                print(getMotion(currentFile.motionEdge))
+                print(getMotion(decomposeTransform(estimate["H"])))
+                extractDirectory=outDirectory+"/ideal/"+str(len(ideal.currentEdges)).zfill(5)
+                outFile=extractDirectory+"/"+hFile
+                if(not os.path.exists(extractDirectory)):
+                    os.makedirs(extractDirectory)
+                f=open(outFile,"w")
+                pickle.dump(np.linalg.inv(estimate["H"]),f)
+                f.close()        
+                print(outFile)
+            print("NOISY DATA")
+            for operatingLvL in sorted(currentFile.OperatingCurves.keys()):
+                for noiseLvL in landmarkSettings["GaussianNoise"]:
+
+                    print("NOISY curve Level",operatingLvL,noiseLvL)
+                    noise=currentFile.getNoisyInterFrameEdge(operatingLvL,str(noiseLvL).replace(".","_"))
+                    estimate=NisterExtractor.extractScaledMotion(noise.getCurrentL(),
+                                        noise.getCurrentX(),
+                                        noise.getPreviousL(),
+                                        noise.getPreviousX(),True)
+                    print(getMotion(currentFile.motionEdge))
+                    print(getMotion(decomposeTransform(estimate["H"])))
+                    extractDirectory=outDirectory+"/noise/"+str(len(noise.currentEdges)).zfill(5)+"/"+str(noiseLvL).replace(".","_")
+                    outFile=extractDirectory+"/"+hFile
+                    if(not os.path.exists(extractDirectory)):
+                        os.makedirs(extractDirectory)
+                    f=open(outFile,"w")
+                    pickle.dump(np.linalg.inv(estimate["H"]),f)
+                    f.close()        
+                    print(outFile)
+            for operatingLvL in sorted(currentFile.OperatingCurves.keys()):
+                for outLvL in landmarkSettings["OutlierLevels"]:
+
+                    print("Outlier curve Level",operatingLvL,outLvL)
+                    outEdge=currentFile.getOutlierInterFrameEdge(operatingLvL,str(int(outLvL *100)))
+                    estimate=NisterExtractor.extractScaledMotion(outEdge.getCurrentL(),
+                                        outEdge.getCurrentX(),
+                                        outEdge.getPreviousL(),
+                                        outEdge.getPreviousX(),True)
+                    print(getMotion(currentFile.motionEdge))
+                    print(getMotion(decomposeTransform(estimate["H"])))
+                    extractDirectory=outDirectory+"/outlier/"+str(len(outEdge.currentEdges)).zfill(5)+"/"+str(int(outLvL *100))
+                    outFile=extractDirectory+"/"+hFile
+                    if(not os.path.exists(extractDirectory)):
+                        os.makedirs(extractDirectory)
+                    f=open(outFile,"w")
+                    pickle.dump(np.linalg.inv(estimate["H"]),f)
+                    f.close()        
+                    print(outFile)
+
+
+
+
+            # c=NisterExtractor.extractScaledMotion(currentPoints,currentLandmarks,
+            #                     previousPoints,previousLandmarks,True)
+# cameraSettings=butil.getPickledObject(args.root_dir+"/camera.p")
+
+
+# NisterSettings=genDefaultNisterSettings(cameraSettings)
+
+# f=open(args.root_dir+"/Nister.p","w")
+# pickle.dump(NisterSettings,f)
+# f.close()
+
+# 
+
+
+# simulationFiles=os.listdir(args.root_dir+"/Slow/"+args.type+"/Data")
+# ####
+# outDirectory=args.root_dir+"/Slow/"+args.type+"/Nister"
+
+# ################
+# ###slow simulation
+# ################
+
+# for hFile in simulationFiles:
+#     currentFileDir=args.root_dir+"/Slow/"+args.type+"/Data/"+hFile
+#     outDirectory=args.root_dir+"/Slow/"+args.type+"/Nister"
+#     currentFile=butil.getPickledObject(currentFileDir)
+#     ###gen Ideal data
+#     for operatingLvL in currentFile["OperatingCurves"]:
+#         #####
+#         ##get the Points associated with each operating curve
+#         currentPoints=[]
+#         previousPoints=[]
+#         currentLandmarks=[]
+#         previousLandmarks=[]
+#         for pointIndex in operatingLvL[0]:
+#             selectedSimPoint=currentFile["Points"][pointIndex]
+#             currentPoints.append([selectedSimPoint.Data["Lb"][0,0],
+#                                 selectedSimPoint.Data["Lb"][1,0]]) 
+#             currentLandmarks.append(selectedSimPoint.Data["Xb"]) 
+#             previousPoints.append([selectedSimPoint.Data["La"][0,0],
+#                     selectedSimPoint.Data["La"][1,0]])  
+#             previousLandmarks.append(selectedSimPoint.Data["Xa"])
+#         c=NisterExtractor.extractScaledMotion(currentPoints,currentLandmarks,
+#                                         previousPoints,previousLandmarks,True)
+#         outFile=outDirectory+"/ideal_"+str(len(operatingLvL[0])).zfill(5)+".p"
+#         if(not os.path.exists(outDirectory)):
+#             os.makedirs(outDirectory)
+        
+#         f=open(outFile,"w")
+#         pickle.dump(c,f)
+#         f.close()        
+#         print(outFile)
+#         print(getMotion(currentFile["H"]),"Original")
+#         print(getUnitTranslation(currentFile["H"]))
+#         # print(getMotion(currentFile["H"]),"Original")
+#         # print(getMotion(decomposeTransform(c["H"])),"nister")
+# #                 print(getMotion(IdealData["H"]),"ideal")
+# #                 print(getMotion(decomposeTransform(c["H"])),"nister")
+# #                 print(getMotion(decomposeTransform(s["H"])),"rigid")
+# #                 print(compareAbsoluteMotion(IdealData["H"],decomposeTransform(c["H"])),"abserr")
+# #                 print(compareAbsoluteMotion(IdealData["H"],decomposeTransform(s["H"])),"abserr2")
+#     print("--")
+# # c,m,n=d.getSettings()
+
+# # K=c["Pl"][0:3,0:3]
+# # f=open(args.root_dir+"/Nister.p", 'r')
+# # NisterSettings=pickle.load(f)
+# # f.close()
+
+# # NisterExtractor=nisterExtract("/media/ryan/EXTRA/output/Simulation",NisterSettings)
+# # pcl=pclExtract("/media/ryan/EXTRA/output/Simulation",NisterSettings)
+# # cvE=cvExtract("/media/ryan/EXTRA/output/Simulation",NisterSettings)
+# # ####################
+# # ###extract Slow Noisy Data
+
+# # ind=d.getOutlierDir()[0]
+# # ideal=d.getIdealWorldDir()[0]
+# # def extractDir(inDir,idealDir):
+# #     print(inDir)
+# #     levels=os.listdir(inDir)
+# #     for lvl in levels:
+# #         #####
+# #         worldFilesSet=os.listdir(inDir+"/"+lvl)
+# #         for Hpickle in worldFilesSet:
+# #             f=open(inDir+"/"+lvl+"/"+Hpickle,"r")
+# #             simulationData=pickle.load(f)
+# #             f.close()  
+# #             f=open(idealDir+"/"+Hpickle,"r")
+# #             IdealData=pickle.load(f)
+# #             f.close()
+# #             print(inDir+"/"+lvl+"/"+Hpickle)
+# #             print(idealDir+"/"+Hpickle)
+# #             print(simulationData.keys())
+# #             for name in simulationData:
+# #                 curpts,prvpts,curLand,prevLand=packPoints(simulationData[name]["Pts"])
+# #                 s=pcl.rigid_transform_3D(prevLand,curLand)
+# #                 c=cvE.extractScaledMotion(curpts,curLand,prvpts,prevLand,True)
+# #                 simulationData[name]["nisterResult"]=c
+# #                 simulationData[name]["rigidResult"]=s
+# #                 print(getMotion(IdealData["H"]),"ideal")
+# #                 print(getMotion(decomposeTransform(c["H"])),"nister")
+# #                 print(getMotion(decomposeTransform(s["H"])),"rigid")
+# #                 print(compareAbsoluteMotion(IdealData["H"],decomposeTransform(c["H"])),"abserr")
+# #                 print(compareAbsoluteMotion(IdealData["H"],decomposeTransform(s["H"])),"abserr2")
+# #             # outData=[]
+# #             # outData={}
+# #             # outData["nisterResult"]=[]
+# #             # outData["rigidResult"]=[]
+# #             # for curve in data:
+# #             #     currentPoints=[]
+# #             #     previousPoints=[]
+# #             #     currentLandmarks=[]
+# #             #     previousLandmarks=[]
+# #             #     for point in curve:
+# #             #         currentPoints.append([point["Lb"][0,0],point["Lb"][1,0]])
+# #             #         currentLandmarks.append(point["Xb"])
+# #             #         previousPoints.append([point["La"][0,0],point["La"][1,0]])
+# #             #         previousLandmarks.append(point["Xa"])
+# #             #     r=cvE.extractScaledMotion(currentPoints,currentLandmarks,previousPoints,previousLandmarks,True)
+# #             #     #print(len(curve),r["nInliers"],getMotion(decomposeTransform(np.linalg.inv(r["H"]))))
+# #             #     s=pcl.rigid_transform_3D(previousLandmarks,currentLandmarks)
+# #             #     print(getMotion(IdealData["H"]),"ideal")
+# #             #     print(getMotion(decomposeTransform(r["H"])),"nister")
+# #             #     print(getMotion(decomposeTransform(s["H"])),"rigid")
+# #             #     print(compareAbsoluteMotion(IdealData["H"],decomposeTransform(s["H"])),"abserr")
+# #             #     print(compareAbsoluteMotion(IdealData["H"],decomposeTransform(r["H"])),"abserr2")
+# #             #     outData["rigidResult"].append(s)
+# #             #     outData["nisterResult"].append(r)
+# #             newFile=cvE.root+"/extracted"+inDir[inDir.rfind("/"):]+"/"+lvl
+# #             if(not os.path.exists(newFile)):
+# #                 os.makedirs(newFile)
+# #             newFile+="/"+Hpickle
+# #             print(newFile)
+# #             f=open(newFile,"w")
+# #             pickle.dump(simulationData,f)
+# #             f.close()
+
+# # extractDir(ind,ideal)
+
+
+
+# # ind=d.getOutlierDir()[1]
+# # ideal=d.getIdealWorldDir()[1]
+# # extractDir(ind,ideal)
+
+# # ind=d.getOutlierDir()[1]
+# # ideal=d.getIdealWorldDir()[1]
+# # extractDir(ind,ideal)
+# # #####
+# # ###get all the different variations
+
+# #         # print(getMotion(data["H"]),"ideal")
+# #         # for curve in data["Curves"]:
+# #         #     ###get each Curve ID and pack it into a list
+# #         #     currentPoints=[]
+# #         #     previousPoints=[]
+# #         #     currentLandmarks=[]
+# #         #     previousLandmarks=[]
+# #         #     curveID=str(len(curve))
+
+# #         #     for pointIndex in curve:
+# #         #         currentPoints.append([data["Points"][pointIndex]["Lb"][0,0],data["Points"][pointIndex]["Lb"][1,0]])
+# #         #         currentLandmarks.append(data["Points"][pointIndex]["Xb"])
+# #         #         previousPoints.append([data["Points"][pointIndex]["La"][0,0],data["Points"][pointIndex]["La"][1,0]])
+# #         #         previousLandmarks.append(data["Points"][pointIndex]["Xa"])
+                
+
+# #         #     r=NisterExtractor.extractScaledMotion(currentPoints,currentLandmarks,previousPoints,previousLandmarks,True)
+# #         #     pickleOut
+# #         #     f=open(self.output+"/"+inputFolder+"/"+Hpickle,"w")
+# #         #     pickle.dump(HResults,f)
+# #         #     f.close()
+# #         #     print(getMotion(decomposeTransform(r["H"])),"measured")
+# #         #     print(compareMotion(data["H"],decomposeTransform(r["H"])),"percent")
+# #         # print("---")
+ 
