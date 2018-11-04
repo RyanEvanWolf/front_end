@@ -6,6 +6,7 @@ from scipy.optimize import least_squares
 from bumblebee.motion import *
 from math import pi,radians,degrees
 from bumblebee.stereo import *
+from bumblebee.camera import *
 import ransac
 
 def rigid_transform_3D(previousLandmarks, currentLandmarks):
@@ -60,7 +61,7 @@ class pclRANSAC(ransac.Model):
     def __init__(self,ksettings):
         self.kSettings=copy.deepcopy(ksettings)
     def fit(self,data):
-        fit=rigid_transform_3D(data[0],data[1])
+        #fit=rigid_transform_3D(data[0],data[1])
         
         self.params=[0,0]
         self.residual=0
@@ -110,12 +111,78 @@ class BAextractor:
         return totalRMS
 
 
-class slidingWindow:
-    def __init__(self,cameraSettings,frames=2,coarseExtractor=None):
-        self.extractor=coarseExtractor
+class slidingWindow(object):
+    def __init__(self,cameraSettings,frames=2):
         self.kSettings=copy.deepcopy(cameraSettings)
+        self.X=np.zeros((0,0)) ###[Pose0 Pose1 Pose2|landmarkA landmarkB landmarkC ...]
+        self.M=np.zeros((0,0)) ###[Upl0 Vpl0  ]
+        self.tracks=np.zeros((0,0))
+        self.inliers=np.zeros((0,0))
+    def getNlandmarks(self):
+        return -1
+    def getNinliers(self):
+        return -1
 
+class simulatedWindow(slidingWindow):
+    def __init__(self,Ksettings,initialEdges):
+        super(simulatedWindow,self).__init__(cameraSettings=Ksettings)
+        self.data=copy.deepcopy(initialEdges)
+        self.X=np.zeros((6 + 4*len(self.data.currentEdges)))
+        self.M=np.zeros((4*2,len(self.data.currentEdges)))
+        for edge in range(0,len(self.data.previousEdges)):
+            self.X[edge*4+6:edge*4+4+6]=self.data.previousEdges[edge].X.reshape(4)
+            self.M[0:2,edge]=self.data.previousEdges[edge].L[0:2,0].reshape(2)
+            self.M[2:4,edge]=self.data.previousEdges[edge].R[0:2,0].reshape(2)
+            self.M[4:6,edge]=self.data.currentEdges[edge].L[0:2,0].reshape(2)
+            self.M[6:8,edge]=self.data.currentEdges[edge].R[0:2,0].reshape(2)
+        self.res=least_squares(self.error,self.X,verbose=False,max_nfev=150,loss='cauchy')
+    def getRMSerror(self):
+        pass
+    def error(self,x, *args, **kwargs):
+        ######
+        ##get camera
+        #####
+        Pal=composeCamera(self.kSettings["Pl"])
+        Par=composeCamera(self.kSettings["Pr"])
+        Pbl=composeCamera(self.kSettings["Pl"],x[0:6])
+        Pbr=composeCamera(self.kSettings["Pr"],x[0:6])
+        errorMatrix=np.zeros(self.M.shape)
+        for i in range(0,self.M.shape[1]):
+            pred1=Pal.dot(x[6+4*i:6+4*i +4].reshape(4,1))
+            pred1/=pred1[2,0]
+            pred2=Par.dot(x[6+4*i:6+4*i +4].reshape(4,1))
+            pred2/=pred2[2,0]
+            pred3=Pbl.dot(x[6+4*i:6+4*i +4].reshape(4,1))
+            pred3/=pred3[2,0]
+            pred4=Pbr.dot(x[6+4*i:6+4*i +4].reshape(4,1))
+            pred4/=pred4[2,0]
 
+            errorMatrix[0:2,i]=pred1[0:2,0]
+            errorMatrix[2:4,i]=pred2[0:2,0]
+            errorMatrix[4:6,i]=pred3[0:2,0]
+            errorMatrix[6:8,i]=pred4[0:2,0]
+        errorMatrix-=self.M
+        diff=errorMatrix.reshape(self.M.shape[0]*self.M.shape[1],1)
+        RMS=np.sqrt((diff**2).mean())
+        return RMS
+            # errorMatrix[0:2,i]
+        # q=quaternion_from_euler(x[0],x[1],x[2],'szxy')
+        # Rest=quaternion_matrix(q)[0:3,0:3]  
+        # T=x[3:]
+        # Ht=createHomog(Rest,T)
+        # totalRMS=0
+        # index=0
+        # P=np.zeros((3,4),dtype=np.float64)
+        # P[0:3,0:3]=Rest
+        # P[0:3,3]=T 
+        # Pb= self.settings["k"].dot(P)
+        # for dataIndex in range(0,len(args[0])):
+        #     newPixel=Pb.dot(args[1][dataIndex])
+        #     newPixel= newPixel/newPixel[2,0]
+        #     e=abs(args[2][dataIndex][0]-newPixel[0,0])+abs(args[2][dataIndex][1]-newPixel[1,0])
+        #     totalRMS+=e
+        #     index+=1
+            
 # EPI_THRESHOLD=2.0
 # LOWE_THRESHOLD=0.8
 # defaultK=np.zeros((3,3),np.float64)

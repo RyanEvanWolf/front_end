@@ -12,7 +12,7 @@ from cv_bridge import CvBridge
 from sensor_msgs.msg import CameraInfo, Image
 import bumblebee.utils as butil
 from bumblebee.motion import *
-from front_end.algorithm import pclRANSAC
+from front_end.algorithm import pclRANSAC,simulatedWindow
 
 import os 
 import argparse
@@ -30,8 +30,8 @@ landmarkSettings=butil.getPickledObject(args.root_dir+"/landmark.p")
 
 extractor=pclRANSAC(cameraSettings)
 extractor.fit([0,2,2,3])
-for j in ["Slow","Medium","Fast"]:
-    for spdType in ["straight","turn"]:
+for j in ["Slow"]:#,"Medium","Fast"]:
+    for spdType in ["straight"]:#,"turn"]:
         simulationFiles=os.listdir(args.root_dir+"/"+j+"/"+spdType+"/Data")
         ####
         outDirectory=args.root_dir+"/"+j+"/"+spdType+"/PCL"
@@ -40,7 +40,7 @@ for j in ["Slow","Medium","Fast"]:
 
         #pclExtractor=pclExtract("/media/ryan/EXTRA/output/Simulation",NisterSettings)
 
-        for hFile in simulationFiles:
+        for hFile in simulationFiles[0:2]:
             currentFileDir=args.root_dir+"/"+j+"/"+spdType+"/Data/"+hFile
             outDirectory=args.root_dir+"/"+j+"/"+spdType+"/PCL"
             currentFile=butil.getPickledObject(currentFileDir)
@@ -48,7 +48,16 @@ for j in ["Slow","Medium","Fast"]:
             print("IDEAL DATA")
             for operatingLvL in sorted(currentFile.OperatingCurves.keys()):
                 print("idealLevel",operatingLvL)
+                
                 ideal=currentFile.getIdealInterFrameEdge(operatingLvL)
+                test=simulatedWindow(cameraSettings,ideal)
+                print(test.res.x[0:6])
+                pp=motionEdge(test.res.x[0:3].reshape(3),test.res.x[3:6].reshape(3),degrees=False)
+                print(getMotion(currentFile.motionEdge))
+                print(getMotion(decomposeTransform(pp.getH())))
+                print(pp.getC())
+                print("----")
+                # print(pp.getRtheta())
             #     estimate=rigid_transform_3D(ideal.getCurrentX(),ideal.getPreviousX())
             #     print(getMotion(currentFile.motionEdge))
             #     print(getMotion(decomposeTransform(np.linalg.inv(estimate["H"]))))
