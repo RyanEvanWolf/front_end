@@ -12,11 +12,11 @@ from cv_bridge import CvBridge
 from sensor_msgs.msg import CameraInfo, Image
 import bumblebee.utils as butil
 from bumblebee.motion import *
-from front_end.algorithm import pclRANSAC,simulatedWindow
+from front_end.algorithm import simulatedRansacWindow,simulatedWindow
 
 import os 
 import argparse
-import ransac
+
 
 rospy.init_node('PCLSimulation')
 cvb=CvBridge()
@@ -28,8 +28,6 @@ args,unknown=parser.parse_known_args()
 cameraSettings=butil.getPickledObject(args.root_dir+"/camera.p")
 landmarkSettings=butil.getPickledObject(args.root_dir+"/landmark.p")
 
-extractor=pclRANSAC(cameraSettings)
-extractor.fit([0,2,2,3])
 for j in ["Slow"]:#,"Medium","Fast"]:
     for spdType in ["straight"]:#,"turn"]:
         simulationFiles=os.listdir(args.root_dir+"/"+j+"/"+spdType+"/Data")
@@ -46,17 +44,18 @@ for j in ["Slow"]:#,"Medium","Fast"]:
             currentFile=butil.getPickledObject(currentFileDir)
             ###gen Ideal data
             print("IDEAL DATA")
-            for operatingLvL in sorted(currentFile.OperatingCurves.keys()):
+            for operatingLvL in [sorted(currentFile.OperatingCurves.keys())[0]]:
                 print("idealLevel",operatingLvL)
                 
                 ideal=currentFile.getIdealInterFrameEdge(operatingLvL)
-                test=simulatedWindow(cameraSettings,ideal)
-                print(test.res.x[0:6])
-                pp=motionEdge(test.res.x[0:3].reshape(3),test.res.x[3:6].reshape(3),degrees=False)
-                print(getMotion(currentFile.motionEdge))
-                print(getMotion(decomposeTransform(pp.getH())))
-                print(pp.getC())
-                print("----")
+                test=simulatedRansacWindow(cameraSettings,ideal)
+                r,timeTaken=test.RANSACestimate()
+                # print(r)
+                # print("seconds:",timeTaken,"RMS:",r)
+                # print(currentFile.pose.getFormatted())
+                # print(b.getNPoseEdge(0).getFormatted())
+                # print(test.getNPoseEdge(0).getFormatted())
+                # print("----")
                 # print(pp.getRtheta())
             #     estimate=rigid_transform_3D(ideal.getCurrentX(),ideal.getPreviousX())
             #     print(getMotion(currentFile.motionEdge))

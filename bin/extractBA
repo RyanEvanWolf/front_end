@@ -10,10 +10,9 @@ import numpy as np
 import rospy
 from cv_bridge import CvBridge
 from sensor_msgs.msg import CameraInfo, Image
-from tf.transformations import quaternion_from_euler, quaternion_matrix
 import bumblebee.utils as butil
-from dataset.simulation import *
-from front_end.algorithm import BAextractor
+from bumblebee.motion import *
+from front_end.algorithm import simulatedWindow
 import os 
 
 
@@ -25,13 +24,12 @@ parser =argparse.ArgumentParser()
 parser.add_argument("root_dir",help="The absolute directory to the motion simulation directory",type=str)
 args,unknown=parser.parse_known_args()
 
-# cameraSettings=butil.getPickledObject(args.root_dir+"/camera.p")
+cameraSettings=butil.getPickledObject(args.root_dir+"/camera.p")
 landmarkSettings=butil.getPickledObject(args.root_dir+"/landmark.p")
 
-ba=BAextractor(300)
 
-for j in ["Slow","Medium","Fast"]:
-    for spdType in ["straight","turn"]:
+for j in ["Slow"]:#,"Medium","Fast"]:
+    for spdType in ["straight"]:#,"turn"]:
         simulationFiles=os.listdir(args.root_dir+"/"+j+"/"+spdType+"/Data")
         ####
         outDirectory=args.root_dir+"/"+j+"/"+spdType+"/BA"
@@ -42,59 +40,56 @@ for j in ["Slow","Medium","Fast"]:
             currentFile=butil.getPickledObject(currentFileDir)
             ##gen Ideal data
             print("IDEAL DATA")
-            for operatingLvL in sorted(currentFile.OperatingCurves.keys()):
+            for operatingLvL in currentFile.OperatingCurves.keys():
                 print("idealLevel",operatingLvL)
                 ideal=currentFile.getIdealInterFrameEdge(operatingLvL)
-                estimate,Stats=ba.extract(ideal.getCurrentL(),
-                                    ideal.getCurrentX(),
-                                    ideal.getPreviousL(),
-                                    ideal.getPreviousX())
-                print(getMotion(currentFile.motionEdge))
-                print(getMotion(decomposeTransform(np.linalg.inv(estimate))))
-                extractDirectory=outDirectory+"/ideal/"+str(len(ideal.currentEdges)).zfill(5)
-                outFile=extractDirectory+"/"+hFile
-                if(not os.path.exists(extractDirectory)):
-                    os.makedirs(extractDirectory)
-                f=open(outFile,"w")
-                pickle.dump(estimate,f)
-                f.close()        
-                print(outFile)
-            print("NOISY DATA")
-            for operatingLvL in sorted(currentFile.OperatingCurves.keys()):
-                for noiseLvL in landmarkSettings["GaussianNoise"]:
+                currentWindow=simulatedWindow(cameraSettings,ideal)
+                r,time=currentWindow.BAestimate()
+                print("RMS:",r,"seconds:",time,currentWindow.count)
+                print(currentFile.pose.getFormatted())
+                print(currentWindow.getNPoseEdge(0).getFormatted())
+                # extractDirectory=outDirectory+"/ideal/"+str(len(ideal.currentEdges)).zfill(5)
+                # outFile=extractDirectory+"/"+hFile
+                # if(not os.path.exists(extractDirectory)):
+                #     os.makedirs(extractDirectory)
+                # f=open(outFile,"w")
+                # pickle.dump((currentWindow.getNPoseEdge(0),time,r),f)
+                # f.close()        
+                # print(outFile)
+            # print("NOISY DATA")
+            # for operatingLvL in sorted(currentFile.OperatingCurves.keys()):
+            #     for noiseLvL in landmarkSettings["GaussianNoise"]:
 
-                    print("NOISY curve Level",operatingLvL,noiseLvL)
-                    noise=currentFile.getNoisyInterFrameEdge(operatingLvL,str(noiseLvL).replace(".","_"))
-                    estimate,outStats=ba.extract(noise.getCurrentL(),
-                                        noise.getCurrentX(),
-                                        noise.getPreviousL(),
-                                        noise.getPreviousX())
-                    print(getMotion(currentFile.motionEdge))
-                    print(getMotion(decomposeTransform(np.linalg.inv(estimate))))
-                    extractDirectory=outDirectory+"/noise/"+str(len(noise.currentEdges)).zfill(5)+"/"+str(noiseLvL).replace(".","_")
-                    outFile=extractDirectory+"/"+hFile
-                    if(not os.path.exists(extractDirectory)):
-                        os.makedirs(extractDirectory)
-                    f=open(outFile,"w")
-                    pickle.dump(estimate,f)
-                    f.close()        
-                    print(outFile)
-            for operatingLvL in sorted(currentFile.OperatingCurves.keys()):
-                for outLvL in landmarkSettings["OutlierLevels"]:
+            #         print("NOISY curve Level",operatingLvL,noiseLvL)
+            #         noise=currentFile.getNoisyInterFrameEdge(operatingLvL,str(noiseLvL).replace(".","_"))
+            #         currentWindow=simulatedWindow(cameraSettings,noise)
+            #         r,time=currentWindow.BAestimate()
+            #         print("RMS:",r,"seconds:",time)
+            #         print(currentFile.pose.getFormatted())
+            #         print(currentWindow.getNPoseEdge(0).getFormatted())
+            #         extractDirectory=outDirectory+"/noise/"+str(len(noise.currentEdges)).zfill(5)+"/"+str(noiseLvL).replace(".","_")
+            #         outFile=extractDirectory+"/"+hFile
+            #         if(not os.path.exists(extractDirectory)):
+            #             os.makedirs(extractDirectory)
+            #         f=open(outFile,"w")
+            #         pickle.dump((currentWindow.getNPoseEdge(0),time,r),f)
+            #         f.close()        
+            #         print(outFile)
+            # for operatingLvL in sorted(currentFile.OperatingCurves.keys()):
+            #     for outLvL in landmarkSettings["OutlierLevels"]:
 
-                    print("Outlier curve Level",operatingLvL,outLvL)
-                    outEdge=currentFile.getOutlierInterFrameEdge(operatingLvL,str(int(outLvL *100)))
-                    estimate,outStats=ba.extract(outEdge.getCurrentL(),
-                                        outEdge.getCurrentX(),
-                                        outEdge.getPreviousL(),
-                                        outEdge.getPreviousX())
-                    print(getMotion(currentFile.motionEdge))
-                    print(getMotion(decomposeTransform(np.linalg.inv(estimate))))
-                    extractDirectory=outDirectory+"/outlier/"+str(len(outEdge.currentEdges)).zfill(5)+"/"+str(int(outLvL *100))
-                    outFile=extractDirectory+"/"+hFile
-                    if(not os.path.exists(extractDirectory)):
-                        os.makedirs(extractDirectory)
-                    f=open(outFile,"w")
-                    pickle.dump(estimate,f)
-                    f.close()        
-                    print(outFile)
+            #         print("Outlier curve Level",operatingLvL,outLvL)
+            #         outEdge=currentFile.getOutlierInterFrameEdge(operatingLvL,str(int(outLvL *100)))
+            #         currentWindow=simulatedWindow(cameraSettings,outEdge)
+            #         r,time=currentWindow.BAestimate()
+            #         print("RMS:",r,"seconds:",time)
+            #         print(currentFile.pose.getFormatted())
+            #         print(currentWindow.getNPoseEdge(0).getFormatted())
+            #         extractDirectory=outDirectory+"/outlier/"+str(len(outEdge.currentEdges)).zfill(5)+"/"+str(int(outLvL *100))
+            #         outFile=extractDirectory+"/"+hFile
+            #         if(not os.path.exists(extractDirectory)):
+            #             os.makedirs(extractDirectory)
+            #         f=open(outFile,"w")
+            #         pickle.dump((currentWindow.getNPoseEdge(0),time,r),f)
+            #         f.close()        
+            #         print(outFile)
