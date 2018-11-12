@@ -12,45 +12,56 @@ from cv_bridge import CvBridge
 from sensor_msgs.msg import CameraInfo, Image
 import bumblebee.utils as butil
 from bumblebee.motion import *
-from front_end.algorithm import simulatedRansacWindow,simulatedWindow
-
+from front_end.algorithm import simulatedRANSAC
 import os 
+
+import matplotlib.pyplot as plt
 import argparse
-
-
-rospy.init_node('PCLSimulation')
+rospy.init_node('RANSACsimulation')
 cvb=CvBridge()
 
-parser =argparse.ArgumentParser()
-parser.add_argument("root_dir",help="The absolute directory to the motion simulation directory",type=str)
-args,unknown=parser.parse_known_args()
+# parser =argparse.ArgumentParser()
+# parser.add_argument("root_dir",help="The absolute directory to the motion simulation directory",type=str)
+# args,unknown=parser.parse_known_args()
+root_dir="/media/ryan/EXTRA/output/Simulation"
 
-cameraSettings=butil.getPickledObject(args.root_dir+"/camera.p")
-landmarkSettings=butil.getPickledObject(args.root_dir+"/landmark.p")
+cameraSettings=butil.getPickledObject(root_dir+"/camera.p")
+landmarkSettings=butil.getPickledObject(root_dir+"/landmark.p")
 
-for j in ["Slow"]:#,"Medium","Fast"]:
+
+for j in ["Medium"]:#,"Medium","Fast"]:
     for spdType in ["straight"]:#,"turn"]:
-        simulationFiles=os.listdir(args.root_dir+"/"+j+"/"+spdType+"/Data")
+        simulationFiles=os.listdir(root_dir+"/"+j+"/"+spdType+"/Data")
         ####
-        outDirectory=args.root_dir+"/"+j+"/"+spdType+"/PCL"
+        outDirectory=root_dir+"/"+j+"/"+spdType+"/BA"
 
-        # NisterSettings=genDefaultNisterSettings(cameraSettings)
-
-        #pclExtractor=pclExtract("/media/ryan/EXTRA/output/Simulation",NisterSettings)
-
-        for hFile in simulationFiles[0:2]:
-            currentFileDir=args.root_dir+"/"+j+"/"+spdType+"/Data/"+hFile
-            outDirectory=args.root_dir+"/"+j+"/"+spdType+"/PCL"
+        for hFile in simulationFiles:
+            currentFileDir=root_dir+"/"+j+"/"+spdType+"/Data/"+hFile
+            outDirectory=root_dir+"/"+j+"/"+spdType+"/BA"
+            print("loading",currentFileDir)
             currentFile=butil.getPickledObject(currentFileDir)
-            ###gen Ideal data
-            print("IDEAL DATA")
-            for operatingLvL in [sorted(currentFile.OperatingCurves.keys())[0]]:
-                print("idealLevel",operatingLvL)
-                
-                ideal=currentFile.getIdealInterFrameEdge(operatingLvL)
-                test=simulatedRansacWindow(cameraSettings,ideal)
-                r,timeTaken=test.RANSACestimate()
-                # print(r)
+            ##gen Ideal data
+            print("OUTLIER DATA")
+            for pp in currentFile.OperatingCurves.keys():
+                print(pp)
+                print("outliers",len(currentFile.Outlier[pp]["20"]["Outliers"]))#,currentFile.Outlier[pp]["20"]["Outliers"])
+                print("Inliers",len(currentFile.Outlier[pp]["20"]["Inliers"]))
+                print(sorted(currentFile.Outlier[pp]["20"]["Inliers"]+currentFile.Outlier[pp]["20"]["Outliers"]))
+                extractor=simulatedRANSAC(baseWindow=currentFile.Outlier[pp]["20"]["data"])
+                extractor.inliers=currentFile.Outlier[pp]["20"]["Inliers"]
+                extractor.outliers=currentFile.Outlier[pp]["20"]["Outliers"]
+                testInl=currentFile.Outlier[pp]["20"]["data"].getSubset(sorted(currentFile.Outlier[pp]["20"]["Inliers"]))
+                testout=currentFile.Outlier[pp]["20"]["data"].getSubset(sorted(currentFile.Outlier[pp]["20"]["Outliers"]))
+                test=currentFile.Outlier[pp]["20"]["data"]
+                # plt.hist(testout.getAllLandmarkRMS(),color='r',bins=20)
+
+                # print(extractor.getWindowRMS(),"before")
+                # print(testInl.getWindowRMS(),"Ideal")
+                inliers,rms,x,time=extractor.extractMotion(currentFile.idealWindow.getSubset(currentFile.OperatingCurves[pp]))
+                print(inliers,rms,time)
+                print("ideal",getxPoseFormatted(currentFile.idealWindow.getPoseX(1)))
+                print(getxPoseFormatted(x))
+                print("--")
                 # print("seconds:",timeTaken,"RMS:",r)
                 # print(currentFile.pose.getFormatted())
                 # print(b.getNPoseEdge(0).getFormatted())
@@ -85,22 +96,76 @@ for j in ["Slow"]:#,"Medium","Fast"]:
             #         pickle.dump(estimate["H"],f)
             #         f.close()        
             #         print(outFile)
-            # for operatingLvL in sorted(currentFile.OperatingCurves.keys()):
-            #     for outLvL in landmarkSettings["OutlierLevels"]:
-
+            # print("**************************************")
+            # for operatingLvL in [sorted(currentFile.OperatingCurves.keys())[0]]:
+            #     print("IDEAl",currentFile.pose.getH())
+            #     for outLvL in [0.2]:#landmarkSettings["OutlierLevels"]:
             #         print("Outlier curve Level",operatingLvL,outLvL)
-            #         outEdge=currentFile.getOutlierInterFrameEdge(operatingLvL,str(int(outLvL *100)))
-            #         estimate=rigid_transform_3D(outEdge.getCurrentX(),outEdge.getPreviousX())
-            #         print(getMotion(currentFile.motionEdge))
-            #         print(getMotion(decomposeTransform(np.linalg.inv(estimate["H"]))))
-            #         extractDirectory=outDirectory+"/outlier/"+str(len(outEdge.currentEdges)).zfill(5)+"/"+str(int(outLvL *100))
-            #         outFile=extractDirectory+"/"+hFile
-            #         if(not os.path.exists(extractDirectory)):
-            #             os.makedirs(extractDirectory)
-            #         f=open(outFile,"w")
-            #         pickle.dump(estimate["H"],f)
-            #         f.close()        
-            #         print(outFile)
+            #         OUTLIER=currentFile.getOutlierInterFrameEdge(operatingLvL,str(int(outLvL *100)))
+            #         ideal=currentFile.getIdealInterFrameEdge(operatingLvL)
+                    
+                    
+            #         t=simulatedRansacWindow(cameraSettings,OUTLIER)
+
+            #         debu=simulatedRansacWindow(cameraSettings,ideal)
+
+            #         realOutlierIndexes=currentFile.OperatingCurves[operatingLvL][1][str(int(outLvL *100))]
+            #         realInlierIndexes=list(set(range(t.getNlandmarks()))-set(realOutlierIndexes))
+            #         print(t.getNlandmarks())
+            #         print("inliers",realInlierIndexes)
+            #         print("realOUtliers",realOutlierIndexes)
+            #         print("-----")
+            #         testPointsA=t.getX(realInlierIndexes).reshape((4,len(realInlierIndexes)),order='F')
+            #         # print(testPointsA.shape)
+            #         testMeasurements=t.M[4:8,realInlierIndexes] ##only second frame
+            #         testPointsB=currentFile.pose.getH().dot(testPointsA)
+                    
+            #         testPointsB/=testPointsB[3,:]
+
+            #         print(testPointsB[:,0:4])
+            #         print(debu.getX(realInlierIndexes).reshape((4,len(realInlierIndexes)),order='F')[:,0:4])
+            #         print("------best")
+            #         testPointsA=debu.getX(realInlierIndexes).reshape((4,len(realInlierIndexes)),order='F')
+            #         # print(testPointsA.shape)
+            #         testMeasurements=debu.M[4:8,realInlierIndexes] ##only second frame
+            #         testPointsB=currentFile.pose.getH().dot(testPointsA)
+                    
+            #         testPointsB/=testPointsB[3,:]
+            #         print(testPointsB[:,0:4])
+                    
+            #         # predictionsBL=self.kSettings["Pl"].dot(testPointsB)
+            #         # predictionsBL/=predictionsBL[2,:]
+            #         # predictionsBR=self.kSettings["Pr"].dot(testPointsB)
+            #         # predictionsBR/=predictionsBR[2,:]
+                    
+                    
+            #         # setPredictions=np.vstack((predictionsBL[0:2,:],predictionsBR[0:2,:]))
+
+
+
+            #         # diffVect=setPredictions-testMeasurements
+
+
+
+
+
+
+            #         # fit,err,inlier=t.RANSACestimate()
+            #         # print(fit,err,len(inlier))
+
+            # #         print("Outlier curve Level",operatingLvL,outLvL)
+            # #         outEdge=currentFile.getOutlierInterFrameEdge(operatingLvL,str(int(outLvL *100)))
+            # #         estimate=rigid_transform_3D(outEdge.getCurrentX(),outEdge.getPreviousX())
+            # #         print(getMotion(currentFile.motionEdge))
+            # #         print(getMotion(decomposeTransform(np.linalg.inv(estimate["H"]))))
+            # #         extractDirectory=outDirectory+"/outlier/"+str(len(outEdge.currentEdges)).zfill(5)+"/"+str(int(outLvL *100))
+            # #         outFile=extractDirectory+"/"+hFile
+            # #         if(not os.path.exists(extractDirectory)):
+            # #             os.makedirs(extractDirectory)
+            # #         f=open(outFile,"w")
+            # #         pickle.dump(estimate["H"],f)
+            # #         f.close()        
+            # #         print(outFile)
 
 
 

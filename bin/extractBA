@@ -12,7 +12,7 @@ from cv_bridge import CvBridge
 from sensor_msgs.msg import CameraInfo, Image
 import bumblebee.utils as butil
 from bumblebee.motion import *
-from front_end.algorithm import simulatedWindow
+from front_end.algorithm import simulatedBA
 import os 
 
 
@@ -20,34 +20,55 @@ import argparse
 rospy.init_node('BAsimulation')
 cvb=CvBridge()
 
-parser =argparse.ArgumentParser()
-parser.add_argument("root_dir",help="The absolute directory to the motion simulation directory",type=str)
-args,unknown=parser.parse_known_args()
+# parser =argparse.ArgumentParser()
+# parser.add_argument("root_dir",help="The absolute directory to the motion simulation directory",type=str)
+# args,unknown=parser.parse_known_args()
+root_dir="/media/ryan/EXTRA/output/Simulation"
 
-cameraSettings=butil.getPickledObject(args.root_dir+"/camera.p")
-landmarkSettings=butil.getPickledObject(args.root_dir+"/landmark.p")
+cameraSettings=butil.getPickledObject(root_dir+"/camera.p")
+landmarkSettings=butil.getPickledObject(root_dir+"/landmark.p")
 
 
-for j in ["Slow"]:#,"Medium","Fast"]:
+for j in ["Medium"]:#,"Medium","Fast"]:
     for spdType in ["straight"]:#,"turn"]:
-        simulationFiles=os.listdir(args.root_dir+"/"+j+"/"+spdType+"/Data")
+        simulationFiles=os.listdir(root_dir+"/"+j+"/"+spdType+"/Data")
         ####
-        outDirectory=args.root_dir+"/"+j+"/"+spdType+"/BA"
+        outDirectory=root_dir+"/"+j+"/"+spdType+"/BA"
 
         for hFile in simulationFiles:
-            currentFileDir=args.root_dir+"/"+j+"/"+spdType+"/Data/"+hFile
-            outDirectory=args.root_dir+"/"+j+"/"+spdType+"/BA"
+            currentFileDir=root_dir+"/"+j+"/"+spdType+"/Data/"+hFile
+            outDirectory=root_dir+"/"+j+"/"+spdType+"/BA"
+            print("loading",currentFileDir)
             currentFile=butil.getPickledObject(currentFileDir)
             ##gen Ideal data
             print("IDEAL DATA")
-            for operatingLvL in currentFile.OperatingCurves.keys():
-                print("idealLevel",operatingLvL)
-                ideal=currentFile.getIdealInterFrameEdge(operatingLvL)
-                currentWindow=simulatedWindow(cameraSettings,ideal)
-                r,time=currentWindow.BAestimate()
-                print("RMS:",r,"seconds:",time,currentWindow.count)
-                print(currentFile.pose.getFormatted())
-                print(currentWindow.getNPoseEdge(0).getFormatted())
+            for pp in currentFile.OperatingCurves.keys():
+                print(pp)
+                extractor=simulatedBA(baseWindow=currentFile.idealWindow.getSubset(currentFile.OperatingCurves[pp]))
+                print(extractor.getWindowRMS(),"before")
+                print(extractor.extractMotion())
+                print("ideal",getxPoseFormatted(currentFile.idealWindow.getPoseX(1)))
+                print(getxPoseFormatted(extractor.getPoseX(1)))
+                print("--")
+            # extractor=simulatedBA(baseWindow=currentFile.idealWindow.getSubset(currentFile.OperatingCurves[]))
+            # print(extractor.getWindowRMS())
+            # extractor=simulatedBA(baseWindow=currentFile.idealWindow)
+            # print(extractor.getWindowRMS())
+            
+            # for operatingLvL in currentFile.OperatingCurves.keys():
+            #     print("idealLevel",operatingLvL)
+            #     ideal=currentFile.getIdealInterFrameEdge(operatingLvL)
+            #     currentWindow=simulatedWindow(cameraSettings,ideal)
+            #     r,time=currentWindow.BAestimate()
+            #     print("RMS:",r,"seconds:",time,currentWindow.count)
+            #     print(currentFile.pose.getFormatted())
+            #     print(currentWindow.getNPoseEdge(0).getFormatted())
+
+
+
+
+
+
                 # extractDirectory=outDirectory+"/ideal/"+str(len(ideal.currentEdges)).zfill(5)
                 # outFile=extractDirectory+"/"+hFile
                 # if(not os.path.exists(extractDirectory)):

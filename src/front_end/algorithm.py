@@ -4,57 +4,223 @@ from cv_bridge import CvBridge
 import copy
 from scipy.optimize import least_squares
 from bumblebee.motion import *
+from bumblebee.baseTypes import *
 from math import pi,radians,degrees
 from bumblebee.stereo import *
 from bumblebee.camera import *
+import matplotlib.pyplot as plt
+import matplotlib.style as sty
+import statistics
+
+
 
 def rigid_transform_3D(previousLandmarks, currentLandmarks):
-        #assert len(A) == len(B)
-        n=len(previousLandmarks)
-        A=np.mat(np.random.rand(n,3),dtype=np.float64)
-        B=np.mat(np.random.rand(n,3),dtype=np.float64)
-        for a in range(0,len(currentLandmarks)):
-            A[a,0]=previousLandmarks[a][0,0]
-            A[a,1]=previousLandmarks[a][1,0]
-            A[a,2]=previousLandmarks[a][2,0]
-            B[a,0]=currentLandmarks[a][0,0]
-            B[a,1]=currentLandmarks[a][1,0]
-            B[a,2]=currentLandmarks[a][2,0]
+    N=previousLandmarks.shape[1]
+    centroid_A = np.mean(previousLandmarks.T, axis=0)
+    centroid_B = np.mean(currentLandmarks.T, axis=0)
 
-        N = A.shape[0]; # total points
+    AA = copy.deepcopy(previousLandmarks.T - np.tile(centroid_A, (N, 1)))
+    BB = copy.deepcopy(currentLandmarks.T - np.tile(centroid_B, (N, 1)))
+    H = np.transpose(AA).dot(BB)
 
-        centroid_A = np.mean(A, axis=0)
-        centroid_B = np.mean(B, axis=0)
-        #print(centroid_A)
-        # centre the points
-        AA = A - np.tile(centroid_A, (N, 1))
-        BB = B - np.tile(centroid_B, (N, 1))
-        #print(AA.shape)
-        #print(BB.shape)
-        #print(np.transpose(AA).shape)
-        # dot is matrix multiplication for array
-        H = np.transpose(AA).dot(BB)
-        #print(H.shape)
-        U, S, Vt = np.linalg.svd(H)
+    U, S, Vt = np.linalg.svd(H)
+    R = (Vt.T).dot( U.T)
+    # special reflection case
+    if(np.linalg.det(R) < 0):
+        Vt[2,:] *= -1
+        R = (Vt.T).dot(U.T)
+    t = -R.dot(centroid_A.T) + centroid_B.T
 
-        R = Vt.T * U.T
+    return createHomog(R,t)
 
-        # special reflection case
-        if(np.linalg.det(R) < 0):
-            #print "Reflection detected"
-            Vt[2,:] *= -1
-            R = Vt.T * U.T
-        #print(R.shape,centroid_A.T.shape,centroid_B.T.shape)
-        #print((-R*centroid_A.T).shape)
-        t = -R.dot(centroid_A.T) + centroid_B.T
-        #print(R,t)
-        #print(t.shape)
-        #print t
-        out={}
-        out["R"]=R
-        out["T"]=t
-        out["H"]=createHomog(R, t)
-        return out
+
+#     ########
+#     ##THE ORIGINAL THAT WORKED
+# def rigid_transform2_3D(previousLandmarks, currentLandmarks):
+
+#     n=len(previousLandmarks)
+#     A=np.mat(np.random.rand(n,3),dtype=np.float64)
+#     B=np.mat(np.random.rand(n,3),dtype=np.float64)
+#     for a in range(0,len(currentLandmarks)):
+#         A[a,0]=previousLandmarks[a].X[0,0]
+#         A[a,1]=previousLandmarks[a].X[1,0]
+#         A[a,2]=previousLandmarks[a].X[2,0]
+#         B[a,0]=currentLandmarks[a].X[0,0]
+#         B[a,1]=currentLandmarks[a].X[1,0]
+#         B[a,2]=currentLandmarks[a].X[2,0]
+#     N = A.shape[0]; # total points
+
+#     centroid_A = np.mean(A, axis=0)
+#     centroid_B = np.mean(B, axis=0)
+    
+#     # centre the points
+#     AA = A - np.tile(centroid_A, (N, 1))
+#     BB = B - np.tile(centroid_B, (N, 1))
+
+#     # dot is matrix multiplication for array
+#     H = np.transpose(AA).dot(BB)
+
+#     U, S, Vt = np.linalg.svd(H)
+
+#     R = Vt.T * U.T
+
+#     # special reflection case
+#     if(np.linalg.det(R) < 0):
+#         Vt[2,:] *= -1
+#         R = Vt.T * U.T
+
+#     t = -R.dot(centroid_A.T) + centroid_B.T
+
+#     out={}
+#     out["R"]=R
+#     out["T"]=t
+#     out["H"]=createHomog(R, t)
+#     return 0
+class simulatedRANSAC(slidingWindow):
+    def __init__(self,baseWindow=None,cameraSettings=None,frames=2):
+        if(baseWindow is not None):
+            ####init from previous sliding window
+            self.X=copy.deepcopy(baseWindow.X)
+            self.kSettings=copy.deepcopy(baseWindow.kSettings)
+            self.M=copy.deepcopy(baseWindow.M)
+            self.tracks=copy.deepcopy(baseWindow.tracks)
+            self.nLandmarks=baseWindow.nLandmarks
+            self.nPoses=baseWindow.nPoses
+        elif (cameraSettings is not None):
+            ####init from scratch
+            pass
+        self.outliers=[]
+    def extractMotion(self,original,nIterations=12,RMSthreshold=1.5,resetMotion=True):
+
+        abc=time.time()
+        iterations=0
+        minimumParams=3
+        goodModel=0.5*self.nLandmarks
+        bestFit=np.zeros((6,1))
+        besterr=np.inf 
+        bestInliers=[]
+       
+        if(resetMotion):
+            self.X[0:6,0]=np.zeros(6)
+
+        while iterations < nIterations:
+            paramEstimateIndexes,testPointIndexes=self.randomPartition(minimumParams)
+            modelEstimationData=self.getSubset(paramEstimateIndexes)
+            trainingData=self.getSubset(testPointIndexes)
+            
+
+
+            previousX=np.hstack((modelEstimationData.reprojectLandmark(0)[:,0].reshape(4,1),
+                                modelEstimationData.reprojectLandmark(1)[:,0].reshape(4,1),
+                                modelEstimationData.reprojectLandmark(2)[:,0].reshape(4,1)))
+            currentX=np.hstack((modelEstimationData.reprojectLandmark(0)[:,1].reshape(4,1),
+                                modelEstimationData.reprojectLandmark(1)[:,1].reshape(4,1),
+                                modelEstimationData.reprojectLandmark(2)[:,1].reshape(4,1)))
+            est=rigid_transform_3D(previousX[0:3,:],currentX[0:3,:])
+            modelEstimationData.X[0:6,0]=decompose2X(est).reshape(6)
+            trainingData.X[0:6,0]=decompose2X(est).reshape(6)
+
+            self.X[0:6,0]=decompose2X(est).reshape(6)
+            tempInliers=sorted(list(np.flatnonzero(np.array(trainingData.getAllLandmarkRMS()) <RMSthreshold)))
+            currentModelInliers=[]
+            for j in tempInliers:
+                currentModelInliers.append(testPointIndexes[j])
+            if(len(list(set(currentModelInliers)-set(self.inliers)))):
+                print("Fake")
+                print(list(set(currentModelInliers)-set(self.inliers)))
+            newSet=self.getSubset(currentModelInliers)
+            if(len(currentModelInliers)>goodModel):
+                possibleBetterInliers=currentModelInliers +paramEstimateIndexes
+                withInliers=self.getSubset(possibleBetterInliers)
+
+                for i in possibleBetterInliers:
+
+                    previousX=np.hstack((previousX,self.reprojectLandmark(i)[:,0].reshape(4,1)))
+                    currentX=np.hstack((currentX,self.reprojectLandmark(i)[:,1].reshape(4,1)))
+                possibleBetterEst=rigid_transform_3D(previousX[0:3,:],currentX[0:3,:])
+                testData=self.getSubset(possibleBetterInliers)  
+                testData.X[0:6,0]=decompose2X(possibleBetterEst).reshape(6)
+                betterRMS=testData.getWindowRMS()
+                if(betterRMS<besterr):
+                    besterr=betterRMS
+                    bestInliers=possibleBetterInliers
+                    bestFit=decompose2X(possibleBetterEst)
+            iterations+=1
+
+        net=time.time()-abc
+        return len(bestInliers),besterr,bestFit,net
+    def randomPartition(self,minimumParameters=7):
+        setOfLandmarks=range(0,self.nLandmarks)
+        np.random.shuffle(setOfLandmarks)
+        parameterIndexes=sorted(setOfLandmarks[:minimumParameters])
+        testPointIdexes=sorted(setOfLandmarks[minimumParameters:])
+        return parameterIndexes,testPointIdexes
+    #     print(len(range(0,self.getNlandmarks())))
+    #     currentXpredictions=self.getReprojections(range(0,self.getNlandmarks()),1)
+    #     previousXpredictions=self.getX(range(self.getNlandmarks()))
+    #     previousXpredictions=previousXpredictions.reshape((4,len(previousXpredictions)/4),order='F')
+    #     while iterations < nIterations:
+    #         ##################
+    #         ###select a random set of data
+    #         #################
+    #         paramEstimateIndexes,testPointIndexes=self.randomPartition(minimumParams)
+    #         print(paramEstimateIndexes)
+    #         est=rigid_transform_3D(previousXpredictions[0:3,paramEstimateIndexes],currentXpredictions[0:3,paramEstimateIndexes])
+    #         ########
+    #         ##given the new parameter data, estimate the new overall error
+    #         #######
+    #         testPointsA=previousXpredictions[:,testPointIndexes]
+            
+    #         testMeasurements=self.M[4:8,testPointIndexes] ##only second frame
+    #         testPointsB=est.dot(testPointsA)
+            
+    #         testPointsB/=testPointsB[3,:]
+    #         predictionsBL=self.kSettings["Pl"].dot(testPointsB)
+    #         predictionsBL/=predictionsBL[2,:]
+    #         predictionsBR=self.kSettings["Pr"].dot(testPointsB)
+    #         predictionsBR/=predictionsBR[2,:]
+            
+            
+    #         setPredictions=np.vstack((predictionsBL[0:2,:],predictionsBR[0:2,:]))
+
+
+
+    #         diffVect=setPredictions-testMeasurements
+
+    #         L2Norm=np.sqrt(np.square(diffVect).sum(axis=0))
+    #         currentModelInliers=sorted(list(np.flatnonzero(L2Norm <RMSthreshold)))
+    #         paramEstimateIndexes=np.concatenate((paramEstimateIndexes,currentModelInliers))
+    #         if(len(paramEstimateIndexes)>goodModel):
+    #             newFit=rigid_transform_3D(previousXpredictions[0:3,paramEstimateIndexes],currentXpredictions[0:3,paramEstimateIndexes])
+                
+    #             testPointsA=previousXpredictions[:,paramEstimateIndexes]
+    #             testMeasurements=self.M[4:8,paramEstimateIndexes] ##only second frame
+    #             testPointsB=est.dot(testPointsA)
+                
+    #             predictionsBL=self.kSettings["Pl"].dot(testPointsB)
+    #             predictionsBL/=predictionsBL[2,:]
+    #             predictionsBR=self.kSettings["Pr"].dot(testPointsB)
+    #             predictionsBR/=predictionsBR[2,:]
+            
+            
+    #             setPredictions=np.vstack((predictionsBL[0:2,:],predictionsBR[0:2,:]))
+
+    #             diffVect=setPredictions-testMeasurements
+    #             RMS=np.sqrt((diffVect.ravel()**2).mean())
+    #             if besterr > RMS:
+    #                 print("new")
+    #                 bestFit=newFit
+    #                 bestInliers=paramEstimateIndexes
+    #                 besterr=RMS
+    #         iterations+=1
+    #     return bestFit,besterr,bestInliers
+    # def randomPartition(self,minimumParameters=7):
+    #     setOfLandmarks=range(0,self.getNlandmarks())
+    #     np.random.shuffle(setOfLandmarks)
+    #     parameterIndexes=setOfLandmarks[:minimumParameters]
+    #     testPointIdexes=setOfLandmarks[minimumParameters:]
+    #     return parameterIndexes,testPointIdexes
+
 class BAextractor:
     def __init__(self,cameraSettings):
         self.settings=copy.deepcopy(cameraSettings)
@@ -98,153 +264,254 @@ class BAextractor:
         return totalRMS
 
 
-class slidingWindow(object):
-    def __init__(self,cameraSettings,frames=2):
-        self.kSettings=copy.deepcopy(cameraSettings)
-        self.X=np.zeros((0,0)) ###[Pose0 Pose1 Pose2|landmarkA landmarkB landmarkC ...]
-        self.M=np.zeros((0,0)) ###[Upl0 Vpl0  ]
-        self.tracks=np.zeros((0,0))
-        self.inliers=None
-    def getNlandmarks(self):
-        ######TODO includes the number of frames in this calculation
-        return (self.X.shape[0]-6)/4
-    def getNinliers(self):
-        return np.count(self.inliers)
-    def getNPoseEdge(self,N):
-        poseVector=self.X[N*6:N*6+6]
-        return motionEdge(poseVector[0:3],poseVector[3:6],degrees=False)
-    def getX(self,arrayIndexes):
-        X=np.zeros(len(arrayIndexes)*4)
-        for index in range(0,len(arrayIndexes)):
-            X[4*index:4*index+4]=self.X[6+arrayIndexes[index]*4:6+arrayIndexes[index]*4 + 4]
-        return X
-    def getFeature(self,arrayIndexes,frameNumber):
-        features=np.zeros((4,len(arrayIndexes)))
-        for index in range(0,len(arrayIndexes)):
-            features[0:4,index]=self.M[4*frameNumber:4*frameNumber+4,index]
-        return features
-    def getReprojections(self,arrayIndexes,frameNumber):
-        features=self.getFeature(arrayIndexes,frameNumber)
-        measVect=np.zeros((4,features.shape[1]))
-        measVect[3,:]=np.ones(features.shape[1])
-        measVect[0:2,:]=features[0:2,:]
-        measVect[2,:]=measVect[0,:]-features[2,:]
-        xreproject=self.kSettings["Q"].dot(measVect)
-        xreproject/=xreproject[3,:]
-        return xreproject
 
-
-class simulatedRansacWindow(slidingWindow):
-    def __init__(self,Ksettings,initialEdges):
-        super(simulatedRansacWindow,self).__init__(cameraSettings=Ksettings)
-        self.data=copy.deepcopy(initialEdges)
-        self.X=np.zeros((6 + 4*len(self.data.currentEdges)))
-        self.M=np.zeros((4*2,len(self.data.currentEdges)))
-        for edge in range(0,len(self.data.previousEdges)):
-            self.X[edge*4+6:edge*4+4+6]=self.data.previousEdges[edge].X.reshape(4)
-            self.M[0:2,edge]=self.data.previousEdges[edge].L[0:2,0].reshape(2)
-            self.M[2:4,edge]=self.data.previousEdges[edge].R[0:2,0].reshape(2)
-            self.M[4:6,edge]=self.data.currentEdges[edge].L[0:2,0].reshape(2)
-            self.M[6:8,edge]=self.data.currentEdges[edge].R[0:2,0].reshape(2)
-    def RANSACestimate(self,nIterations=100,RMSthreshold=1.5):
-        iterations=0
-        bestFit=None
-        besterr=np.inf 
-        print(len(range(0,self.getNlandmarks())))
-        currentXpredictions=self.getReprojections(range(0,self.getNlandmarks()),1)
-        print(currentXpredictions.shape)
-        print(self.data.currentEdges[0].X,self.data.currentEdges[1].X)
-        while iterations < nIterations:
-            ##################
-            ###select a random set of data
-            #################
-            paramEstimateIndexes,testPointIndexes=self.randomPartition()
-            testInliers=self.getX(paramEstimateIndexes)
-            testPoints=self.getX(testPointIndexes)
-            ####estimate new Parameters
-
-
-            iterations+=1
-        return 0,0
-    def randomPartition(self,minimumParameters=7):
-        setOfLandmarks=range(0,self.getNlandmarks())
-        np.random.shuffle(setOfLandmarks)
-        parameterIndexes=setOfLandmarks[:minimumParameters]
-        testPointIdexes=setOfLandmarks[minimumParameters:]
-        return parameterIndexes,testPointIdexes
-
-
-class simulatedWindow(slidingWindow):
-    def __init__(self,Ksettings,initialEdges):
-        super(simulatedWindow,self).__init__(cameraSettings=Ksettings)
-        self.data=copy.deepcopy(initialEdges)
-        self.X=np.zeros((6 + 4*len(self.data.currentEdges)))
-        self.M=np.zeros((4*2,len(self.data.currentEdges)))
-        for edge in range(0,len(self.data.previousEdges)):
-            self.X[edge*4+6:edge*4+4+6]=self.data.previousEdges[edge].X.reshape(4)
-            self.M[0:2,edge]=self.data.previousEdges[edge].L[0:2,0].reshape(2)
-            self.M[2:4,edge]=self.data.previousEdges[edge].R[0:2,0].reshape(2)
-            self.M[4:6,edge]=self.data.currentEdges[edge].L[0:2,0].reshape(2)
-            self.M[6:8,edge]=self.data.currentEdges[edge].R[0:2,0].reshape(2)
-        self.count=0
-    def BAestimate(self):
+class simulatedBA(slidingWindow):
+    def __init__(self,baseWindow=None,cameraSettings=None,frames=2):
+        if(baseWindow is not None):
+            ####init from previous sliding window
+            self.X=copy.deepcopy(baseWindow.X)
+            self.kSettings=copy.deepcopy(baseWindow.kSettings)
+            self.M=copy.deepcopy(baseWindow.M)
+            self.tracks=copy.deepcopy(baseWindow.tracks)
+            self.nLandmarks=baseWindow.nLandmarks
+            self.nPoses=baseWindow.nPoses
+        elif (cameraSettings is not None):
+            ####init from scratch
+            pass
+    def extractMotion(self,resetMotion=True):
+        if(resetMotion):
+            self.X[0:6,0]=np.zeros(6)
         abc=time.time()
-        result=least_squares(self.error,self.X,verbose=2,max_nfev=500)
+        result=least_squares(self.error,self.X.ravel(),max_nfev=200)
         net=time.time()-abc
         self.X=copy.deepcopy(result.x.reshape(result.x.shape[0],1))
-        return self.getStateRMS(),net
+        return self.getWindowRMS(),net
     def error(self,x, *args, **kwargs):
-        ######
-        ##get camera
-        #####
-        self.count+=1
-        Pal=self.kSettings["Pl"]
-        Par=self.kSettings["Pr"]
-        Pbl=composeCamera(self.kSettings["Pl"][0:3,0:3],copy.deepcopy(x[0:6]))
-        Pbr=composeCamera(self.kSettings["Pl"][0:3,0:3],copy.deepcopy(x[0:6]))
-        errorMatrix=np.zeros(self.M.shape)
-        for i in range(0,self.M.shape[1]):
-            pred1=Pal.dot(x[6+4*i:6+4*i +4].reshape(4,1))
-            pred1/=pred1[2,0]
-            pred2=Par.dot(x[6+4*i:6+4*i +4].reshape(4,1))
-            pred2/=pred2[2,0]
-            pred3=Pbl.dot(x[6+4*i:6+4*i +4].reshape(4,1))
-            pred3/=pred3[2,0]
-            pred4=Pbr.dot(x[6+4*i:6+4*i +4].reshape(4,1))
-            pred4/=pred4[2,0]
+        self.X=copy.deepcopy(x.reshape(6*(self.nPoses-1)+4*self.nLandmarks,1))
+        # print(x[0:6],self.getWindowRMS())
+        return self.getWindowRMS()
+# class slidingWindow(object):
+#     def __init__(self,cameraSettings,frames=2):
+#         '''
+#         SLiding window object of length "frames"
+#         X is a  [ Pose1 ]  
+#                 [ Pose2 ] 
+#                 [ ..... ]6x1 Rtheta vector [Roll pitch yaw X Y Z]^T
+#                 [ PoseN ]
+#                 [   X1  ]landmark as seen from pose1        [X Y Z W]
+#                 [   X2  ]
+#                 [   X3  ]
+#         shape= [6xNposes + 4xNlandmarks , 1]
 
-            errorMatrix[0:2,i]=pred1[0:2,0]
-            errorMatrix[2:4,i]=pred2[0:2,0]
-            errorMatrix[4:6,i]=pred3[0:2,0]
-            errorMatrix[6:8,i]=pred4[0:2,0]
-        errorMatrix-=self.M
-        # diff=errorMatrix.reshape(self.M.shape[0]*self.M.shape[1],1)
-        # RMS=np.sqrt((diff**2).mean())
-        return errorMatrix.ravel()
-    def getStateRMS(self):
-        Pal=self.kSettings["Pl"]
-        Par=self.kSettings["Pr"]
-        Pbl=composeCamera(self.kSettings["Pl"][0:3,0:3],self.X[0:6])
-        Pbr=composeCamera(self.kSettings["Pl"][0:3,0:3],self.X[0:6])
-        errorMatrix=np.zeros(self.M.shape)
-        for i in range(0,self.M.shape[1]):
-            pred1=Pal.dot(self.X[6+4*i:6+4*i +4].reshape(4,1))
-            pred1/=pred1[2,0]
-            pred2=Par.dot(self.X[6+4*i:6+4*i +4].reshape(4,1))
-            pred2/=pred2[2,0]
-            pred3=Pbl.dot(self.X[6+4*i:6+4*i +4].reshape(4,1))
-            pred3/=pred3[2,0]
-            pred4=Pbr.dot(self.X[6+4*i:6+4*i +4].reshape(4,1))
-            pred4/=pred4[2,0]
+#         M is the measurement matrix
+#                     [ uleft1    uleft2 ....  uleftn  ]
+#           frame1{   [ vleft1    vleft2 ....  vleftn  ]
+#                     [ uright1   uright2 .... urightn ]
+#                     [ vright1   vright2 .... vrightn ]
+#                     [ uleft1    uleft2 ....  uleftn  ]
+#           frame2{   [ vleft1    vleft2 ....  vleftn  ]
+#                     [ uright1   uright2 .... urightn ]
+#                     [ vright1   vright2 .... vrightn ]
+#                     [ uleft1    uleft2 ....  uleftn  ]
+#           frame3{   [ vleft1    vleft2 ....  vleftn  ]
+#                     [ uright1   uright2 .... urightn ]
+#                     [ vright1   vright2 .... vrightn ]
 
-            errorMatrix[0:2,i]=pred1[0:2,0]
-            errorMatrix[2:4,i]=pred2[0:2,0]
-            errorMatrix[4:6,i]=pred3[0:2,0]
-            errorMatrix[6:8,i]=pred4[0:2,0]
-        errorMatrix-=self.M
-        diff=errorMatrix.reshape(self.M.shape[0]*self.M.shape[1],1)
-        RMS=np.sqrt((diff**2).mean())
-        return RMS      
+#         currently assumes a feature is always tracked i.e no masking available
+#         '''
+#         self.kSettings=copy.deepcopy(cameraSettings)
+#         self.X=np.zeros((0,0),dtype=np.float64) ###[Pose0 Pose1 Pose2|landmarkA landmarkB landmarkC ...]
+#         self.M=np.zeros((0,0),dtype=np.float64) ###[Upl0 Vpl0  ]
+#         self.tracks=np.zeros((0,0),dtype=np.float64)
+#         self.inliers=None
+#     def getNlandmarks(self):
+#         ######TODO includes the number of frames in this calculation
+#         return (self.X.shape[0]-6)/4
+#     def getNinliers(self):
+#         return np.count(self.inliers)
+#     def getNPoseEdge(self,N):
+#         poseVector=self.X[N*6:N*6+6]
+#         return motionEdge(poseVector[0:3],poseVector[3:6],degrees=False)
+#     def getX(self,arrayIndexes):
+#         X=np.zeros(len(arrayIndexes)*4)
+#         for index in range(0,len(arrayIndexes)):
+#             X[4*index:4*index+4]=self.X[6+arrayIndexes[index]*4:6+arrayIndexes[index]*4 + 4]
+#         return X
+#     def getFeature(self,arrayIndexes,frameNumber):
+#         features=np.zeros((4,len(arrayIndexes)))
+#         for index in range(0,len(arrayIndexes)):
+#             features[0:4,index]=self.M[4*frameNumber:4*frameNumber+4,index]
+#         return features
+#     def getReprojections(self,arrayIndexes,frameNumber):
+#         features=self.getFeature(arrayIndexes,frameNumber)
+#         measVect=np.zeros((4,features.shape[1]))
+#         measVect[3,:]=np.ones(features.shape[1])
+#         measVect[0:2,:]=features[0:2,:]
+#         measVect[2,:]=measVect[0,:]-features[2,:]
+#         xreproject=self.kSettings["Q"].dot(measVect)
+#         xreproject/=xreproject[3,:]
+#         return xreproject
+
+
+# class simulatedRansacWindow(slidingWindow):
+#     def __init__(self,Ksettings,initialEdges):
+#         super(simulatedRansacWindow,self).__init__(cameraSettings=Ksettings)
+#         self.data=copy.deepcopy(initialEdges)
+#         self.X=np.zeros((6 + 4*len(self.data.currentEdges)))
+#         self.M=np.zeros((4*2,len(self.data.currentEdges)))
+#         for edge in range(0,len(self.data.previousEdges)):
+#             self.X[edge*4+6:edge*4+4+6]=self.data.previousEdges[edge].X.reshape(4)
+#             self.M[0:2,edge]=self.data.previousEdges[edge].L[0:2,0].reshape(2)
+#             self.M[2:4,edge]=self.data.previousEdges[edge].R[0:2,0].reshape(2)
+#             self.M[4:6,edge]=self.data.currentEdges[edge].L[0:2,0].reshape(2)
+#             self.M[6:8,edge]=self.data.currentEdges[edge].R[0:2,0].reshape(2)
+#     def RANSACestimate(self,nIterations=5,RMSthreshold=0.0001):
+#         iterations=0
+#         minimumParams=3
+#         goodModel=0.8*self.getNlandmarks()
+#         bestFit=None
+#         besterr=np.inf 
+#         bestInliers=[]
+
+#         print(len(range(0,self.getNlandmarks())))
+#         currentXpredictions=self.getReprojections(range(0,self.getNlandmarks()),1)
+#         previousXpredictions=self.getX(range(self.getNlandmarks()))
+#         previousXpredictions=previousXpredictions.reshape((4,len(previousXpredictions)/4),order='F')
+#         while iterations < nIterations:
+#             ##################
+#             ###select a random set of data
+#             #################
+#             paramEstimateIndexes,testPointIndexes=self.randomPartition(minimumParams)
+#             print(paramEstimateIndexes)
+#             est=rigid_transform_3D(previousXpredictions[0:3,paramEstimateIndexes],currentXpredictions[0:3,paramEstimateIndexes])
+#             ########
+#             ##given the new parameter data, estimate the new overall error
+#             #######
+#             testPointsA=previousXpredictions[:,testPointIndexes]
+            
+#             testMeasurements=self.M[4:8,testPointIndexes] ##only second frame
+#             testPointsB=est.dot(testPointsA)
+            
+#             testPointsB/=testPointsB[3,:]
+#             predictionsBL=self.kSettings["Pl"].dot(testPointsB)
+#             predictionsBL/=predictionsBL[2,:]
+#             predictionsBR=self.kSettings["Pr"].dot(testPointsB)
+#             predictionsBR/=predictionsBR[2,:]
+            
+            
+#             setPredictions=np.vstack((predictionsBL[0:2,:],predictionsBR[0:2,:]))
+
+
+
+#             diffVect=setPredictions-testMeasurements
+
+#             L2Norm=np.sqrt(np.square(diffVect).sum(axis=0))
+#             currentModelInliers=sorted(list(np.flatnonzero(L2Norm <RMSthreshold)))
+#             paramEstimateIndexes=np.concatenate((paramEstimateIndexes,currentModelInliers))
+#             if(len(paramEstimateIndexes)>goodModel):
+#                 newFit=rigid_transform_3D(previousXpredictions[0:3,paramEstimateIndexes],currentXpredictions[0:3,paramEstimateIndexes])
+                
+#                 testPointsA=previousXpredictions[:,paramEstimateIndexes]
+#                 testMeasurements=self.M[4:8,paramEstimateIndexes] ##only second frame
+#                 testPointsB=est.dot(testPointsA)
+                
+#                 predictionsBL=self.kSettings["Pl"].dot(testPointsB)
+#                 predictionsBL/=predictionsBL[2,:]
+#                 predictionsBR=self.kSettings["Pr"].dot(testPointsB)
+#                 predictionsBR/=predictionsBR[2,:]
+            
+            
+#                 setPredictions=np.vstack((predictionsBL[0:2,:],predictionsBR[0:2,:]))
+
+#                 diffVect=setPredictions-testMeasurements
+#                 RMS=np.sqrt((diffVect.ravel()**2).mean())
+#                 if besterr > RMS:
+#                     print("new")
+#                     bestFit=newFit
+#                     bestInliers=paramEstimateIndexes
+#                     besterr=RMS
+#             iterations+=1
+#         return bestFit,besterr,bestInliers
+#     def randomPartition(self,minimumParameters=7):
+#         setOfLandmarks=range(0,self.getNlandmarks())
+#         np.random.shuffle(setOfLandmarks)
+#         parameterIndexes=setOfLandmarks[:minimumParameters]
+#         testPointIdexes=setOfLandmarks[minimumParameters:]
+#         return parameterIndexes,testPointIdexes
+
+
+
+# class simulatedWindow(slidingWindow):
+#     def __init__(self,Ksettings,initialEdges):
+#         super(simulatedWindow,self).__init__(cameraSettings=Ksettings)
+#         self.data=copy.deepcopy(initialEdges)
+#         self.X=np.zeros((6 + 4*len(self.data.currentEdges)))
+#         self.M=np.zeros((4*2,len(self.data.currentEdges)))
+#         for edge in range(0,len(self.data.previousEdges)):
+#             self.X[edge*4+6:edge*4+4+6]=self.data.previousEdges[edge].X.reshape(4)
+#             self.M[0:2,edge]=self.data.previousEdges[edge].L[0:2,0].reshape(2)
+#             self.M[2:4,edge]=self.data.previousEdges[edge].R[0:2,0].reshape(2)
+#             self.M[4:6,edge]=self.data.currentEdges[edge].L[0:2,0].reshape(2)
+#             self.M[6:8,edge]=self.data.currentEdges[edge].R[0:2,0].reshape(2)
+#         self.count=0
+#     def BAestimate(self):
+#         abc=time.time()
+#         result=least_squares(self.error,self.X,verbose=2,max_nfev=500)
+#         net=time.time()-abc
+#         self.X=copy.deepcopy(result.x.reshape(result.x.shape[0],1))
+#         return self.getStateRMS(),net
+#     def error(self,x, *args, **kwargs):
+#         ######
+#         ##get camera
+#         #####
+#         self.count+=1
+#         Pal=self.kSettings["Pl"]
+#         Par=self.kSettings["Pr"]
+#         Pbl=composeCamera(self.kSettings["Pl"][0:3,0:3],copy.deepcopy(x[0:6]))
+#         Pbr=composeCamera(self.kSettings["Pl"][0:3,0:3],copy.deepcopy(x[0:6]))
+#         errorMatrix=np.zeros(self.M.shape)
+#         for i in range(0,self.M.shape[1]):
+#             pred1=Pal.dot(x[6+4*i:6+4*i +4].reshape(4,1))
+#             pred1/=pred1[2,0]
+#             pred2=Par.dot(x[6+4*i:6+4*i +4].reshape(4,1))
+#             pred2/=pred2[2,0]
+#             pred3=Pbl.dot(x[6+4*i:6+4*i +4].reshape(4,1))
+#             pred3/=pred3[2,0]
+#             pred4=Pbr.dot(x[6+4*i:6+4*i +4].reshape(4,1))
+#             pred4/=pred4[2,0]
+
+#             errorMatrix[0:2,i]=pred1[0:2,0]
+#             errorMatrix[2:4,i]=pred2[0:2,0]
+#             errorMatrix[4:6,i]=pred3[0:2,0]
+#             errorMatrix[6:8,i]=pred4[0:2,0]
+#         errorMatrix-=self.M
+#         # diff=errorMatrix.reshape(self.M.shape[0]*self.M.shape[1],1)
+#         # RMS=np.sqrt((diff**2).mean())
+#         return errorMatrix.ravel()
+#     def getStateRMS(self):
+#         Pal=self.kSettings["Pl"]
+#         Par=self.kSettings["Pr"]
+#         Pbl=composeCamera(self.kSettings["Pl"][0:3,0:3],self.X[0:6])
+#         Pbr=composeCamera(self.kSettings["Pl"][0:3,0:3],self.X[0:6])
+#         errorMatrix=np.zeros(self.M.shape)
+#         for i in range(0,self.M.shape[1]):
+#             pred1=Pal.dot(self.X[6+4*i:6+4*i +4].reshape(4,1))
+#             pred1/=pred1[2,0]
+#             pred2=Par.dot(self.X[6+4*i:6+4*i +4].reshape(4,1))
+#             pred2/=pred2[2,0]
+#             pred3=Pbl.dot(self.X[6+4*i:6+4*i +4].reshape(4,1))
+#             pred3/=pred3[2,0]
+#             pred4=Pbr.dot(self.X[6+4*i:6+4*i +4].reshape(4,1))
+#             pred4/=pred4[2,0]
+
+#             errorMatrix[0:2,i]=pred1[0:2,0]
+#             errorMatrix[2:4,i]=pred2[0:2,0]
+#             errorMatrix[4:6,i]=pred3[0:2,0]
+#             errorMatrix[6:8,i]=pred4[0:2,0]
+#         errorMatrix-=self.M
+#         diff=errorMatrix.reshape(self.M.shape[0]*self.M.shape[1],1)
+#         RMS=np.sqrt((diff**2).mean())
+#         return RMS      
             
 # EPI_THRESHOLD=2.0
 # LOWE_THRESHOLD=0.8
