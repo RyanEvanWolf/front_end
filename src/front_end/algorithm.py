@@ -86,16 +86,17 @@ class simulatedRANSAC(slidingWindow):
             self.tracks=copy.deepcopy(baseWindow.tracks)
             self.nLandmarks=baseWindow.nLandmarks
             self.nPoses=baseWindow.nPoses
+            self.inliers=copy.deepcopy(baseWindow.inliers)
         elif (cameraSettings is not None):
             ####init from scratch
             pass
         self.outliers=[]
-    def extractMotion(self,original,nIterations=12,RMSthreshold=1.5,resetMotion=True):
+    def extractMotion(self,nIterations=150,RMSthreshold=3,resetMotion=True):
 
         abc=time.time()
         iterations=0
         minimumParams=3
-        goodModel=0.5*self.nLandmarks
+        goodModel=0.8*self.nLandmarks
         bestFit=np.zeros((6,1))
         besterr=np.inf 
         bestInliers=[]
@@ -125,9 +126,6 @@ class simulatedRANSAC(slidingWindow):
             currentModelInliers=[]
             for j in tempInliers:
                 currentModelInliers.append(testPointIndexes[j])
-            if(len(list(set(currentModelInliers)-set(self.inliers)))):
-                print("Fake")
-                print(list(set(currentModelInliers)-set(self.inliers)))
             newSet=self.getSubset(currentModelInliers)
             if(len(currentModelInliers)>goodModel):
                 possibleBetterInliers=currentModelInliers +paramEstimateIndexes
@@ -146,9 +144,10 @@ class simulatedRANSAC(slidingWindow):
                     bestInliers=possibleBetterInliers
                     bestFit=decompose2X(possibleBetterEst)
             iterations+=1
-
+        self.X[0:6,0]=copy.deepcopy(bestFit.reshape(6))
+        self.inliers=bestInliers
         net=time.time()-abc
-        return len(bestInliers),besterr,bestFit,net
+        return besterr,net
     def randomPartition(self,minimumParameters=7):
         setOfLandmarks=range(0,self.nLandmarks)
         np.random.shuffle(setOfLandmarks)
@@ -282,7 +281,7 @@ class simulatedBA(slidingWindow):
         if(resetMotion):
             self.X[0:6,0]=np.zeros(6)
         abc=time.time()
-        result=least_squares(self.error,self.X.ravel(),max_nfev=200)
+        result=least_squares(self.error,self.X.ravel(),verbose=2,max_nfev=80)
         net=time.time()-abc
         self.X=copy.deepcopy(result.x.reshape(result.x.shape[0],1))
         return self.getWindowRMS(),net

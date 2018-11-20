@@ -12,73 +12,172 @@ from cv_bridge import CvBridge
 from sensor_msgs.msg import CameraInfo, Image
 import bumblebee.utils as butil
 from bumblebee.motion import *
-from front_end.algorithm import simulatedRANSAC
+from dataset.simulation import simulatedDataFrame
+from front_end.algorithm import simulatedRANSAC,simulatedBA
 import os 
-
+import msgpack
+import msgpack_numpy as m
 import matplotlib.pyplot as plt
 import argparse
 rospy.init_node('RANSACsimulation')
 cvb=CvBridge()
 
-# parser =argparse.ArgumentParser()
-# parser.add_argument("root_dir",help="The absolute directory to the motion simulation directory",type=str)
-# args,unknown=parser.parse_known_args()
+parser =argparse.ArgumentParser()
+parser.add_argument("--speeds",default="Slow,Medium,Fast",type=str)
+parser.add_argument("--motionType",default="straight",type=str)
+parser.add_argument("--extractMethods",default="PCL",type=str)
+parser.add_argument("--ideal",default=1,type=int)
+parser.add_argument("--outlier",default=1,type=int)
+parser.add_argument("--gaussian",default=1,type=int)
+args,unknown=parser.parse_known_args()
 root_dir="/media/ryan/EXTRA/output/Simulation"
 
 cameraSettings=butil.getPickledObject(root_dir+"/camera.p")
 landmarkSettings=butil.getPickledObject(root_dir+"/landmark.p")
 
-
-for j in ["Medium"]:#,"Medium","Fast"]:
-    for spdType in ["straight"]:#,"turn"]:
+setSpeeds=args.speeds.split(",")
+motionCategories=args.motionType.split(",")
+for j in setSpeeds:#,"Medium","Fast"]:
+    for spdType in motionCategories:#,"turn"]:
         simulationFiles=os.listdir(root_dir+"/"+j+"/"+spdType+"/Data")
         ####
         outDirectory=root_dir+"/"+j+"/"+spdType+"/BA"
-
-        for hFile in simulationFiles:
+        for hFile in simulationFiles[0:5]:
             currentFileDir=root_dir+"/"+j+"/"+spdType+"/Data/"+hFile
-            outDirectory=root_dir+"/"+j+"/"+spdType+"/BA"
             print("loading",currentFileDir)
-            currentFile=butil.getPickledObject(currentFileDir)
-            ##gen Ideal data
-            print("OUTLIER DATA")
-            for pp in currentFile.OperatingCurves.keys():
-                print(pp)
-                print("outliers",len(currentFile.Outlier[pp]["20"]["Outliers"]))#,currentFile.Outlier[pp]["20"]["Outliers"])
-                print("Inliers",len(currentFile.Outlier[pp]["20"]["Inliers"]))
-                print(sorted(currentFile.Outlier[pp]["20"]["Inliers"]+currentFile.Outlier[pp]["20"]["Outliers"]))
-                extractor=simulatedRANSAC(baseWindow=currentFile.Outlier[pp]["20"]["data"])
-                extractor.inliers=currentFile.Outlier[pp]["20"]["Inliers"]
-                extractor.outliers=currentFile.Outlier[pp]["20"]["Outliers"]
-                testInl=currentFile.Outlier[pp]["20"]["data"].getSubset(sorted(currentFile.Outlier[pp]["20"]["Inliers"]))
-                testout=currentFile.Outlier[pp]["20"]["data"].getSubset(sorted(currentFile.Outlier[pp]["20"]["Outliers"]))
-                test=currentFile.Outlier[pp]["20"]["data"]
-                # plt.hist(testout.getAllLandmarkRMS(),color='r',bins=20)
+            #currentFile=butil.getPickledObject(currentFileDir)
+            with open(currentFileDir) as data_file:
+                data_loaded = msgpack.unpack(data_file)
+                currentFile = simulatedDataFrame()
+                currentFile.deserializeFrame(data_loaded)
+            if("PCL" in args.extractMethods):
+                outDirectory=root_dir+"/"+j+"/"+spdType+"/PCL"
+                if(args.ideal):
+                    print("IDEAL EXTRACTION PCL")
+                    for opCurveName in currentFile.OperatingCurves.keys():
+                        extractor=simulatedRANSAC(baseWindow=currentFile.idealWindow.getSubset(
+                                                            currentFile.OperatingCurves[opCurveName]))
+                        rms,time=extractor.extractMotion()
+                        print(rms,time)
+                        print("ideal",getxPoseFormatted(currentFile.idealWindow.getPoseX(1)))
+                        print(getxPoseFormatted(extractor.getPoseX(1)))
+                        print(len(extractor.inliers))
+                        print("--")
+                if(args.gaussian):
+                    print("Guassian EXTRACTION PCL")
+                    for opCurveName in currentFile.OperatingCurves.keys():
+                        for noise in currentFile.Gaussian.keys():
+                            print(currentFile.Gaussian[noise].getSubset(
+                                                            currentFile.OperatingCurves[opCurveName]).getWindowRMS())
+                            extractor=simulatedRANSAC(baseWindow=currentFile.Gaussian[noise].getSubset(
+                                                            currentFile.OperatingCurves[opCurveName]))
+                            rms,time=extractor.extractMotion()
+                            print(opCurveName,noise)
+                            print(rms,time)
+                            print("NOISY",getxPoseFormatted(currentFile.idealWindow.getPoseX(1)))
+                            print(getxPoseFormatted(extractor.getPoseX(1)))
+                            print(len(extractor.inliers))
+                            print("--")
+                if(args.outlier):
+                    print("Outlier EXTRACTION PCL")
+                    for opCurveName in currentFile.OperatingCurves.keys():
+                        for noise in currentFile.Outlier[opCurveName].keys():
+                            extractor=simulatedRANSAC(baseWindow=currentFile.Outlier[opCurveName][noise]["data"])
+                            rms,time=extractor.extractMotion()
+                            print(opCurveName,noise)
+                            print(rms,time)
+                            print("ideal",getxPoseFormatted(currentFile.idealWindow.getPoseX(1)))
+                            print(getxPoseFormatted(extractor.getPoseX(1)))
+                            print(len(extractor.inliers))
+                            print("--")
+              
+            if("BA" in args.extractMethods):
+                outDirectory=root_dir+"/"+j+"/"+spdType+"/BA"
+                if(args.ideal):
+                    print("IDEAL EXTRACTION BA")
+                    for opCurveName in currentFile.OperatingCurves.keys():
+                        extractor=simulatedBA(baseWindow=currentFile.idealWindow.getSubset(
+                                                            currentFile.OperatingCurves[opCurveName]))
+                        rms,time=extractor.extractMotion()
+                        print(rms,time)
+                        print("ideal",getxPoseFormatted(currentFile.idealWindow.getPoseX(1)))
+                        print(getxPoseFormatted(extractor.getPoseX(1)))
+                        print(len(extractor.inliers))
+                        print("--")
+                if(args.gaussian):
+                    print("Guassian EXTRACTION BA")
+                    for opCurveName in currentFile.OperatingCurves.keys():
+                        for noise in currentFile.Gaussian.keys():
+                            print(currentFile.Gaussian[noise].getSubset(
+                                                            currentFile.OperatingCurves[opCurveName]).getWindowRMS())
+                            extractor=simulatedBA(baseWindow=currentFile.Gaussian[noise].getSubset(
+                                                            currentFile.OperatingCurves[opCurveName]))
+                            rms,time=extractor.extractMotion()
+                            print(opCurveName,noise)
+                            print(rms,time)
+                            print("ideal",getxPoseFormatted(currentFile.idealWindow.getPoseX(1)))
+                            print(getxPoseFormatted(extractor.getPoseX(1)))
+                            print("--")
+                if(args.outlier):
+                    print("Outlier EXTRACTION BA")
+                    for opCurveName in currentFile.OperatingCurves.keys():
+                        for noise in currentFile.Outlier[opCurveName].keys():
+                            extractor=simulatedBA(baseWindow=currentFile.Outlier[opCurveName][noise]["data"])
+                            rms,time=extractor.extractMotion()
+                            print(opCurveName,noise)
+                            print(rms,time)
+                            print("ideal",getxPoseFormatted(currentFile.idealWindow.getPoseX(1)))
+                            print(getxPoseFormatted(extractor.getPoseX(1)))
+                            print("--")
+            # currentFileDir=root_dir+"/"+j+"/"+spdType+"/Data/"+hFile
+            # outDirectory=root_dir+"/"+j+"/"+spdType+"/PCL"
+            # print("loading",currentFileDir)
+            # currentFile=butil.getPickledObject(currentFileDir)
+            # ##gen Ideal data
+            # print("")
 
-                # print(extractor.getWindowRMS(),"before")
-                # print(testInl.getWindowRMS(),"Ideal")
-                inliers,rms,x,time=extractor.extractMotion(currentFile.idealWindow.getSubset(currentFile.OperatingCurves[pp]))
-                print(inliers,rms,time)
-                print("ideal",getxPoseFormatted(currentFile.idealWindow.getPoseX(1)))
-                print(getxPoseFormatted(x))
-                print("--")
-                # print("seconds:",timeTaken,"RMS:",r)
-                # print(currentFile.pose.getFormatted())
-                # print(b.getNPoseEdge(0).getFormatted())
-                # print(test.getNPoseEdge(0).getFormatted())
-                # print("----")
-                # print(pp.getRtheta())
-            #     estimate=rigid_transform_3D(ideal.getCurrentX(),ideal.getPreviousX())
-            #     print(getMotion(currentFile.motionEdge))
-            #     print(getMotion(decomposeTransform(np.linalg.inv(estimate["H"]))))
-            #     extractDirectory=outDirectory+"/ideal/"+str(len(ideal.currentEdges)).zfill(5)
+
+
+            # print("OUTLIER DATA")
+            # for pp in currentFile.OperatingCurves.keys():
+            #     print(pp)
+            #     print("outliers",len(currentFile.Outlier[pp]["20"]["Outliers"]))#,currentFile.Outlier[pp]["20"]["Outliers"])
+            #     print("Inliers",len(currentFile.Outlier[pp]["20"]["Inliers"]))
+            #     print(sorted(currentFile.Outlier[pp]["20"]["Inliers"]+currentFile.Outlier[pp]["20"]["Outliers"]))
+            #     extractor=simulatedRANSAC(baseWindow=currentFile.Outlier[pp]["20"]["data"])
+            #     extractor.inliers=currentFile.Outlier[pp]["20"]["Inliers"]
+            #     extractor.outliers=currentFile.Outlier[pp]["20"]["Outliers"]
+            #     testInl=currentFile.Outlier[pp]["20"]["data"].getSubset(sorted(currentFile.Outlier[pp]["20"]["Inliers"]))
+            #     testout=currentFile.Outlier[pp]["20"]["data"].getSubset(sorted(currentFile.Outlier[pp]["20"]["Outliers"]))
+            #     test=currentFile.Outlier[pp]["20"]["data"]
+
+            #     rms,time=extractor.extractMotion()
+            #     print(rms,time)
+            #     print("ideal",getxPoseFormatted(currentFile.idealWindow.getPoseX(1)))
+            #     print(getxPoseFormatted(extractor.getPoseX(1)))
+            #     print(len(extractor.inliers))
+            #     print("--")
+           
+                
+                
+                
+            #     extractDirectory=outDirectory+"/outlier/"+str(pp).zfill(5)+"20/"#+str(int(outLvL *100))
             #     outFile=extractDirectory+"/"+hFile
-            #     if(not os.path.exists(extractDirectory)):
-            #         os.makedirs(extractDirectory)
-            #     f=open(outFile,"w")
-            #     pickle.dump(estimate["H"],f)
-            #     f.close()        
+            #     # if(not os.path.exists(extractDirectory)):
+            #     #     os.makedirs(extractDirectory)
+            #     # f=open(outFile,"w")
+            #     # pickle.dump(estimate["H"],f)
+            #     # f.close()        
             #     print(outFile)
+                
+                # extractDirectory=outDirectory+"/ideal/"+str(len(ideal.currentEdges)).zfill(5)
+                # outFile=extractDirectory+"/"+hFile
+                # if(not os.path.exists(extractDirectory)):
+                #     os.makedirs(extractDirectory)
+                # f=open(outFile,"w")
+                # pickle.dump(estimate["H"],f)
+                # f.close()        
+                # print(outFile)
             # print("NOISY DATA")
             # for operatingLvL in sorted(currentFile.OperatingCurves.keys()):
             #     for noiseLvL in landmarkSettings["GaussianNoise"]:
