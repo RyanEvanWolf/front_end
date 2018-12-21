@@ -41,8 +41,8 @@ for j in setSpeeds:#,"Medium","Fast"]:
     for spdType in motionCategories:#,"turn"]:
         simulationFiles=os.listdir(root_dir+"/"+j+"/"+spdType+"/Data")
         ####
-        outDirectory=root_dir+"/"+j+"/"+spdType+"/BA"
-        for hFile in simulationFiles[0:5]:
+        # outDirectory=root_dir+"/"+j+"/"+spdType+"/BA"
+        for hFile in simulationFiles:
             currentFileDir=root_dir+"/"+j+"/"+spdType+"/Data/"+hFile
             print("loading",currentFileDir)
             #currentFile=butil.getPickledObject(currentFileDir)
@@ -52,83 +52,155 @@ for j in setSpeeds:#,"Medium","Fast"]:
                 currentFile.deserializeFrame(data_loaded)
             if("PCL" in args.extractMethods):
                 outDirectory=root_dir+"/"+j+"/"+spdType+"/PCL"
-                if(args.ideal):
-                    print("IDEAL EXTRACTION PCL")
-                    for opCurveName in currentFile.OperatingCurves.keys():
-                        extractor=simulatedRANSAC(baseWindow=currentFile.idealWindow.getSubset(
-                                                            currentFile.OperatingCurves[opCurveName]))
-                        rms,time=extractor.extractMotion()
-                        print(rms,time)
-                        print("ideal",getxPoseFormatted(currentFile.idealWindow.getPoseX(1)))
-                        print(getxPoseFormatted(extractor.getPoseX(1)))
-                        print(len(extractor.inliers))
-                        print("--")
+                # if(args.ideal):
+                #     print("IDEAL EXTRACTION PCL")
+                #     for opCurveName in currentFile.OperatingCurves.keys():
+                #         filename=outDirectory+"/ideal/"+opCurveName+"/"+hFile
+                #         if(not os.path.isfile(filename)):
+
+                #             extractor=simulatedRANSAC(baseWindow=currentFile.idealWindow.getSubset(
+                #                                                 currentFile.OperatingCurves[opCurveName]))
+                #             rms,time=extractor.extractMotion()
+                #             print(rms,time)
+                #             print("ideal",getxPoseFormatted(currentFile.idealWindow.getPoseX(1)))
+                #             print(getxPoseFormatted(extractor.getPoseX(1)))
+                #             print(len(extractor.inliers))
+                #             print("--")
+                #             #outData=[extractor.serializeWindow(),rms,time]
+                #             butil.createDir(filename)
+                #             #filename+="/"+hFile
+                #             with open(filename, 'w') as outfile:
+                #                 msgpack.pack(outData, outfile)
                 if(args.gaussian):
                     print("Guassian EXTRACTION PCL")
                     for opCurveName in currentFile.OperatingCurves.keys():
                         for noise in currentFile.Gaussian.keys():
-                            print(currentFile.Gaussian[noise].getSubset(
-                                                            currentFile.OperatingCurves[opCurveName]).getWindowRMS())
-                            extractor=simulatedRANSAC(baseWindow=currentFile.Gaussian[noise].getSubset(
-                                                            currentFile.OperatingCurves[opCurveName]))
-                            rms,time=extractor.extractMotion()
-                            print(opCurveName,noise)
-                            print(rms,time)
-                            print("NOISY",getxPoseFormatted(currentFile.idealWindow.getPoseX(1)))
-                            print(getxPoseFormatted(extractor.getPoseX(1)))
-                            print(len(extractor.inliers))
-                            print("--")
+                            filename=outDirectory+"/gaussian/"+opCurveName+"/"+noise+"/"+hFile
+                            if(not os.path.isfile(filename)):
+
+                                print(currentFile.Gaussian[noise].getSubset(
+                                                                currentFile.OperatingCurves[opCurveName]).getWindowRMS())
+                                extractor=simulatedRANSAC(baseWindow=currentFile.Gaussian[noise].getSubset(
+                                                                currentFile.OperatingCurves[opCurveName]))
+                                rms,time=extractor.extractMotion()
+                                print(opCurveName,noise)
+                                print(rms,time)
+                                print("NOISY",getxPoseFormatted(currentFile.idealWindow.getPoseX(1)))
+                                print(getxPoseFormatted(extractor.getPoseX(1)))
+                                print(len(extractor.inliers))
+                                print("--")
+                                outData=[extractor.serializeWindow(),rms,time]
+                                #filename=outDirectory+"/gaussian/"+opCurveName+"/"+noise
+                                butil.createDir(filename)
+                                #filename+="/"+hFile
+                                with open(filename, 'w') as outfile:
+                                    msgpack.pack(outData, outfile)
                 if(args.outlier):
                     print("Outlier EXTRACTION PCL")
                     for opCurveName in currentFile.OperatingCurves.keys():
                         for noise in currentFile.Outlier[opCurveName].keys():
-                            extractor=simulatedRANSAC(baseWindow=currentFile.Outlier[opCurveName][noise]["data"])
-                            rms,time=extractor.extractMotion()
-                            print(opCurveName,noise)
-                            print(rms,time)
-                            print("ideal",getxPoseFormatted(currentFile.idealWindow.getPoseX(1)))
-                            print(getxPoseFormatted(extractor.getPoseX(1)))
-                            print(len(extractor.inliers))
-                            print("--")
+                            filename=outDirectory+"/outlier/"+opCurveName+"/"+noise+"/"+hFile
+                            if(not os.path.isfile(filename)):
+                                extractor=simulatedRANSAC(baseWindow=currentFile.Outlier[opCurveName][noise]["data"])
+                                rms,time=extractor.extractMotion()
+                                print(opCurveName,noise)
+                                print(rms,time)
+                                print("ideal",getxPoseFormatted(currentFile.idealWindow.getPoseX(1)))
+                                print(getxPoseFormatted(extractor.getPoseX(1)))
+                                print(len(extractor.inliers))
+                                print("--")
+                                outData=[extractor.serializeWindow(),rms,time]
+                                #filename=outDirectory+"/outlier/"+opCurveName+"/"+noise
+                                butil.createDir(filename)
+                                #filename+="/"+hFile
+                                with open(filename, 'w') as outfile:
+                                    msgpack.pack(outData, outfile)
               
             if("BA" in args.extractMethods):
                 outDirectory=root_dir+"/"+j+"/"+spdType+"/BA"
-                if(args.ideal):
-                    print("IDEAL EXTRACTION BA")
-                    for opCurveName in currentFile.OperatingCurves.keys():
-                        extractor=simulatedBA(baseWindow=currentFile.idealWindow.getSubset(
-                                                            currentFile.OperatingCurves[opCurveName]))
-                        rms,time=extractor.extractMotion()
-                        print(rms,time)
-                        print("ideal",getxPoseFormatted(currentFile.idealWindow.getPoseX(1)))
-                        print(getxPoseFormatted(extractor.getPoseX(1)))
-                        print(len(extractor.inliers))
-                        print("--")
+                # if(args.ideal):
+                #     print("IDEAL EXTRACTION BA")
+                #     for opCurveName in currentFile.OperatingCurves.keys():
+                #         filename=outDirectory+"/ideal/"+opCurveName+"/"+hFile
+                #         if(not os.path.isfile(filename)):
+
+                #             extractor=simulatedBA(baseWindow=currentFile.idealWindow.getSubset(
+                #                                                 currentFile.OperatingCurves[opCurveName]))
+                #             rms,time=extractor.extractMotion()
+                #             print(rms,time)
+                #             print("ideal",getxPoseFormatted(currentFile.idealWindow.getPoseX(1)))
+                #             print(getxPoseFormatted(extractor.getPoseX(1)))
+                #             print(len(extractor.inliers))
+                #             print("--")
+                #             outData=[extractor.serializeWindow(),rms,time]
+                #             #filename=outDirectory+"/outlier/"+opCurveName+"/"+noise
+                #             butil.createDir(filename)
+                #             #filename+="/"+hFile
+                #             with open(filename, 'w') as outfile:
+                #                 msgpack.pack(outData, outfile)
                 if(args.gaussian):
                     print("Guassian EXTRACTION BA")
                     for opCurveName in currentFile.OperatingCurves.keys():
                         for noise in currentFile.Gaussian.keys():
-                            print(currentFile.Gaussian[noise].getSubset(
-                                                            currentFile.OperatingCurves[opCurveName]).getWindowRMS())
-                            extractor=simulatedBA(baseWindow=currentFile.Gaussian[noise].getSubset(
-                                                            currentFile.OperatingCurves[opCurveName]))
-                            rms,time=extractor.extractMotion()
-                            print(opCurveName,noise)
-                            print(rms,time)
-                            print("ideal",getxPoseFormatted(currentFile.idealWindow.getPoseX(1)))
-                            print(getxPoseFormatted(extractor.getPoseX(1)))
-                            print("--")
+                            currentOutF=outDirectory+"/gaussian/"+opCurveName+"/"+noise
+                            filename=currentOutF+"/"+hFile
+                            if(not os.path.isfile(filename)):
+
+                                print(currentFile.Gaussian[noise].getSubset(
+                                                                currentFile.OperatingCurves[opCurveName]).getWindowRMS())
+                                extractor=simulatedBA(baseWindow=currentFile.Gaussian[noise].getSubset(
+                                                                currentFile.OperatingCurves[opCurveName]))
+                                rms,time=extractor.extractMotion()
+                                print(opCurveName,noise)
+                                print(rms,time)
+                                print("ideal",getxPoseFormatted(currentFile.idealWindow.getPoseX(1)))
+                                print(getxPoseFormatted(extractor.getPoseX(1)))
+                                print("--")
+
+                                outData=[extractor.serializeWindow(),rms,time]
+                                #filename=outDirectory+"/outlier/"+opCurveName+"/"+noise
+                                butil.createDir(currentOutF)
+                                #filename+="/"+hFile
+                                with open(filename, 'w') as outfile:
+                                    msgpack.pack(outData, outfile)
+                            else:
+                                print("Found:",filename )
                 if(args.outlier):
                     print("Outlier EXTRACTION BA")
                     for opCurveName in currentFile.OperatingCurves.keys():
                         for noise in currentFile.Outlier[opCurveName].keys():
-                            extractor=simulatedBA(baseWindow=currentFile.Outlier[opCurveName][noise]["data"])
-                            rms,time=extractor.extractMotion()
-                            print(opCurveName,noise)
-                            print(rms,time)
-                            print("ideal",getxPoseFormatted(currentFile.idealWindow.getPoseX(1)))
-                            print(getxPoseFormatted(extractor.getPoseX(1)))
-                            print("--")
+                            currentOutF=outDirectory+"/outlier/"+opCurveName+"/"+noise
+                            filename=outDirectory+"/outlier/"+opCurveName+"/"+noise+"/"+hFile
+                            if(not os.path.isfile(filename)):
+                                extractor=simulatedBA(baseWindow=currentFile.Outlier[opCurveName][noise]["data"])
+                                rms,time=extractor.extractMotion()
+                                print(opCurveName,noise)
+                                print(rms,time)
+                                print("ideal",getxPoseFormatted(currentFile.idealWindow.getPoseX(1)))
+                                print(getxPoseFormatted(extractor.getPoseX(1)))
+                                print("--")
+
+                                outData=[extractor.serializeWindow(),rms,time]
+                                #filename=outDirectory+"/outlier/"+opCurveName+"/"+noise
+                                butil.createDir(currentOutF)
+                                #filename+="/"+hFile
+                                with open(filename, 'w') as outfile:
+                                    msgpack.pack(outData, outfile)                            
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
             # currentFileDir=root_dir+"/"+j+"/"+spdType+"/Data/"+hFile
             # outDirectory=root_dir+"/"+j+"/"+spdType+"/PCL"
             # print("loading",currentFileDir)

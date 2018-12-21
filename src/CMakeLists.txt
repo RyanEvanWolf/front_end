@@ -7,6 +7,24 @@ if(${BUILD_ONLY_INTERFACES} STREQUAL "ON")
 #	${OpenCV_LIBS}
 #	${BasicSLAMStructures_LIBS}
 #)
+include_directories(${G2O_INCLUDE_DIR})
+find_package(Cholmod REQUIRED)
+link_directories(/usr/local/lib)
+
+
+include_directories(${CHOLMOD_INCLUDE_DIR})
+
+
+MESSAGE(STATUS "libs ${G2O_CORE_LIBRARY}")
+
+
+# add_executable(sba_demo sba_demo.cpp)
+# add_dependencies(sba_demo ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+# target_link_libraries(sba_demo g2o_core g2o_types_icp g2o_types_sba g2o_solver_cholmod g2o_solver_csparse g2o_stuff ${CHOLMOD_LIBRARIES})
+
+# add_executable(sba_node sba_node.cpp nodeTypes.cpp sba_solver.cpp)
+# add_dependencies(sba_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+# target_link_libraries(sba_node  g2o_core g2o_types_icp g2o_types_sba g2o_solver_cholmod g2o_solver_csparse g2o_stuff g2o_types_slam3d ${CHOLMOD_LIBRARIES} ${catkin_LIBRARIES})
 else()
 
 add_library(non_free nonfree_init.cpp sift.cpp surf.cpp)
@@ -15,6 +33,7 @@ target_link_libraries(non_free
 	${catkin_LIBRARIES}
 	${OpenCV_LIBS}
 	${BasicSLAMStructures_LIBS}
+
 )
 
 
@@ -48,6 +67,9 @@ target_link_libraries(AKAZE ${OpenCV_LIBS} ${catkin_LIBRARIES})
 # 	${BasicSLAMStructures_LIBS}
 # 	${RelativePoseEstimation_LIBS}
 # )
+
+
+
 
 
 add_executable(feature_node_cpp feature_node_cpp.cpp utils.cpp)

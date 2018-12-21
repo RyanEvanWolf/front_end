@@ -3,11 +3,14 @@
 import rospy 
 import cv2
 import time
+import copy
+from bumblebee.stereo import getCameraSettingsFromServer,ROIfrmMsg
+
 
 from front_end.utils import *
 from front_end.srv import *
 from front_end.msg import frameDetection,ProcTime,kPoint
-
+from Queue import Queue
 import itertools
 
 from cv_bridge import CvBridge
@@ -20,6 +23,10 @@ from statistics import mean,stdev
 import matplotlib.pyplot as plt
 import matplotlib.style as sty
 cvb=CvBridge() 
+
+
+from sensor_msgs.msg import Image
+from std_msgs.msg import Float32
 
 ##############
 ##FAST FEATURES
@@ -572,3 +579,124 @@ def getFeatureSummary(pickledReference):
             Results[i[0]].append(leftNFeatures[closestIndex])
     return Results
 
+###################################################################
+####live features
+
+
+
+
+class stereoDetector:
+    def __init__(self):
+        self.kSettings=getCameraSettingsFromServer(cameraType="subROI")
+        self.topic=["Dataset/left","Dataset/right"]
+        self.q=[Queue(),Queue()]
+        self.cvb=CvBridge()
+        self.sub=[rospy.Subscriber(self.topic[0],Image,self.updateFeature,"l"),rospy.Subscriber(self.topic[1],Image,self.updateFeature,"r")]
+        self.pub=rospy.Publisher("disp",Image,queue_size=20)
+        self.bestThresh=10
+        self.detector=cv2.FastFeatureDetector_create()
+        self.detector.setType(cv2.FAST_FEATURE_DETECTOR_TYPE_7_12)
+        self.detector.setNonmaxSuppression(True)
+        self.descr=cv2.xfeatures2d.BriefDescriptorExtractor_create(16,True)
+        self.debugResults=([rospy.Publisher("debug/stereo/matches",Float32,queue_size=1),
+                            rospy.Publisher("debug/stereo/detection",Float32,queue_size=1),
+                            rospy.Publisher("debug/stereo/time",Float32,queue_size=1)])
+    def updateFeature(self,data,arg):
+        if(arg=="l"):
+            self.q[0].put(self.cvb.imgmsg_to_cv2(data))
+        else:
+            self.q[1].put(self.cvb.imgmsg_to_cv2(data))
+
+        if(self.q[0].qsize()>0 and self.q[1].qsize()>0):
+            lImg=self.q[0].get()
+            rImg=self.q[1].get()
+            ###########
+            ##apply ROI
+            self.compute(lImg,rImg)
+    def compute(self,limg,rimg):
+        ####
+        #ROi
+        roi=ROIfrmMsg(self.kSettings["lInfo"].roi)
+        x,y,w,h=roi[0],roi[1],roi[2],roi[3]
+        lROI=limg[y:h+1,x:w+1]
+        rROI=rimg[y:h+1,x:w+1]
+        a=time.time()
+        l=[]
+        r=[]
+
+        setPoint=5000
+
+
+        initial=np.arange(-3,3)+self.bestThresh
+        initial=[s for s in initial if s>=3]
+
+        for i in initial:
+            self.detector.setThreshold(i)
+            l.append(self.detector.detect(lROI))
+            r.append(self.detector.detect(rROI))
+            coarse.append(abs(setPoint-len(l[-1])))
+        best=min(coarse)
+        worst=max(coarse)
+        ind=coarse.index(best)
+        self.bestThresh=initial[ind]
+        
+        lKP,lDesc=self.descr.compute(lROI,l[ind])
+        rKP,rDesc=self.descr.compute(rROI,r[ind])
+        # create BFMatcher object
+        bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+        winSize=(7,7)a
+        zeroZone=(-1,-1)
+        # Match descriptors.
+        matches = bf.match(lDesc,rDesc)
+        goodMatches=[]
+        for m in matches:
+            # print(m)
+            # print(lKP[m.imgIdx].pt)
+            # print(rKP[m.trainIdx].pt)
+            vDist=lKP[m.queryIdx].pt[1]-rKP[m.trainIdx].pt[1]
+            if(abs(vDist)<=1):
+               goodMatches.append(m)
+        debugData=Float32()
+        debugData.data=len(l[ind])
+        self.debugResults[1].publish(debugData)
+
+        debugData.data=len(goodMatches)
+        self.debugResults[0].publish(debugData)
+        #cv2.cornerSubPix(lROI,lKP, winSize, zeroZone, (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 1000, 0.001))
+        ##print(len(matches),len(goodMatches),len(l[ind]))
+        # # Sort them in the order of their distance.
+        # matches = sorted(matches, key = lambda x:x.distance)
+
+        # Draw first 10 matches.
+        # img3=np.array([])
+        # cv2.drawMatches()
+        img3=np.hstack((copy.deepcopy(lROI),copy.deepcopy(rROI)))
+        img3=cv2.drawMatches(lROI,lKP,rROI,rKP,goodMatches,img3, flags=2)
+
+        cv2.imshow("a",img3)
+        cv2.waitKey(150)
+
+
+
+       # plt.imshow(img3),plt.show()
+#         thresh=
+# #cv2.FAST_FEATURE_DETECTOR_TYPE_5_8,cv2.FAST_FEATURE_DETECTOR_TYPE_7_12,cv2.FAST_FEATURE_DETECTOR_TYPE_9_16)
+#         for i in range(maxIter):
+#             detector.setThreshold(2+i*5)
+#             l=detector.detect(lROI)
+#             r=detector.detect(rROI)
+#             coarse.append(abs(setPoint-len(l)))
+#         best=min(coarse)
+#         ind=coarse.index(best)
+#         print(coarse,best)
+#         drawn=copy.deepcopy(lROI)
+#         drawn=cv2.drawKeypoints(lROI,l,drawn)
+
+#         k=cv2.Canny(lROI,20,120)
+#         cv2.imshow("a",drawn)
+#         cv2.imshow("b",k)
+#         #cv2.imshow("b",limg)
+
+#         cv2.waitKey(100)
+
+#         print(time.time())

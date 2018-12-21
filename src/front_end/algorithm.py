@@ -14,6 +14,15 @@ import statistics
 
 
 
+
+
+
+
+
+
+
+
+
 def rigid_transform_3D(previousLandmarks, currentLandmarks):
     N=previousLandmarks.shape[1]
     centroid_A = np.mean(previousLandmarks.T, axis=0)
@@ -91,6 +100,34 @@ class simulatedRANSAC(slidingWindow):
             ####init from scratch
             pass
         self.outliers=[]
+    ###########
+    ##admin functions
+    ###############
+    def serializeWindow(self):
+        binDiction={}
+        binDiction["kSettings"]=pickle.dumps(self.kSettings)
+        binDiction["M"]=[]
+        for i in self.M:
+            binDiction["M"].append(msgpack.packb(i,default=m.encode))
+        binDiction["X"]=msgpack.packb(self.X,default=m.encode)
+        binDiction["inliers"]=msgpack.dumps(self.inliers)
+        binDiction["tracks"]=msgpack.dumps(self.tracks)
+        binDiction["nLandmarks"]=self.nLandmarks
+        binDiction["nPoses"]=self.nPoses
+        binDiction["outliers"]=pickle.dumps(self.outliers)
+        return msgpack.dumps(binDiction)
+    def deserializeWindow(self,data):
+        intern=msgpack.loads(data)
+        self.kSettings=pickle.loads(intern["kSettings"])
+        self.X=msgpack.unpackb(intern["X"],object_hook=m.decode)
+        self.M=[]
+        for i in intern["M"]:
+            self.M.append(msgpack.unpackb(i,object_hook=m.decode))
+        self.inliers=msgpack.loads(intern["inliers"])
+        self.tracks=msgpack.loads(intern["tracks"])
+        self.nLandmarks=intern["nLandmarks"]
+        self.nPoses=intern["nPoses"]
+        self.outliers=pickle.loads(intern["outliers"])
     def extractMotion(self,nIterations=150,RMSthreshold=3,resetMotion=True):
 
         abc=time.time()
@@ -277,6 +314,8 @@ class simulatedBA(slidingWindow):
         elif (cameraSettings is not None):
             ####init from scratch
             pass
+        self.outliers=[]
+        self.inliers=[]
     def extractMotion(self,resetMotion=True):
         if(resetMotion):
             self.X[0:6,0]=np.zeros(6)
@@ -1116,3 +1155,6 @@ class nisterExtract:
 
 
 
+class stereoWindow:
+    def __init__(self):
+        getCameraSettingsFromServer(full=False)

@@ -33,6 +33,10 @@ set(CMAKE_PREFIX_PATH ${CMAKE_SOURCE_DIR}/cmake;${CMAKE_PREFIX_PATH})
 find_package(Boost REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(BasicSLAMStructures REQUIRED CONFIG)
+find_package(Eigen3 REQUIRED)
+find_package(G2O REQUIRED)
+
+include_directories(${G2O_INCLUDE_DIR} ${EIGEN3_INCLUDE_DIR})
 
 
 MESSAGE(STATUS "Opencv includes  ${OpenCV_INCLUDE_DIRS}")
@@ -167,6 +171,7 @@ boost_system
 ${MRPT_LIBS}
 ${RelativePoseEstimation_LIBS}
 ${OpenCV_LIBS}
+
 #  CATKIN_DEPENDS common_msgs roscpp rospy std_msgs tf tf2
 #  DEPENDS system_lib
 )
@@ -185,6 +190,7 @@ include_directories(
 	${RelativePoseEstimation_INCLUDE_DIRS}
 	${BasicSLAMStructures_INCLUDE_DIRS}
 	${OpenCV_INCLUDE_DIRS}
+	${G2O_INCLUDE_DIR}
 )
 
 link_directories(
@@ -218,7 +224,7 @@ add_subdirectory(src)
 	#	${catkin_LIBRARIES}
 	#	${OpenCV_LIBS}
 	#	${MRPT_LIBS}
-	#	${RelativePoseEstimation_LIBS}
+	#	${RelativePoseEstimation_LIBS}git
 	#	${Structures_LIBS}
 	#)
 	#endforeach()
