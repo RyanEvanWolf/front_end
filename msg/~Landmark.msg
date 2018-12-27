@@ -1,2 +1,0 @@
-front_end/StereoMatch stereo
-geometry_msgs/Point32 distance

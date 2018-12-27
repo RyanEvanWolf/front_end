@@ -17,17 +17,13 @@ import numpy as np
 
 rospy.init_node("det")
 
-
-data=vidPublisher("/home/ryan/DATA_A_calB",5)
-
-
-#lImg,rImg=data.getAllImages()
-
-lImg,rImg=loadImages(data.lAbsImgDir[0:150]),loadImages(data.rAbsImgDir[0:150])
-
-
 bumble = stereoDetector()
 
 
-for i in range(0,len(lImg)):
-    bumble.compute(lImg[i],rImg[i])
+while(not rospy.is_shutdown()):
+    bumble.update()
+
+
+
+
+rospy.spin()

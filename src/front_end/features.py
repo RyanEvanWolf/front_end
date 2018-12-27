@@ -9,7 +9,7 @@ from bumblebee.stereo import getCameraSettingsFromServer,ROIfrmMsg
 
 from front_end.utils import *
 from front_end.srv import *
-from front_end.msg import frameDetection,ProcTime,kPoint
+from front_end.msg import frameDetection,ProcTime,kPoint,cvMatch,stereoFeatures
 from Queue import Queue
 import itertools
 
@@ -592,21 +592,24 @@ class stereoDetector:
         self.q=[Queue(),Queue()]
         self.cvb=CvBridge()
         self.sub=[rospy.Subscriber(self.topic[0],Image,self.updateFeature,"l"),rospy.Subscriber(self.topic[1],Image,self.updateFeature,"r")]
-        self.pub=rospy.Publisher("disp",Image,queue_size=20)
+        self.outPub=rospy.Publisher("stereo/Features",stereoFeatures,queue_size=10)
+
         self.bestThresh=10
         self.detector=cv2.FastFeatureDetector_create()
         self.detector.setType(cv2.FAST_FEATURE_DETECTOR_TYPE_7_12)
         self.detector.setNonmaxSuppression(True)
         self.descr=cv2.xfeatures2d.BriefDescriptorExtractor_create(16,True)
-        self.debugResults=([rospy.Publisher("debug/stereo/matches",Float32,queue_size=1),
-                            rospy.Publisher("debug/stereo/detection",Float32,queue_size=1),
-                            rospy.Publisher("debug/stereo/time",Float32,queue_size=1)])
+        self.debugResults=([rospy.Publisher("stereo/debug/matches",Float32,queue_size=1),
+                            rospy.Publisher("stereo/debug/detection",Float32,queue_size=1),
+                            rospy.Publisher("stereo/debug/time",Float32,queue_size=1)])
+                  
     def updateFeature(self,data,arg):
+        print("img",time.time())
         if(arg=="l"):
             self.q[0].put(self.cvb.imgmsg_to_cv2(data))
         else:
             self.q[1].put(self.cvb.imgmsg_to_cv2(data))
-
+    def update(self):
         if(self.q[0].qsize()>0 and self.q[1].qsize()>0):
             lImg=self.q[0].get()
             rImg=self.q[1].get()
@@ -624,11 +627,11 @@ class stereoDetector:
         l=[]
         r=[]
 
-        setPoint=5000
+        setPoint=7000
 
-
+        coarse=[]
         initial=np.arange(-3,3)+self.bestThresh
-        initial=[s for s in initial if s>=3]
+        initial=[s for s in initial if s>=3]    ##minimum of 3 for threshold
 
         for i in initial:
             self.detector.setThreshold(i)
@@ -644,37 +647,73 @@ class stereoDetector:
         rKP,rDesc=self.descr.compute(rROI,r[ind])
         # create BFMatcher object
         bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
-        winSize=(7,7)a
-        zeroZone=(-1,-1)
+        
         # Match descriptors.
         matches = bf.match(lDesc,rDesc)
         goodMatches=[]
+        goodLdesc=[]
+        goodRdesc=[]
+        goodMatches=stereoFeatures()
         for m in matches:
-            # print(m)
-            # print(lKP[m.imgIdx].pt)
-            # print(rKP[m.trainIdx].pt)
             vDist=lKP[m.queryIdx].pt[1]-rKP[m.trainIdx].pt[1]
             if(abs(vDist)<=1):
-               goodMatches.append(m)
+               goodMatches.leftFeatures.append(cv2ros_KP(lKP[m.queryIdx]))
+               goodMatches.rightFeatures.append(cv2ros_KP(rKP[m.trainIdx]))
+               goodMatches.matchScore.append(m.distance)
+               goodLdesc.append(lDesc[m.queryIdx,:].reshape(1,16))
+               goodRdesc.append(rDesc[m.trainIdx,:].reshape(1,16))
+               #print(cv2.norm(goodLdesc[-1],goodRdesc[-1],cv2.NORM_HAMMING),goodMatches.matchScore[-1])
+        #####
+        ###pack the descriptors into the message
+        # img3=np.hstack((copy.deepcopy(lROI),copy.deepcopy(rROI)))
+        # img3=cv2.drawMatches(lROI,lKP,rROI,rKP,matches,img3, flags=2)
+
+        # cv2.imshow("avv",img3)
+        # cv2.waitKey(1)
+        # print(time.time())
+        packedL=np.zeros((len(goodLdesc),16),dtype=np.uint8)
+
+        packedR=np.zeros((len(goodRdesc),16),dtype=np.uint8)
+        for i in range(0,len(goodLdesc)):
+            packedL[i,:]=copy.deepcopy(goodLdesc[i])
+            packedR[i,:]=copy.deepcopy(goodRdesc[i])
+        goodMatches.leftDescr=self.cvb.cv2_to_imgmsg(packedL)
+        goodMatches.rightDescr=self.cvb.cv2_to_imgmsg(packedR)
+        #####
+        ##debug float values
         debugData=Float32()
         debugData.data=len(l[ind])
         self.debugResults[1].publish(debugData)
 
-        debugData.data=len(goodMatches)
+        debugData.data=len(goodMatches.leftFeatures)
         self.debugResults[0].publish(debugData)
-        #cv2.cornerSubPix(lROI,lKP, winSize, zeroZone, (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT, 1000, 0.001))
-        ##print(len(matches),len(goodMatches),len(l[ind]))
-        # # Sort them in the order of their distance.
-        # matches = sorted(matches, key = lambda x:x.distance)
+        self.outPub.publish(goodMatches)
+        print("published @ ",time.time())
 
-        # Draw first 10 matches.
-        # img3=np.array([])
-        # cv2.drawMatches()
-        img3=np.hstack((copy.deepcopy(lROI),copy.deepcopy(rROI)))
-        img3=cv2.drawMatches(lROI,lKP,rROI,rKP,goodMatches,img3, flags=2)
 
-        cv2.imshow("a",img3)
-        cv2.waitKey(150)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+        # img3=np.hstack((copy.deepcopy(lROI),copy.deepcopy(rROI)))
+        # img3=cv2.drawMatches(lROI,lKP,rROI,rKP,goodMatches,img3, flags=2)
+
+        # cv2.imshow("a",img3)
+        # cv2.waitKey(150)
+
+
+
+
 
 
 
