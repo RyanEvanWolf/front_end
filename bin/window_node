@@ -1,8 +1,8 @@
 #!/usr/bin/env python 
 import rospy
 import numpy as np
-
-from front_end.algorithm import stereoWindow,backend
+import matplotlib.pyplot as plt
+from front_end.algorithm import liveGraph
 import time
 
 rospy.init_node("window_node")
@@ -10,37 +10,20 @@ rospy.init_node("window_node")
 
 # b = stereoWindow()
 
-b= backend()
+b= liveGraph()
 
-# b.add_node("0001",t="pose")#pose=poseVertex())
-# b.add_node("0002",t="landmark")#pose=poseVertex())
-# b.add_edge("0001","0002",M=np.zeros((3,1)))
-# b.add_node("0003",t="pose")
-# b.add_node("0004",t="pose")#pose=poseVertex())
-# b.add_node("0005",t="landmark")#pose=poseVertex())
-# b.add_edge("0006","0005",M=np.zeros((3,1)))
-# b.add_node("0006",t="pose")
-# b.add_node("0007",t="pose")#pose=poseVertex())
-# b.add_node("0008",t="landmark")#pose=poseVertex())
-# b.add_node("0009",t="pose")
+print("started",b.displayName)
 
 
-# print(b.getPoseEdges())
-# print(b.edges())
-# print(b.edges["0001","0002"])
-
-
-
-#
-
-
-
-
-while(not rospy.is_shutdown()):
+while(not rospy.is_shutdown() and (b.nPoses<300)):
     b.updateMatches()
     time.sleep(0.1)
 
+b.graphDeltaMotion()
+b.publishPoses()
+# b.publishGlobalPoints()
 
+plt.show()
 
 # # s1=rospy.Service("window_node/windowMatching",windowMatching,tracker.update)
 rospy.spin()

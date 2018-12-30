@@ -4,8 +4,8 @@ import rospy
 import cv2
 import time
 import copy
-from bumblebee.stereo import getCameraSettingsFromServer,ROIfrmMsg
-
+from bumblebee.stereo import *
+from bumblebee.baseTypes import *
 
 from front_end.utils import *
 from front_end.srv import *
@@ -586,7 +586,8 @@ def getFeatureSummary(pickledReference):
 
 
 class stereoDetector:
-    def __init__(self):
+    def __init__(self,fullDebug=False):
+        self.fullDebug=fullDebug
         self.kSettings=getCameraSettingsFromServer(cameraType="subROI")
         self.topic=["Dataset/left","Dataset/right"]
         self.q=[Queue(),Queue()]
@@ -602,6 +603,9 @@ class stereoDetector:
         self.debugResults=([rospy.Publisher("stereo/debug/matches",Float32,queue_size=1),
                             rospy.Publisher("stereo/debug/detection",Float32,queue_size=1),
                             rospy.Publisher("stereo/debug/time",Float32,queue_size=1)])
+                            
+        if(fullDebug):
+            self.debugResults.append(rospy.Publisher("stereo/debug/vizMatches",Image,queue_size=1))
                   
     def updateFeature(self,data,arg):
         print("img",time.time())
@@ -627,7 +631,7 @@ class stereoDetector:
         l=[]
         r=[]
 
-        setPoint=7000
+        setPoint=3000
 
         coarse=[]
         initial=np.arange(-3,3)+self.bestThresh
@@ -665,12 +669,11 @@ class stereoDetector:
                #print(cv2.norm(goodLdesc[-1],goodRdesc[-1],cv2.NORM_HAMMING),goodMatches.matchScore[-1])
         #####
         ###pack the descriptors into the message
-        # img3=np.hstack((copy.deepcopy(lROI),copy.deepcopy(rROI)))
-        # img3=cv2.drawMatches(lROI,lKP,rROI,rKP,matches,img3, flags=2)
-
-        # cv2.imshow("avv",img3)
-        # cv2.waitKey(1)
-        # print(time.time())
+        if(self.fullDebug):
+                
+            img3=np.hstack((copy.deepcopy(lROI),copy.deepcopy(rROI)))
+            img3=cv2.drawMatches(lROI,lKP,rROI,rKP,matches,img3, flags=2)
+            self.debugResults[3].publish(self.cvb.cv2_to_imgmsg(img3))
         packedL=np.zeros((len(goodLdesc),16),dtype=np.uint8)
 
         packedR=np.zeros((len(goodRdesc),16),dtype=np.uint8)

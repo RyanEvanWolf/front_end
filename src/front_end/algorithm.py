@@ -93,224 +93,229 @@ def rigid_transform_3D(previousLandmarks, currentLandmarks):
 #     out["T"]=t
 #     out["H"]=createHomog(R, t)
 #     return 0
-class simulatedRANSAC(slidingWindow):
-    def __init__(self,baseWindow=None,cameraSettings=None,frames=2):
-        if(baseWindow is not None):
-            ####init from previous sliding window
-            self.X=copy.deepcopy(baseWindow.X)
-            self.kSettings=copy.deepcopy(baseWindow.kSettings)
-            self.M=copy.deepcopy(baseWindow.M)
-            self.tracks=copy.deepcopy(baseWindow.tracks)
-            self.nLandmarks=baseWindow.nLandmarks
-            self.nPoses=baseWindow.nPoses
-            self.inliers=copy.deepcopy(baseWindow.inliers)
-        elif (cameraSettings is not None):
-            ####init from scratch
-            pass
-        self.outliers=[]
-    ###########
-    ##admin functions
-    ###############
-    def serializeWindow(self):
-        binDiction={}
-        binDiction["kSettings"]=pickle.dumps(self.kSettings)
-        binDiction["M"]=[]
-        for i in self.M:
-            binDiction["M"].append(msgpack.packb(i,default=m.encode))
-        binDiction["X"]=msgpack.packb(self.X,default=m.encode)
-        binDiction["inliers"]=msgpack.dumps(self.inliers)
-        binDiction["tracks"]=msgpack.dumps(self.tracks)
-        binDiction["nLandmarks"]=self.nLandmarks
-        binDiction["nPoses"]=self.nPoses
-        binDiction["outliers"]=pickle.dumps(self.outliers)
-        return msgpack.dumps(binDiction)
-    def deserializeWindow(self,data):
-        intern=msgpack.loads(data)
-        self.kSettings=pickle.loads(intern["kSettings"])
-        self.X=msgpack.unpackb(intern["X"],object_hook=m.decode)
-        self.M=[]
-        for i in intern["M"]:
-            self.M.append(msgpack.unpackb(i,object_hook=m.decode))
-        self.inliers=msgpack.loads(intern["inliers"])
-        self.tracks=msgpack.loads(intern["tracks"])
-        self.nLandmarks=intern["nLandmarks"]
-        self.nPoses=intern["nPoses"]
-        self.outliers=pickle.loads(intern["outliers"])
-    def extractMotion(self,nIterations=150,RMSthreshold=3,resetMotion=True):
 
-        abc=time.time()
-        iterations=0
-        minimumParams=3
-        goodModel=0.8*self.nLandmarks
-        bestFit=np.zeros((6,1))
-        besterr=np.inf 
-        bestInliers=[]
+
+
+
+
+# class simulatedRANSAC(slidingWindow):
+#     def __init__(self,baseWindow=None,cameraSettings=None,frames=2):
+#         if(baseWindow is not None):
+#             ####init from previous sliding window
+#             self.X=copy.deepcopy(baseWindow.X)
+#             self.kSettings=copy.deepcopy(baseWindow.kSettings)
+#             self.M=copy.deepcopy(baseWindow.M)
+#             self.tracks=copy.deepcopy(baseWindow.tracks)
+#             self.nLandmarks=baseWindow.nLandmarks
+#             self.nPoses=baseWindow.nPoses
+#             self.inliers=copy.deepcopy(baseWindow.inliers)
+#         elif (cameraSettings is not None):
+#             ####init from scratch
+#             pass
+#         self.outliers=[]
+#     ###########
+#     ##admin functions
+#     ###############
+#     def serializeWindow(self):
+#         binDiction={}
+#         binDiction["kSettings"]=pickle.dumps(self.kSettings)
+#         binDiction["M"]=[]
+#         for i in self.M:
+#             binDiction["M"].append(msgpack.packb(i,default=m.encode))
+#         binDiction["X"]=msgpack.packb(self.X,default=m.encode)
+#         binDiction["inliers"]=msgpack.dumps(self.inliers)
+#         binDiction["tracks"]=msgpack.dumps(self.tracks)
+#         binDiction["nLandmarks"]=self.nLandmarks
+#         binDiction["nPoses"]=self.nPoses
+#         binDiction["outliers"]=pickle.dumps(self.outliers)
+#         return msgpack.dumps(binDiction)
+#     def deserializeWindow(self,data):
+#         intern=msgpack.loads(data)
+#         self.kSettings=pickle.loads(intern["kSettings"])
+#         self.X=msgpack.unpackb(intern["X"],object_hook=m.decode)
+#         self.M=[]
+#         for i in intern["M"]:
+#             self.M.append(msgpack.unpackb(i,object_hook=m.decode))
+#         self.inliers=msgpack.loads(intern["inliers"])
+#         self.tracks=msgpack.loads(intern["tracks"])
+#         self.nLandmarks=intern["nLandmarks"]
+#         self.nPoses=intern["nPoses"]
+#         self.outliers=pickle.loads(intern["outliers"])
+#     def extractMotion(self,nIterations=150,RMSthreshold=3,resetMotion=True):
+
+#         abc=time.time()
+#         iterations=0
+#         minimumParams=3
+#         goodModel=0.8*self.nLandmarks
+#         bestFit=np.zeros((6,1))
+#         besterr=np.inf 
+#         bestInliers=[]
        
-        if(resetMotion):
-            self.X[0:6,0]=np.zeros(6)
+#         if(resetMotion):
+#             self.X[0:6,0]=np.zeros(6)
 
-        while iterations < nIterations:
-            paramEstimateIndexes,testPointIndexes=self.randomPartition(minimumParams)
-            modelEstimationData=self.getSubset(paramEstimateIndexes)
-            trainingData=self.getSubset(testPointIndexes)
+#         while iterations < nIterations:
+#             paramEstimateIndexes,testPointIndexes=self.randomPartition(minimumParams)
+#             modelEstimationData=self.getSubset(paramEstimateIndexes)
+#             trainingData=self.getSubset(testPointIndexes)
             
 
 
-            previousX=np.hstack((modelEstimationData.reprojectLandmark(0)[:,0].reshape(4,1),
-                                modelEstimationData.reprojectLandmark(1)[:,0].reshape(4,1),
-                                modelEstimationData.reprojectLandmark(2)[:,0].reshape(4,1)))
-            currentX=np.hstack((modelEstimationData.reprojectLandmark(0)[:,1].reshape(4,1),
-                                modelEstimationData.reprojectLandmark(1)[:,1].reshape(4,1),
-                                modelEstimationData.reprojectLandmark(2)[:,1].reshape(4,1)))
-            est=rigid_transform_3D(previousX[0:3,:],currentX[0:3,:])
-            modelEstimationData.X[0:6,0]=decompose2X(est).reshape(6)
-            trainingData.X[0:6,0]=decompose2X(est).reshape(6)
+#             previousX=np.hstack((modelEstimationData.reprojectLandmark(0)[:,0].reshape(4,1),
+#                                 modelEstimationData.reprojectLandmark(1)[:,0].reshape(4,1),
+#                                 modelEstimationData.reprojectLandmark(2)[:,0].reshape(4,1)))
+#             currentX=np.hstack((modelEstimationData.reprojectLandmark(0)[:,1].reshape(4,1),
+#                                 modelEstimationData.reprojectLandmark(1)[:,1].reshape(4,1),
+#                                 modelEstimationData.reprojectLandmark(2)[:,1].reshape(4,1)))
+#             est=rigid_transform_3D(previousX[0:3,:],currentX[0:3,:])
+#             modelEstimationData.X[0:6,0]=decompose2X(est).reshape(6)
+#             trainingData.X[0:6,0]=decompose2X(est).reshape(6)
 
-            self.X[0:6,0]=decompose2X(est).reshape(6)
-            tempInliers=sorted(list(np.flatnonzero(np.array(trainingData.getAllLandmarkRMS()) <RMSthreshold)))
-            currentModelInliers=[]
-            for j in tempInliers:
-                currentModelInliers.append(testPointIndexes[j])
-            newSet=self.getSubset(currentModelInliers)
-            if(len(currentModelInliers)>goodModel):
-                possibleBetterInliers=currentModelInliers +paramEstimateIndexes
-                withInliers=self.getSubset(possibleBetterInliers)
+#             self.X[0:6,0]=decompose2X(est).reshape(6)
+#             tempInliers=sorted(list(np.flatnonzero(np.array(trainingData.getAllLandmarkRMS()) <RMSthreshold)))
+#             currentModelInliers=[]
+#             for j in tempInliers:
+#                 currentModelInliers.append(testPointIndexes[j])
+#             newSet=self.getSubset(currentModelInliers)
+#             if(len(currentModelInliers)>goodModel):
+#                 possibleBetterInliers=currentModelInliers +paramEstimateIndexes
+#                 withInliers=self.getSubset(possibleBetterInliers)
 
-                for i in possibleBetterInliers:
+#                 for i in possibleBetterInliers:
 
-                    previousX=np.hstack((previousX,self.reprojectLandmark(i)[:,0].reshape(4,1)))
-                    currentX=np.hstack((currentX,self.reprojectLandmark(i)[:,1].reshape(4,1)))
-                possibleBetterEst=rigid_transform_3D(previousX[0:3,:],currentX[0:3,:])
-                testData=self.getSubset(possibleBetterInliers)  
-                testData.X[0:6,0]=decompose2X(possibleBetterEst).reshape(6)
-                betterRMS=testData.getWindowRMS()
-                if(betterRMS<besterr):
-                    besterr=betterRMS
-                    bestInliers=possibleBetterInliers
-                    bestFit=decompose2X(possibleBetterEst)
-            iterations+=1
-        self.X[0:6,0]=copy.deepcopy(bestFit.reshape(6))
-        self.inliers=bestInliers
-        net=time.time()-abc
-        return besterr,net
-    def randomPartition(self,minimumParameters=7):
-        setOfLandmarks=range(0,self.nLandmarks)
-        np.random.shuffle(setOfLandmarks)
-        parameterIndexes=sorted(setOfLandmarks[:minimumParameters])
-        testPointIdexes=sorted(setOfLandmarks[minimumParameters:])
-        return parameterIndexes,testPointIdexes
-    #     print(len(range(0,self.getNlandmarks())))
-    #     currentXpredictions=self.getReprojections(range(0,self.getNlandmarks()),1)
-    #     previousXpredictions=self.getX(range(self.getNlandmarks()))
-    #     previousXpredictions=previousXpredictions.reshape((4,len(previousXpredictions)/4),order='F')
-    #     while iterations < nIterations:
-    #         ##################
-    #         ###select a random sclass simulatedRANSAC(slidingWindow):
-    def __init__(self,baseWindow=None,cameraSettings=None,frames=2):
-        if(baseWindow is not None):
-            ####init from previous sliding window
-            self.X=copy.deepcopy(baseWindow.X)
-            self.kSettings=copy.deepcopy(baseWindow.kSettings)
-            self.M=copy.deepcopy(baseWindow.M)
-            self.tracks=copy.deepcopy(baseWindow.tracks)
-            self.nLandmarks=baseWindow.nLandmarks
-            self.nPoses=baseWindow.nPoses
-            self.inliers=copy.deepcopy(baseWindow.inliers)
-        elif (cameraSettings is not None):
-            ####init from scratch
-            pass
-        self.outliers=[]
-    ###########
-    ##admin functions
-    ###############
-    def serializeWindow(self):
-        binDiction={}
-        binDiction["kSettings"]=pickle.dumps(self.kSettings)
-        binDiction["M"]=[]
-        for i in self.M:
-            binDiction["M"].append(msgpack.packb(i,default=m.encode))
-        binDiction["X"]=msgpack.packb(self.X,default=m.encode)
-        binDiction["inliers"]=msgpack.dumps(self.inliers)
-        binDiction["tracks"]=msgpack.dumps(self.tracks)
-        binDiction["nLandmarks"]=self.nLandmarks
-        binDiction["nPoses"]=self.nPoses
-        binDiction["outliers"]=pickle.dumps(self.outliers)
-        return msgpack.dumps(binDiction)
-    def deserializeWindow(self,data):
-        intern=msgpack.loads(data)
-        self.kSettings=pickle.loads(intern["kSettings"])
-        self.X=msgpack.unpackb(intern["X"],object_hook=m.decode)
-        self.M=[]
-        for i in intern["M"]:
-            self.M.append(msgpack.unpackb(i,object_hook=m.decode))
-        self.inliers=msgpack.loads(intern["inliers"])
-        self.tracks=msgpack.loads(intern["tracks"])
-        self.nLandmarks=intern["nLandmarks"]
-        self.nPoses=intern["nPoses"]
-        self.outliers=pickle.loads(intern["outliers"])
-    def extractMotion(self,nIterations=150,RMSthreshold=3,resetMotion=True):
+#                     previousX=np.hstack((previousX,self.reprojectLandmark(i)[:,0].reshape(4,1)))
+#                     currentX=np.hstack((currentX,self.reprojectLandmark(i)[:,1].reshape(4,1)))
+#                 possibleBetterEst=rigid_transform_3D(previousX[0:3,:],currentX[0:3,:])
+#                 testData=self.getSubset(possibleBetterInliers)  
+#                 testData.X[0:6,0]=decompose2X(possibleBetterEst).reshape(6)
+#                 betterRMS=testData.getWindowRMS()
+#                 if(betterRMS<besterr):
+#                     besterr=betterRMS
+#                     bestInliers=possibleBetterInliers
+#                     bestFit=decompose2X(possibleBetterEst)
+#             iterations+=1
+#         self.X[0:6,0]=copy.deepcopy(bestFit.reshape(6))
+#         self.inliers=bestInliers
+#         net=time.time()-abc
+#         return besterr,net
+#     def randomPartition(self,minimumParameters=7):
+#         setOfLandmarks=range(0,self.nLandmarks)
+#         np.random.shuffle(setOfLandmarks)
+#         parameterIndexes=sorted(setOfLandmarks[:minimumParameters])
+#         testPointIdexes=sorted(setOfLandmarks[minimumParameters:])
+#         return parameterIndexes,testPointIdexes
+#     #     print(len(range(0,self.getNlandmarks())))
+#     #     currentXpredictions=self.getReprojections(range(0,self.getNlandmarks()),1)
+#     #     previousXpredictions=self.getX(range(self.getNlandmarks()))
+#     #     previousXpredictions=previousXpredictions.reshape((4,len(previousXpredictions)/4),order='F')
+#     #     while iterations < nIterations:
+#     #         ##################
+#     #         ###select a random sclass simulatedRANSAC(slidingWindow):
+#     def __init__(self,baseWindow=None,cameraSettings=None,frames=2):
+#         if(baseWindow is not None):
+#             ####init from previous sliding window
+#             self.X=copy.deepcopy(baseWindow.X)
+#             self.kSettings=copy.deepcopy(baseWindow.kSettings)
+#             self.M=copy.deepcopy(baseWindow.M)
+#             self.tracks=copy.deepcopy(baseWindow.tracks)
+#             self.nLandmarks=baseWindow.nLandmarks
+#             self.nPoses=baseWindow.nPoses
+#             self.inliers=copy.deepcopy(baseWindow.inliers)
+#         elif (cameraSettings is not None):
+#             ####init from scratch
+#             pass
+#         self.outliers=[]
+#     ###########
+#     ##admin functions
+#     ###############
+#     def serializeWindow(self):
+#         binDiction={}
+#         binDiction["kSettings"]=pickle.dumps(self.kSettings)
+#         binDiction["M"]=[]
+#         for i in self.M:
+#             binDiction["M"].append(msgpack.packb(i,default=m.encode))
+#         binDiction["X"]=msgpack.packb(self.X,default=m.encode)
+#         binDiction["inliers"]=msgpack.dumps(self.inliers)
+#         binDiction["tracks"]=msgpack.dumps(self.tracks)
+#         binDiction["nLandmarks"]=self.nLandmarks
+#         binDiction["nPoses"]=self.nPoses
+#         binDiction["outliers"]=pickle.dumps(self.outliers)
+#         return msgpack.dumps(binDiction)
+#     def deserializeWindow(self,data):
+#         intern=msgpack.loads(data)
+#         self.kSettings=pickle.loads(intern["kSettings"])
+#         self.X=msgpack.unpackb(intern["X"],object_hook=m.decode)
+#         self.M=[]
+#         for i in intern["M"]:
+#             self.M.append(msgpack.unpackb(i,object_hook=m.decode))
+#         self.inliers=msgpack.loads(intern["inliers"])
+#         self.tracks=msgpack.loads(intern["tracks"])
+#         self.nLandmarks=intern["nLandmarks"]
+#         self.nPoses=intern["nPoses"]
+#         self.outliers=pickle.loads(intern["outliers"])
+#     def extractMotion(self,nIterations=150,RMSthreshold=3,resetMotion=True):
 
-        abc=time.time()
-        iterations=0
-        minimumParams=3
-        goodModel=0.8*self.nLandmarks
-        bestFit=np.zeros((6,1))
-        besterr=np.inf 
-        bestInliers=[]
+#         abc=time.time()
+#         iterations=0
+#         minimumParams=3
+#         goodModel=0.8*self.nLandmarks
+#         bestFit=np.zeros((6,1))
+#         besterr=np.inf 
+#         bestInliers=[]
        
-        if(resetMotion):
-            self.X[0:6,0]=np.zeros(6)
+#         if(resetMotion):
+#             self.X[0:6,0]=np.zeros(6)
 
-        while iterations < nIterations:
-            paramEstimateIndexes,testPointIndexes=self.randomPartition(minimumParams)
-            modelEstimationData=self.getSubset(paramEstimateIndexes)
-            trainingData=self.getSubset(testPointIndexes)
+#         while iterations < nIterations:
+#             paramEstimateIndexes,testPointIndexes=self.randomPartition(minimumParams)
+#             modelEstimationData=self.getSubset(paramEstimateIndexes)
+#             trainingData=self.getSubset(testPointIndexes)
             
 
 
-            previousX=np.hstack((modelEstimationData.reprojectLandmark(0)[:,0].reshape(4,1),
-                                modelEstimationData.reprojectLandmark(1)[:,0].reshape(4,1),
-                                modelEstimationData.reprojectLandmark(2)[:,0].reshape(4,1)))
-            currentX=np.hstack((modelEstimationData.reprojectLandmark(0)[:,1].reshape(4,1),
-                                modelEstimationData.reprojectLandmark(1)[:,1].reshape(4,1),
-                                modelEstimationData.reprojectLandmark(2)[:,1].reshape(4,1)))
-            est=rigid_transform_3D(previousX[0:3,:],currentX[0:3,:])
-            modelEstimationData.X[0:6,0]=decompose2X(est).reshape(6)
-            trainingData.X[0:6,0]=decompose2X(est).reshape(6)
+#             previousX=np.hstack((modelEstimationData.reprojectLandmark(0)[:,0].reshape(4,1),
+#                                 modelEstimationData.reprojectLandmark(1)[:,0].reshape(4,1),
+#                                 modelEstimationData.reprojectLandmark(2)[:,0].reshape(4,1)))
+#             currentX=np.hstack((modelEstimationData.reprojectLandmark(0)[:,1].reshape(4,1),
+#                                 modelEstimationData.reprojectLandmark(1)[:,1].reshape(4,1),
+#                                 modelEstimationData.reprojectLandmark(2)[:,1].reshape(4,1)))
+#             est=rigid_transform_3D(previousX[0:3,:],currentX[0:3,:])
+#             modelEstimationData.X[0:6,0]=decompose2X(est).reshape(6)
+#             trainingData.X[0:6,0]=decompose2X(est).reshape(6)
 
-            self.X[0:6,0]=decompose2X(est).reshape(6)
-            tempInliers=sorted(list(np.flatnonzero(np.array(trainingData.getAllLandmarkRMS()) <RMSthreshold)))
-            currentModelInliers=[]
-            for j in tempInliers:
-                currentModelInliers.append(testPointIndexes[j])
-            newSet=self.getSubset(currentModelInliers)
-            if(len(currentModelInliers)>goodModel):
-                possibleBetterInliers=currentModelInliers +paramEstimateIndexes
-                withInliers=self.getSubset(possibleBetterInliers)
+#             self.X[0:6,0]=decompose2X(est).reshape(6)
+#             tempInliers=sorted(list(np.flatnonzero(np.array(trainingData.getAllLandmarkRMS()) <RMSthreshold)))
+#             currentModelInliers=[]
+#             for j in tempInliers:
+#                 currentModelInliers.append(testPointIndexes[j])
+#             newSet=self.getSubset(currentModelInliers)
+#             if(len(currentModelInliers)>goodModel):
+#                 possibleBetterInliers=currentModelInliers +paramEstimateIndexes
+#                 withInliers=self.getSubset(possibleBetterInliers)
 
-                for i in possibleBetterInliers:
+#                 for i in possibleBetterInliers:
 
-                    previousX=np.hstack((previousX,self.reprojectLandmark(i)[:,0].reshape(4,1)))
-                    currentX=np.hstack((currentX,self.reprojectLandmark(i)[:,1].reshape(4,1)))
-                possibleBetterEst=rigid_transform_3D(previousX[0:3,:],currentX[0:3,:])
-                testData=self.getSubset(possibleBetterInliers)  
-                testData.X[0:6,0]=decompose2X(possibleBetterEst).reshape(6)
-                betterRMS=testData.getWindowRMS()
-                if(betterRMS<besterr):
-                    besterr=betterRMS
-                    bestInliers=possibleBetterInliers
-                    bestFit=decompose2X(possibleBetterEst)
-            iterations+=1
-        self.X[0:6,0]=copy.deepcopy(bestFit.reshape(6))
-        self.inliers=bestInliers
-        net=time.time()-abc
-        return besterr,net
-    def randomPartition(self,minimumParameters=7):
-        setOfLandmarks=range(0,self.nLandmarks)
-        np.random.shuffle(setOfLandmarks)
-        parameterIndexes=sorted(setOfLandmarks[:minimumParameters])
-        testPointIdexes=sorted(setOfLandmarks[minimumParameters:])
-        return parameterIndexes,testPointIdexes
+#                     previousX=np.hstack((previousX,self.reprojectLandmark(i)[:,0].reshape(4,1)))
+#                     currentX=np.hstack((currentX,self.reprojectLandmark(i)[:,1].reshape(4,1)))
+#                 possibleBetterEst=rigid_transform_3D(previousX[0:3,:],currentX[0:3,:])
+#                 testData=self.getSubset(possibleBetterInliers)  
+#                 testData.X[0:6,0]=decompose2X(possibleBetterEst).reshape(6)
+#                 betterRMS=testData.getWindowRMS()
+#                 if(betterRMS<besterr):
+#                     besterr=betterRMS
+#                     bestInliers=possibleBetterInliers
+#                     bestFit=decompose2X(possibleBetterEst)
+#             iterations+=1
+#         self.X[0:6,0]=copy.deepcopy(bestFit.reshape(6))
+#         self.inliers=bestInliers
+#         net=time.time()-abc
+#         return besterr,net
+#     def randomPartition(self,minimumParameters=7):
+#         setOfLandmarks=range(0,self.nLandmarks)
+#         np.random.shuffle(setOfLandmarks)
+#         parameterIndexes=sorted(setOfLandmarks[:minimumParameters])
+#         testPointIdexes=sorted(setOfLandmarks[minimumParameters:])
+#         return parameterIndexes,testPointIdexes
     #     print(len(range(0,self.getNlandmarks())))
     #     currentXpredictions=self.getReprojections(range(0,self.getNlandmarks()),1)
     #     previousXpredictions=self.getX(range(self.getNlandmarks()))
@@ -432,94 +437,94 @@ class BAextractor:
 
 
 
-class simulatedBA(slidingWindow):
-    def __init__(self,baseWindow=None,cameraSettings=None,frames=2):
-        if(baseWindow is not None):
-            ####init from previous sliding window
-            self.X=copy.deepcopy(baseWindow.X)
-            self.kSettings=copy.deepcopy(baseWindow.kSettings)
-            self.M=copy.deepcopy(baseWindow.M)
-            self.tracks=copy.deepcopy(baseWindow.tracks)
-            self.nLandmarks=baseWindow.nLandmarks
-            self.nPoses=baseWindow.nPoses
-        elif (cameraSettings is not None):
-            ####init from scratch
-            pass
-        self.outliers=[]
-        self.inliers=[]
-    def extractMotion(self,resetMotion=True):
-        if(resetMotion):
-            self.X[0:6,0]=np.zeros(6)
-        abc=time.time()
-        result=least_squares(self.error,self.X.ravel(),verbose=2,max_nfev=80)
-        net=time.time()-abc
-        self.X=copy.deepcopy(result.x.reshape(result.x.shape[0],1))
-        return self.getWindowRMS(),net
-    def error(self,x, *args, **kwargs):
-        self.X=copy.deepcopy(x.reshape(6*(self.nPoses-1)+4*self.nLandmarks,1))
-        # print(x[0:6],self.getWindowRMS())
-        return self.getWindowRMS()
-# class slidingWindow(object):
-#     def __init__(self,cameraSettings,frames=2):
-#         '''
-#         SLiding window object of length "frames"
-#         X is a  [ Pose1 ]  
-#                 [ Pose2 ] 
-#                 [ ..... ]6x1 Rtheta vector [Roll pitch yaw X Y Z]^T
-#                 [ PoseN ]
-#                 [   X1  ]landmark as seen from pose1        [X Y Z W]
-#                 [   X2  ]
-#                 [   X3  ]
-#         shape= [6xNposes + 4xNlandmarks , 1]
+# class simulatedBA(slidingWindow):
+#     def __init__(self,baseWindow=None,cameraSettings=None,frames=2):
+#         if(baseWindow is not None):
+#             ####init from previous sliding window
+#             self.X=copy.deepcopy(baseWindow.X)
+#             self.kSettings=copy.deepcopy(baseWindow.kSettings)
+#             self.M=copy.deepcopy(baseWindow.M)
+#             self.tracks=copy.deepcopy(baseWindow.tracks)
+#             self.nLandmarks=baseWindow.nLandmarks
+#             self.nPoses=baseWindow.nPoses
+#         elif (cameraSettings is not None):
+#             ####init from scratch
+#             pass
+#         self.outliers=[]
+#         self.inliers=[]
+#     def extractMotion(self,resetMotion=True):
+#         if(resetMotion):
+#             self.X[0:6,0]=np.zeros(6)
+#         abc=time.time()
+#         result=least_squares(self.error,self.X.ravel(),verbose=2,max_nfev=80)
+#         net=time.time()-abc
+#         self.X=copy.deepcopy(result.x.reshape(result.x.shape[0],1))
+#         return self.getWindowRMS(),net
+#     def error(self,x, *args, **kwargs):
+#         self.X=copy.deepcopy(x.reshape(6*(self.nPoses-1)+4*self.nLandmarks,1))
+#         # print(x[0:6],self.getWindowRMS())
+#         return self.getWindowRMS()
+# # class slidingWindow(object):
+# #     def __init__(self,cameraSettings,frames=2):
+# #         '''
+# #         SLiding window object of length "frames"
+# #         X is a  [ Pose1 ]  
+# #                 [ Pose2 ] 
+# #                 [ ..... ]6x1 Rtheta vector [Roll pitch yaw X Y Z]^T
+# #                 [ PoseN ]
+# #                 [   X1  ]landmark as seen from pose1        [X Y Z W]
+# #                 [   X2  ]
+# #                 [   X3  ]
+# #         shape= [6xNposes + 4xNlandmarks , 1]
 
-#         M is the measurement matrix
-#                     [ uleft1    uleft2 ....  uleftn  ]
-#           frame1{   [ vleft1    vleft2 ....  vleftn  ]
-#                     [ uright1   uright2 .... urightn ]
-#                     [ vright1   vright2 .... vrightn ]
-#                     [ uleft1    uleft2 ....  uleftn  ]
-#           frame2{   [ vleft1    vleft2 ....  vleftn  ]
-#                     [ uright1   uright2 .... urightn ]
-#                     [ vright1   vright2 .... vrightn ]
-#                     [ uleft1    uleft2 ....  uleftn  ]
-#           frame3{   [ vleft1    vleft2 ....  vleftn  ]
-#                     [ uright1   uright2 .... urightn ]
-#                     [ vright1   vright2 .... vrightn ]
+# #         M is the measurement matrix
+# #                     [ uleft1    uleft2 ....  uleftn  ]
+# #           frame1{   [ vleft1    vleft2 ....  vleftn  ]
+# #                     [ uright1   uright2 .... urightn ]
+# #                     [ vright1   vright2 .... vrightn ]
+# #                     [ uleft1    uleft2 ....  uleftn  ]
+# #           frame2{   [ vleft1    vleft2 ....  vleftn  ]
+# #                     [ uright1   uright2 .... urightn ]
+# #                     [ vright1   vright2 .... vrightn ]
+# #                     [ uleft1    uleft2 ....  uleftn  ]
+# #           frame3{   [ vleft1    vleft2 ....  vleftn  ]
+# #                     [ uright1   uright2 .... urightn ]
+# #                     [ vright1   vright2 .... vrightn ]
 
-#         currently assumes a feature is always tracked i.e no masking available
-#         '''
-#         self.kSettings=copy.deepcopy(cameraSettings)
-#         self.X=np.zeros((0,0),dtype=np.float64) ###[Pose0 Pose1 Pose2|landmarkA landmarkB landmarkC ...]
-#         self.M=np.zeros((0,0),dtype=np.float64) ###[Upl0 Vpl0  ]
-#         self.tracks=np.zeros((0,0),dtype=np.float64)
-#         self.inliers=None
-#     def getNlandmarks(self):
-#         ######TODO includes the number of frames in this calculation
-#         return (self.X.shape[0]-6)/4
-#     def getNinliers(self):
-#         return np.count(self.inliers)
-#     def getNPoseEdge(self,N):
-#         poseVector=self.X[N*6:N*6+6]
-#         return motionEdge(poseVector[0:3],poseVector[3:6],degrees=False)
-#     def getX(self,arrayIndexes):
-#         X=np.zeros(len(arrayIndexes)*4)
-#         for index in range(0,len(arrayIndexes)):
-#             X[4*index:4*index+4]=self.X[6+arrayIndexes[index]*4:6+arrayIndexes[index]*4 + 4]
-#         return X
-#     def getFeature(self,arrayIndexes,frameNumber):
-#         features=np.zeros((4,len(arrayIndexes)))
-#         for index in range(0,len(arrayIndexes)):
-#             features[0:4,index]=self.M[4*frameNumber:4*frameNumber+4,index]
-#         return features
-#     def getReprojections(self,arrayIndexes,frameNumber):
-#         features=self.getFeature(arrayIndexes,frameNumber)
-#         measVect=np.zeros((4,features.shape[1]))
-#         measVect[3,:]=np.ones(features.shape[1])
-#         measVect[0:2,:]=features[0:2,:]
-#         measVect[2,:]=measVect[0,:]-features[2,:]
-#         xreproject=self.kSettings["Q"].dot(measVect)
-#         xreproject/=xreproject[3,:]
-#         return xreproject
+# #         currently assumes a feature is always tracked i.e no masking available
+# #         '''
+# #         self.kSettings=copy.deepcopy(cameraSettings)
+# #         self.X=np.zeros((0,0),dtype=np.float64) ###[Pose0 Pose1 Pose2|landmarkA landmarkB landmarkC ...]
+# #         self.M=np.zeros((0,0),dtype=np.float64) ###[Upl0 Vpl0  ]
+# #         self.tracks=np.zeros((0,0),dtype=np.float64)
+# #         self.inliers=None
+# #     def getNlandmarks(self):
+# #         ######TODO includes the number of frames in this calculation
+# #         return (self.X.shape[0]-6)/4
+# #     def getNinliers(self):
+# #         return np.count(self.inliers)
+# #     def getNPoseEdge(self,N):
+# #         poseVector=self.X[N*6:N*6+6]
+# #         return motionEdge(poseVector[0:3],poseVector[3:6],degrees=False)
+# #     def getX(self,arrayIndexes):
+# #         X=np.zeros(len(arrayIndexes)*4)
+# #         for index in range(0,len(arrayIndexes)):
+# #             X[4*index:4*index+4]=self.X[6+arrayIndexes[index]*4:6+arrayIndexes[index]*4 + 4]
+# #         return X
+# #     def getFeature(self,arrayIndexes,frameNumber):
+# #         features=np.zeros((4,len(arrayIndexes)))
+# #         for index in range(0,len(arrayIndexes)):
+# #             features[0:4,index]=self.M[4*frameNumber:4*frameNumber+4,index]
+# #         return features
+# #     def getReprojections(self,arrayIndexes,frameNumber):
+# #         features=self.getFeature(arrayIndexes,frameNumber)
+# #         measVect=np.zeros((4,features.shape[1]))
+# #         measVect[3,:]=np.ones(features.shape[1])
+# #         measVect[0:2,:]=features[0:2,:]
+# #         measVect[2,:]=measVect[0,:]-features[2,:]
+# #         xreproject=self.kSettings["Q"].dot(measVect)
+# #         xreproject/=xreproject[3,:]
+# #         return xreproject
 
 
 # class simulatedRansacWindow(slidingWindow):
@@ -1102,6 +1107,383 @@ class cvExtract:
             return nisterResults
 
 
+
+
+
+class liveGraph(slidingGraph):
+    def __init__(self,graphName="live"):
+        super(liveGraph,self).__init__(displayName=graphName)
+        self.topic=["Dataset/left","Dataset/right"]
+        self.q=[Queue(),Queue(),Queue()]
+        self.featSub=rospy.Subscriber("stereo/Features",stereoFeatures,self.bufferFeatures)
+        self.lImages=[]
+        self.rImages=[]
+        self.sub=[rospy.Subscriber(self.topic[0],Image,self.bufferImages,"l"),rospy.Subscriber(self.topic[1],Image,self.bufferImages,"r")]
+        self.bf=cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+        self.initialized=False
+        self.trackPub=rospy.Publisher(self.displayName+"/debug/Tracks",Image,queue_size=3)
+    def bufferImages(self,data,arg):
+        if(arg=="l"):
+            self.q[0].put(self.cvb.imgmsg_to_cv2(data))
+        else:
+            self.q[1].put(self.cvb.imgmsg_to_cv2(data))
+    def bufferFeatures(self,data):
+        self.q[2].put(data)
+    def updateMatches(self):
+            ###########
+            ##synchronize the messages, wait for both left and right images
+            ## and the features messages to be available before processing
+        if(self.q[0].qsize()>0 and self.q[1].qsize()>0 and self.q[2].qsize()>0):
+            currentPoseID=self.newPoseVertex()
+            self.lImages.append((copy.deepcopy(self.q[0].get()),currentPoseID))
+            self.rImages.append((copy.deepcopy(self.q[1].get()),currentPoseID))
+            if(len(self.lImages)>self.nWindow):
+                del self.lImages[0]
+                del self.rImages[0]
+            currentFeat=self.q[2].get()
+            lfeat=unpackKP(currentFeat.leftFeatures)
+            rfeat=unpackKP(currentFeat.rightFeatures)
+            currentLDesc=self.cvb.imgmsg_to_cv2(currentFeat.leftDescr)
+            currentRDesc=self.cvb.imgmsg_to_cv2(currentFeat.rightDescr)
+
+            #            lROI=self.lImages[-1][0][self.roiY:self.roiH+1,self.roiX:self.roiW+1]
+            #rROI=self.rImages[-1][0][self.roiY:self.roiH+1,self.roiX:self.roiW+1]  
+
+            if(self.initialized):
+                ################
+                ##match features
+                #################
+                
+
+                prevPoseID=self.getPoseVertices()[-2]
+
+                print("MatchState",prevPoseID,currentPoseID)
+                activeIDs=self.getLandmarksVisibleAT(prevPoseID)
+                prevLDesc,prevRDesc=self.getDescriptors(prevPoseID)
+                #print(prevLDesc.shape,prevRDesc.shape,currentLDesc.shape,currentRDesc.shape)
+
+
+                matchesLeft = self.bf.match(currentLDesc,prevLDesc)###qyery, training
+                matchesRight = self.bf.match(currentRDesc,prevRDesc)
+
+                trackIDsLeft={}
+                trackIDsRight={}
+
+                for i in matchesLeft:
+                    trackIDsLeft[activeIDs[i.trainIdx]]=i
+                for i in matchesRight:
+                    trackIDsRight[activeIDs[i.trainIdx]]=i
+                trackIntersection=[x for x in trackIDsLeft.keys() if trackIDsRight.has_key(x)]
+
+                ########################################
+                ######
+                TrackCount=0
+                newFeature=0
+                for currentIndex in range(len(lfeat)):
+                    trackedLandmark=None
+                    dictionaryCount=0
+                    while(trackedLandmark==None and dictionaryCount<len(trackIntersection)):
+                        if(trackIDsLeft[trackIntersection[dictionaryCount]].queryIdx==currentIndex and 
+                                        trackIDsRight[trackIntersection[dictionaryCount]].queryIdx==currentIndex):   
+                            trackedLandmark=      trackIntersection[dictionaryCount]                   
+                        dictionaryCount+=1
+                    if(trackedLandmark!=None):
+                        #################
+                        ##
+
+                        self.createStereoEdge(currentPoseID,trackedLandmark,lfeat[currentIndex],rfeat[currentIndex],
+                                            currentLDesc[currentIndex,:],currentRDesc[currentIndex,:])
+                        TrackCount+=1
+                    else:
+                        landmarkID=self.newLandmarkVertex() 
+                        self.createStereoEdge(currentPoseID,landmarkID,lfeat[currentIndex],rfeat[currentIndex],
+                                            currentLDesc[currentIndex,:],currentRDesc[currentIndex,:])
+                        newFeature+=1
+                self.svdRANSAC(prevPoseID,currentPoseID)
+
+                oldImage=copy.deepcopy(self.lImages[-2][0])
+                newImage=copy.deepcopy(self.lImages[-1][0])
+
+                ancd=genStereoscopicImage(newImage,oldImage)
+                self.publishInlierOutlierTracks(prevPoseID,currentPoseID,ancd)
+                # for k in self.getLandmarkVertices():
+                #     self.plotLandmark(ancd,k,[prevPoseID,currentPoseID])
+                # self.trackPub.publish(self.cvb.cv2_to_imgmsg(ancd))
+                
+                # print("Tracks=",TrackCount)
+                # print("newFeature=",newFeature)
+                # print("overall",len(lfeat))
+
+
+            else:
+                ####################
+                ###initialize the graph
+                for i in range(len(lfeat)):
+                    M=np.zeros((3,1))
+                    M[0,0]=lfeat[i].pt[0]+self.roiX
+                    M[1,0]=lfeat[i].pt[1]+self.roiY
+                    M[2,0]=rfeat[i].pt[0]+self.roiX
+
+                    dispVect=np.ones((4,1),dtype=np.float64)
+                    disparity=M[0,0]-M[2,0]#lFeat.pt[0]-rFeat.pt[0]
+                    dispVect[0,0]=M[0,0]#lFeat.pt[0]
+                    dispVect[1,0]=M[1,0]#lFeat.pt[1]
+                    dispVect[2,0]=disparity
+
+                    xPred=self.kSettings['Q'].dot(dispVect)
+                    xPred/=xPred[3,0]
+                    if(xPred[2,0]>0):
+                        landmarkID=self.newLandmarkVertex()
+                        self.add_edge(currentPoseID,landmarkID,
+                                      M=M,Dl=currentLDesc[i,:],
+                                      Dr=currentRDesc[i,:],X=xPred)
+                self.initialized=True
+            self.publishPoses()    
+            self.publishLocalPoints(currentPoseID)
+    def createStereoEdge(self,poseID,landmarkID,lFeat,rFeat,lDesc,rDesc):
+        M=np.zeros((3,1))
+        M[0,0]=lFeat.pt[0]+self.roiX
+        M[1,0]=lFeat.pt[1]+self.roiY
+        M[2,0]=rFeat.pt[0]+self.roiX
+
+        dispVect=np.ones((4,1),dtype=np.float64)
+        disparity=M[0,0]-M[2,0]#lFeat.pt[0]-rFeat.pt[0]
+        dispVect[0,0]=M[0,0]#lFeat.pt[0]
+        dispVect[1,0]=M[1,0]#lFeat.pt[1]
+        dispVect[2,0]=disparity
+        xPred=self.kSettings['Q'].dot(dispVect)
+        xPred/=xPred[3,0]
+        if(xPred[2,0]>0):
+            self.add_edge(poseID,landmarkID,M=M,Dl=lDesc,Dr=rDesc,X=xPred)
+    def getDescriptors(self,poseID):
+        activeLandmarks=self.getLandmarksVisibleAT(poseID)
+        lDesc=np.zeros((len(activeLandmarks),16),np.uint8)
+        rDesc=np.zeros((len(activeLandmarks),16),np.uint8)
+        for i in range(0,len(activeLandmarks)):
+            lDesc[i,:]=copy.deepcopy(self.edges[poseID,activeLandmarks[i]]["Dl"].reshape(16))
+            rDesc[i,:]=copy.deepcopy(self.edges[poseID,activeLandmarks[i]]["Dr"].reshape(16))
+        return lDesc,rDesc
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# class simulatedRANSAC(slidingWindow):
+#     def __init__(self,baseWindow=None,cameraSettings=None,frames=2):
+#         if(baseWindow is not None):
+#             ####init from previous sliding window
+#             self.X=copy.deepcopy(baseWindow.X)
+#             self.kSettings=copy.deepcopy(baseWindow.kSettings)
+#             self.M=copy.deepcopy(baseWindow.M)
+#             self.tracks=copy.deepcopy(baseWindow.tracks)
+#             self.nLandmarks=baseWindow.nLandmarks
+#             self.nPoses=baseWindow.nPoses
+#             self.inliers=copy.deepcopy(baseWindow.inliers)
+#         elif (cameraSettings is not None):
+#             ####init from scratch
+#             pass
+#         self.outliers=[]
+#     ###########
+#     ##admin functions
+#     ###############
+#     def serializeWindow(self):
+#         binDiction={}
+#         binDiction["kSettings"]=pickle.dumps(self.kSettings)
+#         binDiction["M"]=[]
+#         for i in self.M:
+#             binDiction["M"].append(msgpack.packb(i,default=m.encode))
+#         binDiction["X"]=msgpack.packb(self.X,default=m.encode)
+#         binDiction["inliers"]=msgpack.dumps(self.inliers)
+#         binDiction["tracks"]=msgpack.dumps(self.tracks)
+#         binDiction["nLandmarks"]=self.nLandmarks
+#         binDiction["nPoses"]=self.nPoses
+#         binDiction["outliers"]=pickle.dumps(self.outliers)
+#         return msgpack.dumps(binDiction)
+#     def deserializeWindow(self,data):
+#         intern=msgpack.loads(data)
+#         self.kSettings=pickle.loads(intern["kSettings"])
+#         self.X=msgpack.unpackb(intern["X"],object_hook=m.decode)
+#         self.M=[]
+#         for i in intern["M"]:
+#             self.M.append(msgpack.unpackb(i,object_hook=m.decode))
+#         self.inliers=msgpack.loads(intern["inliers"])
+#         self.tracks=msgpack.loads(intern["tracks"])
+#         self.nLandmarks=intern["nLandmarks"]
+#         self.nPoses=intern["nPoses"]
+#         self.outliers=pickle.loads(intern["outliers"])
+#     def extractMotion(self,nIterations=150,RMSthreshold=3,resetMotion=True):
+
+#         abc=time.time()
+#         iterations=0
+#         minimumParams=3
+#         goodModel=0.8*self.nLandmarks
+#         bestFit=np.zeros((6,1))
+#         besterr=np.inf 
+#         bestInliers=[]
+       
+#         if(resetMotion):
+#             self.X[0:6,0]=np.zeros(6)
+
+#         while iterations < nIterations:
+#             paramEstimateIndexes,testPointIndexes=self.randomPartition(minimumParams)
+#             modelEstimationData=self.getSubset(paramEstimateIndexes)
+#             trainingData=self.getSubset(testPointIndexes)
+            
+
+
+#             previousX=np.hstack((modelEstimationData.reprojectLandmark(0)[:,0].reshape(4,1),
+#                                 modelEstimationData.reprojectLandmark(1)[:,0].reshape(4,1),
+#                                 modelEstimationData.reprojectLandmark(2)[:,0].reshape(4,1)))
+#             currentX=np.hstack((modelEstimationData.reprojectLandmark(0)[:,1].reshape(4,1),
+#                                 modelEstimationData.reprojectLandmark(1)[:,1].reshape(4,1),
+#                                 modelEstimationData.reprojectLandmark(2)[:,1].reshape(4,1)))
+#             est=rigid_transform_3D(previousX[0:3,:],currentX[0:3,:])
+#             modelEstimationData.X[0:6,0]=decompose2X(est).reshape(6)
+#             trainingData.X[0:6,0]=decompose2X(est).reshape(6)
+
+#             self.X[0:6,0]=decompose2X(est).reshape(6)
+#             tempInliers=sorted(list(np.flatnonzero(np.array(trainingData.getAllLandmarkRMS()) <RMSthreshold)))
+#             currentModelInliers=[]
+#             for j in tempInliers:
+#                 currentModelInliers.append(testPointIndexes[j])
+#             newSet=self.getSubset(currentModelInliers)
+#             if(len(currentModelInliers)>goodModel):
+#                 possibleBetterInliers=currentModelInliers +paramEstimateIndexes
+#                 withInliers=self.getSubset(possibleBetterInliers)
+
+#                 for i in possibleBetterInliers:
+
+#                     previousX=np.hstack((previousX,self.reprojectLandmark(i)[:,0].reshape(4,1)))
+#                     currentX=np.hstack((currentX,self.reprojectLandmark(i)[:,1].reshape(4,1)))
+#                 possibleBetterEst=rigid_transform_3D(previousX[0:3,:],currentX[0:3,:])
+#                 testData=self.getSubset(possibleBetterInliers)  
+#                 testData.X[0:6,0]=decompose2X(possibleBetterEst).reshape(6)
+#                 betterRMS=testData.getWindowRMS()
+#                 if(betterRMS<besterr):
+#                     besterr=betterRMS
+#                     bestInliers=possibleBetterInliers
+#                     bestFit=decompose2X(possibleBetterEst)
+#             iterations+=1
+#         self.X[0:6,0]=copy.deepcopy(bestFit.reshape(6))
+#         self.inliers=bestInliers
+#         net=time.time()-abc
+#         return besterr,net
+#     def randomPartition(self,minimumParameters=7):
+#         setOfLandmarks=range(0,self.nLandmarks)
+#         np.random.shuffle(setOfLandmarks)
+#         parameterIndexes=sorted(setOfLandmarks[:minimumParameters])
+#         testPointIdexes=sorted(setOfLandmarks[minimumParameters:])
+#         return parameterIndexes,testPointIdexes
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# class stereoWindow:
+#     def __init__(self):
+#         self.windowSize=4
+#         self.Poses=[]
+#         self.Landmarks={}
+#         self.kSettings=getCameraSettingsFromServer(cameraType="subROI",full=False)
+#         self.topic=["Dataset/left","Dataset/right"]
+#         self.q=[Queue(),Queue(),Queue()]
+#         self.cvb=CvBridge()
+#         self.sub=[rospy.Subscriber(self.topic[0],Image,self.bufferImages,"l"),rospy.Subscriber(self.topic[1],Image,self.bufferImages,"r")]
+#         self.featSub=rospy.Subscriber("stereo/Features",stereoFeatures,self.bufferFeatures)
+
+#         self.prevLdesc=None
+#         self.prevLfeat=None
+
+
+#         self.prevRdesc=None
+#         self.prevRfeat=None
+#         self.inputPub=rospy.Publisher("window/inFeatures",Image,queue_size=15)
+#     def bufferImages(self,data,arg):
+        
+#         if(arg=="l"):
+#             self.q[0].put(self.cvb.imgmsg_to_cv2(data))
+#         else:
+#             self.q[1].put(self.cvb.imgmsg_to_cv2(data))
+#         print("features",time.time(),self.q[0].qsize())
+#     def bufferFeatures(self,data):
+#         self.q[2].put(data)
+#         print("featuresBuffer",time.time(),self.q[2].qsize())
+    
+#     def updateVertices(self):
+#         if(self.q[0].qsize()>0 and self.q[1].qsize() and self.q[2].qsize()):
+#             bf = cv2.BFMatcher(cv2.NORM_HAMMING,crossCheck=True)
+#             limg=self.q[0].get()
+#             rimg=self.q[1].get()
+#             roi=ROIfrmMsg(self.kSettings["lInfo"].roi)
+#             x,y,w,h=roi[0],roi[1],roi[2],roi[3]
+#             lROI=limg[y:h+1,x:w+1]
+#             rROI=rimg[y:h+1,x:w+1]
+#             currentFeat=self.q[2].get()
+#             lfeat=unpackKP(currentFeat.leftFeatures)
+#             rfeat=unpackKP(currentFeat.rightFeatures)
+
+#             currentLDesc=self.cvb.imgmsg_to_cv2(currentFeat.leftDescr)
+#             currentRDesc=self.cvb.imgmsg_to_cv2(currentFeat.rightDescr)
+#             if(self.prevLdesc is not None):
+               
+#                 matchesLeft = bf.match(currentLDesc,self.prevLdesc)
+#                 matchesRight = bf.match(currentRDesc,self.prevRdesc)
+#                 matchPointsLeft=[]
+#                 matchPointsRight=[]
+
+#                 for m in matchesLeft:
+#                     matchPointsLeft.append((m.trainIdx,m.queryIdx))
+#                 for m in matchesRight:
+#                     matchPointsRight.append((m.trainIdx,m.queryIdx))
+
+#                 trackMatches=[]
+
+#                 for m in matchPointsLeft:
+#                     idx=m[0]
+#                     for j in matchPointsRight:
+#                         if(idx==j[0]):
+#                             epiError=lfeat[m[1]].pt[1]-rfeat[j[1]].pt[1]
+#                             if(abs(epiError)<=1):
+#                                 d=cv2.DMatch()
+#                                 d.trainIdx=m[1]
+#                                 d.queryIdx=j[1]
+#                                 trackMatches.append(d)
+                
+#             self.prevLdesc=currentLDesc
+#             self.prevRdesc= currentRDesc
+#             self.prevLfeat=lfeat
+#             self.prevRfeat=rfeat
 class nisterExtract:
     def __init__(self,rootDir,extractConfig):
         self.root=rootDir
@@ -1390,481 +1772,3 @@ class nisterExtract:
 #         parameterIndexes=sorted(setOfLandmarks[:minimumParameters])
 #         testPointIdexes=sorted(setOfLandmarks[minimumParameters:])
 #         return parameterIndexes,testPointIdexes
-
-  
-
-
-class backend(nx.DiGraph):
-    def __init__(self):
-        super(backend,self).__init__()
-        self.nWindow=4
-        self.kSettings=getCameraSettingsFromServer(cameraType="subROI",full=False)
-        self.topic=["Dataset/left","Dataset/right"]
-        self.q=[Queue(),Queue(),Queue()]
-        self.cvb=CvBridge()
-        self.sub=[rospy.Subscriber(self.topic[0],Image,self.bufferImages,"l"),rospy.Subscriber(self.topic[1],Image,self.bufferImages,"r")]
-        self.featSub=rospy.Subscriber("stereo/Features",stereoFeatures,self.bufferFeatures)
-        self.lImages=[]
-        self.rImages=[]
-
-        self.bf=cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
-        ######################
-        ##Back End variables
-        ########################
-        roi=ROIfrmMsg(self.kSettings["lInfo"].roi)
-        self.roiX,self.roiY,self.roiW,self.roiH=roi[0],roi[1],roi[2],roi[3]
-
-        self.initialized=False
-        self.nLandmarks=0
-        self.nPoses=0
-        self.currentPoseID=None
-        self.debugCloud=rospy.Publisher("backend/debug/stereo",PointCloud,queue_size=4)
-        self.debugTracks=rospy.Publisher("backend/debug/tracks",Image,queue_size=4)
-        self.debugPub=[rospy.Publisher("backend/debug/nTracks",Float32,queue_size=4)]
-    def getPoseEdges(self):
-        s=sorted([x for x in self.nodes() if self.node[x]['t']=="Pose"])
-        return s
-    def getLandmarkVertices(self):
-        s=sorted([x for x in self.nodes() if self.node[x]['t']=="Landmark"])
-        return s        
-    def getLandmarksVisibleAT(self,poseID):
-        return sorted([x[1] for x in self.edges() if x[0]==poseID])
-    def getDescriptors(self,poseID):
-        activeLandmarks=self.getLandmarksVisibleAT(poseID)
-        lDesc=np.zeros((len(activeLandmarks),16),np.uint8)
-        rDesc=np.zeros((len(activeLandmarks),16),np.uint8)
-        for i in range(0,len(activeLandmarks)):
-            lDesc[i,:]=copy.deepcopy(self.edges[poseID,activeLandmarks[i]]["Dl"].reshape(16))
-            rDesc[i,:]=copy.deepcopy(self.edges[poseID,activeLandmarks[i]]["Dr"].reshape(16))
-        return lDesc,rDesc
-    def bufferImages(self,data,arg):
-        if(arg=="l"):
-            self.q[0].put(self.cvb.imgmsg_to_cv2(data))
-        else:
-            self.q[1].put(self.cvb.imgmsg_to_cv2(data))
-    def bufferFeatures(self,data):
-        self.q[2].put(data)
-    def newPoseVertex(self):
-        pId="p_"+str(self.nPoses).zfill(7)
-        self.add_node(pId,t="Pose",c=self.nPoses)
-        self.nPoses+=1
-        return pId
-    def newLandmarkVertex(self):
-        pId="l_"+str(self.nLandmarks).zfill(7)
-        self.add_node(pId,t="Landmark",c=self.nLandmarks)
-        self.nLandmarks+=1
-        return pId     
-    
-    def createStereoEdge(self,poseID,landmarkID,lFeat,rFeat,lDesc,rDesc):
-        
-        M=np.zeros((3,1))
-        M[0,0]=lFeat.pt[0]+self.roiX
-        M[1,0]=lFeat.pt[1]+self.roiY
-        M[2,0]=rFeat.pt[0]+self.roiX
-
-        dispVect=np.ones((4,1),dtype=np.float64)
-        disparity=M[0,0]-M[2,0]#lFeat.pt[0]-rFeat.pt[0]
-        dispVect[0,0]=M[0,0]#lFeat.pt[0]
-        dispVect[1,0]=M[1,0]#lFeat.pt[1]
-        dispVect[2,0]=disparity
-        xPred=self.kSettings['Q'].dot(dispVect)
-        xPred/=xPred[3,0]
-        if(xPred[2,0]<0):
-            print("negative")
-        self.add_edge(poseID,landmarkID,M=M,Dl=lDesc,Dr=rDesc,X=xPred)
-    def updateMatches(self):
-        ###########
-        ##synchronize the messages, wait for both left and right images
-        ## and the features messages to be available before processing
-        if(self.q[0].qsize()>0 and self.q[1].qsize()>0 and self.q[2].qsize()>0):
-            self.currentPoseID=self.newPoseVertex()
-            self.lImages.append((copy.deepcopy(self.q[0].get()),self.currentPoseID))
-            self.rImages.append((copy.deepcopy(self.q[1].get()),self.currentPoseID))
-            if(len(self.lImages)>self.nWindow):
-                del self.lImages[0]
-                del self.rImages[0]
-            currentFeat=self.q[2].get()
-            lfeat=unpackKP(currentFeat.leftFeatures)
-            rfeat=unpackKP(currentFeat.rightFeatures)
-            currentLDesc=self.cvb.imgmsg_to_cv2(currentFeat.leftDescr)
-            currentRDesc=self.cvb.imgmsg_to_cv2(currentFeat.rightDescr)
-            
-
-
-            # roi=ROIfrmMsg(self.kSettings["lInfo"].roi)
-            # x,y,w,h=roi[0],roi[1],roi[2],roi[3]
-            lROI=self.lImages[-1][0][self.roiY:self.roiH+1,self.roiX:self.roiW+1]
-            rROI=self.rImages[-1][0][self.roiY:self.roiH+1,self.roiX:self.roiW+1]  
-            
-            #print(self.currentPoseID)
-            if(self.initialized):
-                ################
-                ##match features
-                #################
-                
-
-                prevPoseID=self.getPoseEdges()[-2]
-
-                print(self.currentPoseID)
-                activeIDs=self.getLandmarksVisibleAT(prevPoseID)
-                prevLDesc,prevRDesc=self.getDescriptors(prevPoseID)
-
-                matchesLeft = self.bf.match(currentLDesc,prevLDesc)###qyery, training
-                matchesRight = self.bf.match(currentRDesc,prevRDesc)
-
-                trackIDsLeft={}
-                trackIDsRight={}
-
-                for i in matchesLeft:
-                    trackIDsLeft[activeIDs[i.trainIdx]]=i
-                for i in matchesRight:
-                    trackIDsRight[activeIDs[i.trainIdx]]=i
-                trackIntersection=[x for x in trackIDsLeft.keys() if trackIDsRight.has_key(x)]
-
-                ########################################
-                ######
-                TrackCount=0
-                newFeature=0
-
-                setEpi=[]
-                for currentIndex in range(len(lfeat)):
-                    trackedLandmark=None
-                    dictionaryCount=0
-                    while(trackedLandmark==None and dictionaryCount<len(trackIntersection)):
-                        if(trackIDsLeft[trackIntersection[dictionaryCount]].queryIdx==currentIndex and 
-                                        trackIDsRight[trackIntersection[dictionaryCount]].queryIdx==currentIndex):   
-                            trackedLandmark=      trackIntersection[dictionaryCount]                   
-                        dictionaryCount+=1
-                    if(trackedLandmark!=None):
-                        #################
-                        ##
-
-                        self.createStereoEdge(self.currentPoseID,trackedLandmark,lfeat[currentIndex],rfeat[currentIndex],
-                                            currentLDesc[currentIndex,:],currentRDesc[currentIndex,:])
-                        TrackCount+=1
-                        setEpi.append(lfeat[currentIndex].pt[1]-rfeat[currentIndex].pt[1])
-                    else:
-                        landmarkID=self.newLandmarkVertex() 
-                        self.createStereoEdge(self.currentPoseID,landmarkID,lfeat[currentIndex],rfeat[currentIndex],
-                                            currentLDesc[currentIndex,:],currentRDesc[currentIndex,:])
-                        newFeature+=1
-                print("Tracks=",TrackCount)
-                print("newFeature=",newFeature)
-                print("overall",len(lfeat))
-                self.drawTracks([prevPoseID,self.currentPoseID])
-                self.RANSAC(self.currentPoseID,prevPoseID)
-            else:
-                ####################
-                ###initialize the graph
-                for i in range(len(lfeat)):
-                    landmarkID=self.newLandmarkVertex()
-                    #########
-                    ##add Edge
-                    self.createStereoEdge(self.currentPoseID,landmarkID,lfeat[i],rfeat[i],
-                                        currentLDesc[i,:],currentRDesc[i,:]    )
-                self.initialized=True
-            self.pubPoseLandmarks(self.currentPoseID)
-    #########################
-    #########visualization out functions
-    #########################
-    def pubPoseLandmarks(self,PoseID):
-        activeLandmarks=self.getLandmarksVisibleAT(PoseID)
-        msg=PointCloud()
-
-
-        msg.header.frame_id="world"
-        c=ChannelFloat32()
-        c.name="rgb"
-        c.values.append(255)
-        c.values.append(0)
-        c.values.append(0)
-
-        for landmark in activeLandmarks:
-            inPoint=Point32()
-            inPoint.x=self.edges[self.currentPoseID,landmark]["X"][0,0]
-            inPoint.y=self.edges[self.currentPoseID,landmark]["X"][1,0]
-            inPoint.z=self.edges[self.currentPoseID,landmark]["X"][2,0]
-            msg.points.append(inPoint)
-        self.debugCloud.publish(msg)      
-    def drawTracks(self,setPoses):
-        baseFrame=setPoses[0]
-        newFrame=setPoses[-1]
-        oldImage=None
-        newImage=None
-        for i in self.lImages:
-            if(i[1]==baseFrame):
-                oldImage=copy.deepcopy(i[0])
-            if(i[1]==newFrame):
-                newImage=copy.deepcopy(i[0])
-        ancd=genStereoscopicImage(newImage,oldImage)
-        count=0
-        colours=[(0,255,0),(255,255,0)] 
-        for i in self.getLandmarkVertices():
-            totalEdges=self.in_edges(i)
-            drawn=[]
-            for e in totalEdges:
-                if(e[0]==baseFrame):
-                    pt=(int(self.edges[e]["M"][0,0]),int(self.edges[e]["M"][1,0]))
-                    drawn.append(pt)
-                    cv2.circle(ancd,pt,2,colours[1],1)
-                if(e[0]==newFrame):
-                    pt=(int(self.edges[e]["M"][0,0]),int(self.edges[e]["M"][1,0]))
-                    drawn.append(pt)
-                    cv2.circle(ancd,pt,2,colours[0],1)
-            for d in range(len(drawn)-1):
-                cv2.line(ancd,drawn[d],drawn[d+1],(0,0,255))
-                count+=1
-        self.debugPub[0].publish(count)     
-        self.debugTracks.publish(self.cvb.cv2_to_imgmsg(ancd))
-    def RANSAC(self,currentPose,previousPose):
-
-        self.previousX=[]
-        self.currentX=[]
-        nTracks=0
-        for i in self.getLandmarkVertices():
-            totalEdges=self.in_edges(i)
-            count=0
-            for j in totalEdges:
-                if(j[0]==previousPose or j[0]==currentPose):
-                    count+=1
-            if(count>=2):
-                self.previousX.append(self.edges[previousPose,i]["X"])
-                self.currentX.append(self.edges[currentPose,i]["X"])        
-                nTracks+=1
-            # if((previousPose in totalEdges) and (currentPose in totalEdges)):
-            #     nTracks+=1
-            # drawn=[]
-            # for e in totalEdges:
-            #     if(e[0]==previousPose):
-            #         self.previousX.append(self.edges[e]["X"])
-            #     if(e[0]==currentPose):
-            #         self.currentX.append(self.edges[e]["X"])        
-
-        maxiterations=50
-        minimumParams=3
-        bestFit=np.zeros((6,1))
-        besterr=np.inf 
-        bestInliers=[]
-        goodModel=0.8*len(self.previousX)
-        print("good Model",goodModel,nTracks)
-
-        previousX=np.zeros((3,len(self.previousX)))
-        currentX=np.zeros((3,len(self.previousX)))
-        for i in range(len(self.previousX)):
-            previousX[:,i]=self.previousX[i][0:3,0]
-            currentX[:,i]=self.currentX[i][0:3,0]
-        try:
-            possibleBetterEst=rigid_transform_3D(previousX,currentX)
-            print(possibleBetterEst)
-        except:
-            print("MotionFAILED")
-#         goodModel=0.8*self.nLandmarks
-#         bestFit=np.zeros((6,1))
-#         besterr=np.inf 
-#         bestInliers=[]
-
-
-
-# class simulatedRANSAC(slidingWindow):
-#     def __init__(self,baseWindow=None,cameraSettings=None,frames=2):
-#         if(baseWindow is not None):
-#             ####init from previous sliding window
-#             self.X=copy.deepcopy(baseWindow.X)
-#             self.kSettings=copy.deepcopy(baseWindow.kSettings)
-#             self.M=copy.deepcopy(baseWindow.M)
-#             self.tracks=copy.deepcopy(baseWindow.tracks)
-#             self.nLandmarks=baseWindow.nLandmarks
-#             self.nPoses=baseWindow.nPoses
-#             self.inliers=copy.deepcopy(baseWindow.inliers)
-#         elif (cameraSettings is not None):
-#             ####init from scratch
-#             pass
-#         self.outliers=[]
-#     ###########
-#     ##admin functions
-#     ###############
-#     def serializeWindow(self):
-#         binDiction={}
-#         binDiction["kSettings"]=pickle.dumps(self.kSettings)
-#         binDiction["M"]=[]
-#         for i in self.M:
-#             binDiction["M"].append(msgpack.packb(i,default=m.encode))
-#         binDiction["X"]=msgpack.packb(self.X,default=m.encode)
-#         binDiction["inliers"]=msgpack.dumps(self.inliers)
-#         binDiction["tracks"]=msgpack.dumps(self.tracks)
-#         binDiction["nLandmarks"]=self.nLandmarks
-#         binDiction["nPoses"]=self.nPoses
-#         binDiction["outliers"]=pickle.dumps(self.outliers)
-#         return msgpack.dumps(binDiction)
-#     def deserializeWindow(self,data):
-#         intern=msgpack.loads(data)
-#         self.kSettings=pickle.loads(intern["kSettings"])
-#         self.X=msgpack.unpackb(intern["X"],object_hook=m.decode)
-#         self.M=[]
-#         for i in intern["M"]:
-#             self.M.append(msgpack.unpackb(i,object_hook=m.decode))
-#         self.inliers=msgpack.loads(intern["inliers"])
-#         self.tracks=msgpack.loads(intern["tracks"])
-#         self.nLandmarks=intern["nLandmarks"]
-#         self.nPoses=intern["nPoses"]
-#         self.outliers=pickle.loads(intern["outliers"])
-#     def extractMotion(self,nIterations=150,RMSthreshold=3,resetMotion=True):
-
-#         abc=time.time()
-#         iterations=0
-#         minimumParams=3
-#         goodModel=0.8*self.nLandmarks
-#         bestFit=np.zeros((6,1))
-#         besterr=np.inf 
-#         bestInliers=[]
-       
-#         if(resetMotion):
-#             self.X[0:6,0]=np.zeros(6)
-
-#         while iterations < nIterations:
-#             paramEstimateIndexes,testPointIndexes=self.randomPartition(minimumParams)
-#             modelEstimationData=self.getSubset(paramEstimateIndexes)
-#             trainingData=self.getSubset(testPointIndexes)
-            
-
-
-#             previousX=np.hstack((modelEstimationData.reprojectLandmark(0)[:,0].reshape(4,1),
-#                                 modelEstimationData.reprojectLandmark(1)[:,0].reshape(4,1),
-#                                 modelEstimationData.reprojectLandmark(2)[:,0].reshape(4,1)))
-#             currentX=np.hstack((modelEstimationData.reprojectLandmark(0)[:,1].reshape(4,1),
-#                                 modelEstimationData.reprojectLandmark(1)[:,1].reshape(4,1),
-#                                 modelEstimationData.reprojectLandmark(2)[:,1].reshape(4,1)))
-#             est=rigid_transform_3D(previousX[0:3,:],currentX[0:3,:])
-#             modelEstimationData.X[0:6,0]=decompose2X(est).reshape(6)
-#             trainingData.X[0:6,0]=decompose2X(est).reshape(6)
-
-#             self.X[0:6,0]=decompose2X(est).reshape(6)
-#             tempInliers=sorted(list(np.flatnonzero(np.array(trainingData.getAllLandmarkRMS()) <RMSthreshold)))
-#             currentModelInliers=[]
-#             for j in tempInliers:
-#                 currentModelInliers.append(testPointIndexes[j])
-#             newSet=self.getSubset(currentModelInliers)
-#             if(len(currentModelInliers)>goodModel):
-#                 possibleBetterInliers=currentModelInliers +paramEstimateIndexes
-#                 withInliers=self.getSubset(possibleBetterInliers)
-
-#                 for i in possibleBetterInliers:
-
-#                     previousX=np.hstack((previousX,self.reprojectLandmark(i)[:,0].reshape(4,1)))
-#                     currentX=np.hstack((currentX,self.reprojectLandmark(i)[:,1].reshape(4,1)))
-#                 possibleBetterEst=rigid_transform_3D(previousX[0:3,:],currentX[0:3,:])
-#                 testData=self.getSubset(possibleBetterInliers)  
-#                 testData.X[0:6,0]=decompose2X(possibleBetterEst).reshape(6)
-#                 betterRMS=testData.getWindowRMS()
-#                 if(betterRMS<besterr):
-#                     besterr=betterRMS
-#                     bestInliers=possibleBetterInliers
-#                     bestFit=decompose2X(possibleBetterEst)
-#             iterations+=1
-#         self.X[0:6,0]=copy.deepcopy(bestFit.reshape(6))
-#         self.inliers=bestInliers
-#         net=time.time()-abc
-#         return besterr,net
-#     def randomPartition(self,minimumParameters=7):
-#         setOfLandmarks=range(0,self.nLandmarks)
-#         np.random.shuffle(setOfLandmarks)
-#         parameterIndexes=sorted(setOfLandmarks[:minimumParameters])
-#         testPointIdexes=sorted(setOfLandmarks[minimumParameters:])
-#         return parameterIndexes,testPointIdexes
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# class stereoWindow:
-#     def __init__(self):
-#         self.windowSize=4
-#         self.Poses=[]
-#         self.Landmarks={}
-#         self.kSettings=getCameraSettingsFromServer(cameraType="subROI",full=False)
-#         self.topic=["Dataset/left","Dataset/right"]
-#         self.q=[Queue(),Queue(),Queue()]
-#         self.cvb=CvBridge()
-#         self.sub=[rospy.Subscriber(self.topic[0],Image,self.bufferImages,"l"),rospy.Subscriber(self.topic[1],Image,self.bufferImages,"r")]
-#         self.featSub=rospy.Subscriber("stereo/Features",stereoFeatures,self.bufferFeatures)
-
-#         self.prevLdesc=None
-#         self.prevLfeat=None
-
-
-#         self.prevRdesc=None
-#         self.prevRfeat=None
-#         self.inputPub=rospy.Publisher("window/inFeatures",Image,queue_size=15)
-#     def bufferImages(self,data,arg):
-        
-#         if(arg=="l"):
-#             self.q[0].put(self.cvb.imgmsg_to_cv2(data))
-#         else:
-#             self.q[1].put(self.cvb.imgmsg_to_cv2(data))
-#         print("features",time.time(),self.q[0].qsize())
-#     def bufferFeatures(self,data):
-#         self.q[2].put(data)
-#         print("featuresBuffer",time.time(),self.q[2].qsize())
-    
-#     def updateVertices(self):
-#         if(self.q[0].qsize()>0 and self.q[1].qsize() and self.q[2].qsize()):
-#             bf = cv2.BFMatcher(cv2.NORM_HAMMING,crossCheck=True)
-#             limg=self.q[0].get()
-#             rimg=self.q[1].get()
-#             roi=ROIfrmMsg(self.kSettings["lInfo"].roi)
-#             x,y,w,h=roi[0],roi[1],roi[2],roi[3]
-#             lROI=limg[y:h+1,x:w+1]
-#             rROI=rimg[y:h+1,x:w+1]
-#             currentFeat=self.q[2].get()
-#             lfeat=unpackKP(currentFeat.leftFeatures)
-#             rfeat=unpackKP(currentFeat.rightFeatures)
-
-#             currentLDesc=self.cvb.imgmsg_to_cv2(currentFeat.leftDescr)
-#             currentRDesc=self.cvb.imgmsg_to_cv2(currentFeat.rightDescr)
-#             if(self.prevLdesc is not None):
-               
-#                 matchesLeft = bf.match(currentLDesc,self.prevLdesc)
-#                 matchesRight = bf.match(currentRDesc,self.prevRdesc)
-#                 matchPointsLeft=[]
-#                 matchPointsRight=[]
-
-#                 for m in matchesLeft:
-#                     matchPointsLeft.append((m.trainIdx,m.queryIdx))
-#                 for m in matchesRight:
-#                     matchPointsRight.append((m.trainIdx,m.queryIdx))
-
-#                 trackMatches=[]
-
-#                 for m in matchPointsLeft:
-#                     idx=m[0]
-#                     for j in matchPointsRight:
-#                         if(idx==j[0]):
-#                             epiError=lfeat[m[1]].pt[1]-rfeat[j[1]].pt[1]
-#                             if(abs(epiError)<=1):
-#                                 d=cv2.DMatch()
-#                                 d.trainIdx=m[1]
-#                                 d.queryIdx=j[1]
-#                                 trackMatches.append(d)
-                
-#             self.prevLdesc=currentLDesc
-#             self.prevRdesc= currentRDesc
-#             self.prevLfeat=lfeat
-#             self.prevRfeat=rfeat

@@ -26,6 +26,7 @@ find_package(catkin REQUIRED COMPONENTS
 	geometry_msgs
 	image_transport
 	message_generation
+	bumblebee
 )
 
 
