@@ -28,6 +28,10 @@ cvb=CvBridge()
 from sensor_msgs.msg import Image
 from std_msgs.msg import Float32
 
+from front_end.srv import controlDetection,controlDetectionResponse
+
+import time
+
 ##############
 ##FAST FEATURES
 def getFAST_parameters():
@@ -596,17 +600,22 @@ class stereoDetector:
         self.outPub=rospy.Publisher("stereo/Features",stereoFeatures,queue_size=10)
 
         self.bestThresh=10
+        self.setPoint=3000
         self.detector=cv2.FastFeatureDetector_create()
         self.detector.setType(cv2.FAST_FEATURE_DETECTOR_TYPE_7_12)
         self.detector.setNonmaxSuppression(True)
         self.descr=cv2.xfeatures2d.BriefDescriptorExtractor_create(16,True)
         self.debugResults=([rospy.Publisher("stereo/debug/matches",Float32,queue_size=1),
                             rospy.Publisher("stereo/debug/detection",Float32,queue_size=1),
-                            rospy.Publisher("stereo/debug/time",Float32,queue_size=1)])
-                            
+                            rospy.Publisher("stereo/time/detection",Float32,queue_size=1),
+                            rospy.Publisher("stereo/time/matching",Float32,queue_size=1)])
+        self.controlDetection=rospy.Service("stereo/control/detection",controlDetection,self.resetDetection)                  
         if(fullDebug):
             self.debugResults.append(rospy.Publisher("stereo/debug/vizMatches",Image,queue_size=1))
-                  
+    def resetDetection(self,req):
+        self.bestThresh=req.threshold
+        self.setPoint=req.setPoint
+        return controlDetectionResponse()
     def updateFeature(self,data,arg):
         print("img",time.time())
         if(arg=="l"):
@@ -631,8 +640,7 @@ class stereoDetector:
         l=[]
         r=[]
 
-        setPoint=3000
-
+        detectTime=time.time()
         coarse=[]
         initial=np.arange(-3,3)+self.bestThresh
         initial=[s for s in initial if s>=3]    ##minimum of 3 for threshold
@@ -641,7 +649,7 @@ class stereoDetector:
             self.detector.setThreshold(i)
             l.append(self.detector.detect(lROI))
             r.append(self.detector.detect(rROI))
-            coarse.append(abs(setPoint-len(l[-1])))
+            coarse.append(abs(self.setPoint-len(l[-1])))
         best=min(coarse)
         worst=max(coarse)
         ind=coarse.index(best)
@@ -649,7 +657,11 @@ class stereoDetector:
         
         lKP,lDesc=self.descr.compute(lROI,l[ind])
         rKP,rDesc=self.descr.compute(rROI,r[ind])
+        detectTime=time.time()-detectTime
+
+
         # create BFMatcher object
+        matchTime=time.time()
         bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
         
         # Match descriptors.
@@ -667,6 +679,7 @@ class stereoDetector:
                goodLdesc.append(lDesc[m.queryIdx,:].reshape(1,16))
                goodRdesc.append(rDesc[m.trainIdx,:].reshape(1,16))
                #print(cv2.norm(goodLdesc[-1],goodRdesc[-1],cv2.NORM_HAMMING),goodMatches.matchScore[-1])
+        matchTime= time.time()-matchTime
         #####
         ###pack the descriptors into the message
         if(self.fullDebug):
@@ -688,8 +701,19 @@ class stereoDetector:
         debugData.data=len(l[ind])
         self.debugResults[1].publish(debugData)
 
+
+
         debugData.data=len(goodMatches.leftFeatures)
         self.debugResults[0].publish(debugData)
+
+        debugData.data=detectTime
+
+        self.debugResults[2].publish(debugData)
+
+        debugData.data=matchTime
+
+        self.debugResults[3].publish(debugData)
+
         self.outPub.publish(goodMatches)
         print("published @ ",time.time())
 

@@ -113,6 +113,7 @@ add_service_files(
 		getStereoFeatures.srv
 		windowMatching.srv
 		stereoMatching.srv
+		controlDetection.srv
 		#singleImageExtraction.srv
 #		setDetector.srv
 #		detectCurrent.srv
