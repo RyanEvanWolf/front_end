@@ -638,7 +638,7 @@ class stereoDetector:
         rROI=rimg[y:h+1,x:w+1]
         a=time.time()
         l=[]
-        r=[]
+        
 
         detectTime=time.time()
         coarse=[]
@@ -648,15 +648,19 @@ class stereoDetector:
         for i in initial:
             self.detector.setThreshold(i)
             l.append(self.detector.detect(lROI))
-            r.append(self.detector.detect(rROI))
+            #r.append(self.detector.detect(rROI))
             coarse.append(abs(self.setPoint-len(l[-1])))
         best=min(coarse)
         worst=max(coarse)
         ind=coarse.index(best)
         self.bestThresh=initial[ind]
-        
+        self.detector.setThreshold(self.bestThresh)
+				r=self.detector.detect(rROi)
+				
+
+
         lKP,lDesc=self.descr.compute(lROI,l[ind])
-        rKP,rDesc=self.descr.compute(rROI,r[ind])
+        rKP,rDesc=self.descr.compute(rROI,r)
         detectTime=time.time()-detectTime
 
 

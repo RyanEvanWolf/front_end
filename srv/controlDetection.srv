@@ -1,3 +1,5 @@
 int32 threshold
 int32 setPoint
 ---
+int32 newSetPoint
+int32 previousThreshold

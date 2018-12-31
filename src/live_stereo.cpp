@@ -1,7 +1,6 @@
 #include <ros/ros.h>
 #include <string>
 
-//#include <opencv2/xfeatures2d.hpp>
 #include <opencv2/core.hpp>
 #include <opencv2/features2d.hpp>
 #include <sys/time.h>
@@ -19,11 +18,10 @@
 
 
 #include <front_end/singleImageDetection.h>
+#include <front_end/controlDetection.h>
 
 #include <front_end/nonfree.hpp>
 #include <front_end/features2d.hpp>
-#include <opencv2/core.hpp>
-#include <opencv2/features2d.hpp>
 
 #include <boost/thread.hpp>
 #include <boost/bind.hpp>
@@ -70,44 +68,24 @@ cv::Rect lroi;
 
 ros::Publisher debugFeatures,debugMatches;
 ros::Publisher debugTimeFeatures,debugTimeMatches;
+ros::ServiceServer controlServer;
 
 
 
+bool fn_controlDetection(front_end::controlDetection::Request &req,
+													front_end::controlDetection::Response &res)
+{
+	
+	res.previousThreshold=detectionWindow[2];
+
+
+	detectionWindow[2]=req.threshold;
+	setPoint=req.setPoint;
+	res.newSetPoint=setPoint;
+	return true;
 
 	
-//bool fn_singleImageDetection(front_end::singleImageDetection::Request& req,front_end::singleImageDetection::Response &res)
-//{
-	//get images from message
-	//cv::Mat left,right;
-	//left=(cv_bridge::toCvCopy(req.leftImg,"8UC1")->image);
-	//right=(cv_bridge::toCvCopy(req.rightImg,"8UC1")->image);
-	//std::vector<cv::KeyPoint> lKP,rKP;
-	//cv::FASTX(inImage,outKeyPoints,thresh,supp,type);
-	
-	//std::vector<std::string>::iterator it;  // declare an iterator to a vector of strings
-	//for(it = req.detID.begin(); it != req.detID.end(); it++)
-	//{
-	//	front_end::frameDetection ans;
-	//	ans.detID=(*it);
-	//	front_end::ProcTime lTime,rTime;
-	//	lTime.label="lKP";
-	//	rTime.label="rKP";
-		
-//		lTime.seconds=getKeypoints(left,fs[(*it)],lKP);
-//		rTime.seconds=getKeypoints(right,fs[(*it)],rKP);
-//		ans.processingTime.push_back(lTime);
-//		ans.processingTime.push_back(rTime);
-
-//		std::cout<<(*it)<<":LEFT=";
-//		std::cout<<lTime.seconds<<"|"<<lKP.size();
-//		std::cout<<"|"<<rKP.size()<<std::endl;
- //       ans.nLeft= lKP.size();
-  //      ans.nRight=rKP.size();
-	//	res.outputFrames.push_back(ans);
-	//}
-	//return true;
-//}
-
+}
 
 void BufferRight(const sensor_msgs::ImageConstPtr& msg);//on image publish, push to the queue
 void BufferLeft(const sensor_msgs::ImageConstPtr& msg);
@@ -128,19 +106,23 @@ int main(int argc,char *argv[])
 	std::cout << "Subminor version : " << CV_SUBMINOR_VERSION << std::endl;
 	
 	ros::init(argc,argv,nodeName);
+	
 	ros::NodeHandle n;
 	it=new image_transport::ImageTransport(n);
-
+	controlServer=n.advertiseService("stereo/control/detection",fn_controlDetection);	
 	std::cout<<"waiting for region of interest settings "<<roiTopic<<std::endl;
+
+
 	boost::shared_ptr<sensor_msgs::CameraInfo const> setting;
 	setting=ros::topic::waitForMessage<sensor_msgs::CameraInfo>(roiTopic,n);
 	roiSettings=setting->roi;
-
 	lroi.x=setting->roi.x_offset;
 	lroi.y=setting->roi.y_offset;
 	lroi.width=setting->roi.width;
 	lroi.height=setting->roi.height;
 	std::cout<<"set ROI "<<lroi<<std::endl;
+
+
 	rightSub=it->subscribe(rightImageTopic,5,BufferRight);//,this);
   leftSub=it->subscribe(leftImageTopic,5,BufferLeft);//,this);
 	debugFeatures=n.advertise<std_msgs::Float32>("stereo/debug/detection",2);
@@ -148,20 +130,6 @@ int main(int argc,char *argv[])
 	debugTimeFeatures=n.advertise<std_msgs::Float32>("stereo/time/detection",2);
 	debugTimeMatches=n.advertise<std_msgs::Float32>("stereo/time/matching",2);
 	boost::thread stereoThread(stereoMatch);//boost::bind(&StereoCamera::processStereo,this));
-
-//	singleImageDetectionSrv=n.advertiseService(nodeName+"/singleImageDetection",fn_singleImageDetection);
-	
-	/*cv::FileNode fn = fs.root();
-	for (cv::FileNodeIterator fit = fn.begin(); fit != fn.end(); ++fit)
-	{
-		cv::FileNode item = *fit;
-		std::string somekey = item.name();
-		std::cout << somekey <<","<<(std::string)item["Name"]<<":";
-		
-		
-		
-		std::cout<<(std::string)item["Param"][0]<< std::endl;
-	}*/
 
 	std::cout<<"Spinning"<<std::endl;
 	ros::spin();
@@ -204,7 +172,7 @@ void updateDetectionWindow()
 	detectionWindow[0]=detectionWindow[2]-2 > minthreshold ?detectionWindow[2]-2 :minthreshold;
 	detectionWindow[1]=detectionWindow[2]-1 > minthreshold ?detectionWindow[2]-1:minthreshold;
 	detectionWindow[3]=detectionWindow[2]+1;
-	detectionWindow[4]=detectionWindow[2]=2;
+	detectionWindow[4]=detectionWindow[2]+2;
 
 
 }
@@ -228,13 +196,24 @@ void stereoMatch()
 {
 	cv::namedWindow("out",cv::WINDOW_NORMAL);
 	cv::Mat currentLeft,currentRight;
+	cv::Mat lDescriptor,rDescriptor;
 	std_msgs::Float32 debugOutMsg;
+	cv::BriefDescriptorExtractor extractor(16);
+
+
+	cv::BFMatcher m(cv::NORM_HAMMING,true);
 	
+		
+
+//BriefDescriptorExtractor::create( int bytes, bool use_orientation )
   struct timeval  tv1, tv2;
 	while(ros::ok())
 	{
 		//Wait for images to be published
 		std::vector<cv::KeyPoint> coarseDetections[5],leftKP,rightKP;
+
+
+
 		int coarseTotals[5];
 		boost::mutex::scoped_lock lockLf(mutexLImg);
 		while(leftImages.empty())
@@ -257,7 +236,7 @@ void stereoMatch()
 		lockRf.unlock();	
 		gettimeofday(&tv1, NULL);
 		updateDetectionWindow();
-
+		std::cout<<"minWindow:"<<detectionWindow[0]<<","<<detectionWindow[4]<<std::endl;
 		for(int detectionIndex=0;detectionIndex<5;detectionIndex++)
 		{
 			cv::FASTX(currentLeft,coarseDetections[detectionIndex],
@@ -276,16 +255,46 @@ void stereoMatch()
 								cv::FastFeatureDetector::TYPE_7_12);
 		
 		detectionWindow[2]=detectionWindow[bestfeaturesIndex];
+		std::cout<<"threshold:"<<detectionWindow[2];
+		extractor.compute(currentLeft,leftKP,lDescriptor);
+		extractor.compute(currentRight,rightKP,rDescriptor);
+
 		gettimeofday(&tv2, NULL);
 		float executionSeconds=((float)(tv2.tv_usec - tv1.tv_usec) / 1000000)+((float)(tv2.tv_sec - tv1.tv_sec));
+		//////////////////
+		//matching
+		gettimeofday(&tv1, NULL);
+		std::vector<cv::DMatch> initialMatches;		
+		m.match(lDescriptor,rDescriptor,initialMatches);
 
-		std::cout<<leftKP.size()<<","<<rightKP.size()<<std::endl;
-	 	//coarseDetections[0]=cv::FASTX(inImage,outKeyPoints,thresh,supp,type);
+		std::vector<int> inlierIndexes;
+
+		for(int matchIndex=0;matchIndex<initialMatches.size();matchIndex++)
+		{
+			float epiDistance=abs(leftKP.at(initialMatches.at(matchIndex).queryIdx).pt.y-rightKP.at(initialMatches.at(matchIndex).trainIdx).pt.y);
+			if(epiDistance<1)
+			{
+				inlierIndexes.push_back(matchIndex);
+			}
+		}
+		gettimeofday(&tv2, NULL);
+		float MatchSeconds=((float)(tv2.tv_usec - tv1.tv_usec) / 1000000)+((float)(tv2.tv_sec - tv1.tv_sec));
+
 		debugOutMsg.data=leftKP.size();
 		debugFeatures.publish(debugOutMsg);
 
 		debugOutMsg.data=executionSeconds;
 		debugTimeFeatures.publish(debugOutMsg);
+
+
+		debugOutMsg.data=inlierIndexes.size();
+		debugMatches.publish(debugOutMsg);
+
+		debugOutMsg.data=MatchSeconds;
+		debugTimeMatches.publish(debugOutMsg);
+		
+		cv::drawKeypoints(currentLeft,leftKP,currentLeft);// const Scalar& color=Scalar::all(-1), int flags=DrawMatchesFlags::DEFAULT )
+
 		cv::imshow("out",currentLeft);
 		cv::waitKey(1);
 	}
