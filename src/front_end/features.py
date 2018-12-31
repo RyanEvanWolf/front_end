@@ -605,7 +605,7 @@ class stereoDetector:
         self.detector.setType(cv2.FAST_FEATURE_DETECTOR_TYPE_7_12)
         self.detector.setNonmaxSuppression(True)
         self.descr=cv2.xfeatures2d.BriefDescriptorExtractor_create(16,True)
-        self.debugResults=([rospy.Publisher("stereo/debug/matches",Float32,queue_size=1),
+        self.debugResults=([rospy.Publisher("stereo/debug/matching",Float32,queue_size=1),
                             rospy.Publisher("stereo/debug/detection",Float32,queue_size=1),
                             rospy.Publisher("stereo/time/detection",Float32,queue_size=1),
                             rospy.Publisher("stereo/time/matching",Float32,queue_size=1)])
@@ -642,7 +642,7 @@ class stereoDetector:
 
         detectTime=time.time()
         coarse=[]
-        initial=np.arange(-3,3)+self.bestThresh
+        initial=np.arange(-2,2)+self.bestThresh
         initial=[s for s in initial if s>=3]    ##minimum of 3 for threshold
 
         for i in initial:

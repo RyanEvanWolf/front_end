@@ -83,6 +83,18 @@ target_link_libraries(feature_node_cpp
   AKAZE
 )
 
+
+add_executable(detect_node_cpp live_stereo.cpp )
+add_dependencies(detect_node_cpp ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+target_link_libraries(detect_node_cpp
+	${catkin_LIBRARIES}
+	${OpenCV_LIBS}
+	${BasicSLAMStructures_LIBS}
+	${RelativePoseEstimation_LIBS}
+	non_free
+  AKAZE
+)
+
 endif()
 
 

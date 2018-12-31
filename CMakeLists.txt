@@ -34,8 +34,7 @@ set(CMAKE_PREFIX_PATH ${CMAKE_SOURCE_DIR}/cmake;${CMAKE_PREFIX_PATH})
 find_package(Boost REQUIRED)
 find_package(OpenCV REQUIRED)
 find_package(BasicSLAMStructures REQUIRED CONFIG)
-find_package(Eigen3 REQUIRED)
-find_package(G2O REQUIRED)
+
 
 include_directories(${G2O_INCLUDE_DIR} ${EIGEN3_INCLUDE_DIR})
 
@@ -44,6 +43,8 @@ MESSAGE(STATUS "Opencv includes  ${OpenCV_INCLUDE_DIRS}")
 MESSAGE(STATUS "Structures Include DIRS - ${Structures_INCLUDE_DIRS}") 
 
 if(${ARCHITECTURE} STREQUAL "x86_64")
+  find_package(Eigen3 REQUIRED)
+	find_package(G2O REQUIRED)
 	set(BUILD_ONLY_INTERFACES ON)
 else()
 	set(BUILD_ONLY_INTERFACES OFF)
