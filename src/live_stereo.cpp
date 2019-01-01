@@ -236,7 +236,14 @@ void stereoMatch()
 		lockRf.unlock();	
 		gettimeofday(&tv1, NULL);
 		updateDetectionWindow();
-		std::cout<<"minWindow:"<<detectionWindow[0]<<","<<detectionWindow[4]<<std::endl;
+		std::cout<<"minWindow";
+		int a=0;
+		for(a=0;a<5;a++)
+		{
+			std::cout<<","<<detectionWindow[a];
+		}
+		std::cout<<std::endl;
+
 		for(int detectionIndex=0;detectionIndex<5;detectionIndex++)
 		{
 			cv::FASTX(currentLeft,coarseDetections[detectionIndex],
@@ -268,13 +275,15 @@ void stereoMatch()
 		m.match(lDescriptor,rDescriptor,initialMatches);
 
 		std::vector<int> inlierIndexes;
+		std::vector<cv::DMatch> goodMatch;
 
 		for(int matchIndex=0;matchIndex<initialMatches.size();matchIndex++)
 		{
-			float epiDistance=abs(leftKP.at(initialMatches.at(matchIndex).queryIdx).pt.y-rightKP.at(initialMatches.at(matchIndex).trainIdx).pt.y);
-			if(epiDistance<1)
+			float epiDistance=leftKP.at(initialMatches.at(matchIndex).queryIdx).pt.y-rightKP.at(initialMatches.at(matchIndex).trainIdx).pt.y;
+			if(abs(epiDistance)<1)
 			{
 				inlierIndexes.push_back(matchIndex);
+				goodMatch.push_back(initialMatches.at(matchIndex));
 			}
 		}
 		gettimeofday(&tv2, NULL);
@@ -287,15 +296,19 @@ void stereoMatch()
 		debugTimeFeatures.publish(debugOutMsg);
 
 
-		debugOutMsg.data=inlierIndexes.size();
+		debugOutMsg.data=goodMatch.size();
 		debugMatches.publish(debugOutMsg);
 
 		debugOutMsg.data=MatchSeconds;
 		debugTimeMatches.publish(debugOutMsg);
+		cv::Mat outImg;
+    cv::drawMatches(currentLeft,leftKP,currentRight,rightKP,goodMatch,outImg);
+
 		
+
 		cv::drawKeypoints(currentLeft,leftKP,currentLeft);// const Scalar& color=Scalar::all(-1), int flags=DrawMatchesFlags::DEFAULT )
 
-		cv::imshow("out",currentLeft);
+		cv::imshow("out",outImg);
 		cv::waitKey(1);
 	}
 
