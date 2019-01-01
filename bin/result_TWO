@@ -1,0 +1,38 @@
+#!/usr/bin/env python
+
+
+import rospy
+
+import matplotlib.pyplot as plt
+
+import matplotlib.style as sty
+
+import os
+import statistics
+sty.use("seaborn")
+
+from front_end.analysis import getTopic
+import numpy as np
+
+inFolder="/home/ryan/recording"
+
+bagFiles=["i7_3000.bag","i7_5000.bag","i7_7000.bag","jetson_3000.bag","jetson_5000.bag","jetson_7000.bag"]
+
+rosbag="i7_3000.bag"
+
+
+for rosbag in bagFiles:
+
+
+    time1=getTopic(inFolder+"/"+rosbag,"/stereo/time/detection")
+    time=np.array(getTopic(inFolder+"/"+rosbag,"/stereo/time/matching"))+np.array(time1)
+    feat=getTopic(inFolder+"/"+rosbag,"/stereo/debug/detection")
+
+    plt.scatter(np.array(time)*1000,feat)#getTopic(inFolder+"/"+rosbag,"/stereo/debug/detection"))
+
+# rosbag="i7_5000.bag"
+# time=getTopic(inFolder+"/"+rosbag,"/stereo/time/detection")
+# feat=getTopic(inFolder+"/"+rosbag,"/stereo/debug/detection")
+# plt.scatter(time,feat)#getTopic(inFolder+"/"+rosbag,"/stereo/debug/detection"))
+
+plt.show()

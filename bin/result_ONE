@@ -1,0 +1,23 @@
+#!/usr/bin/env python
+
+
+import rospy
+
+import matplotlib.pyplot as plt
+
+import matplotlib.style as sty
+
+import os
+import statistics
+sty.use("seaborn")
+
+from front_end.analysis import getTopic
+
+
+inFolder="/home/ryan/recording"
+bagFiles=["i7_3000.bag","i7_5000.bag","i7_7000.bag","jetson_3000.bag","jetson_5000.bag","jetson_7000.bag"]
+
+
+for rosbag in bagFiles:
+    plt.plot(getTopic(inFolder+"/"+rosbag,"/stereo/debug/detection"),linewidth=0.7)#getTopic(inFolder+"/"+rosbag,"/stereo/debug/detection"))
+plt.show()

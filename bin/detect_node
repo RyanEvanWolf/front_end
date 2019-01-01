@@ -21,8 +21,8 @@ import numpy as np
 
 rospy.init_node("det")
 
-bumble = stereoDetector()
-bumble.setPoint=6000
+bumble = stereoDetector(True)
+bumble.setPoint=3000
 
 while(not rospy.is_shutdown()):
     bumble.update()

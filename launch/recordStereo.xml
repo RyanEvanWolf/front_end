@@ -1,0 +1,7 @@
+<launch>
+  <arg name="RecordingFolder" default="/home/ryan/recording"/>
+  <arg name="prefixName" default="i7_3000"/>
+  <node name="stereo_record" type="record" pkg="rosbag" args="-O $(arg RecordingFolder)/$(arg prefixName) /stereo/debug/matching /stereo/debug/detection /stereo/time/detection /stereo/time/matching"/>
+</launch>
+	
+

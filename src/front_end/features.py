@@ -604,7 +604,7 @@ class stereoDetector:
         self.detector=cv2.FastFeatureDetector_create()
         self.detector.setType(cv2.FAST_FEATURE_DETECTOR_TYPE_7_12)
         self.detector.setNonmaxSuppression(True)
-        self.descr=cv2.xfeatures2d.BriefDescriptorExtractor_create(16,True)
+        self.descr=cv2.xfeatures2d.BriefDescriptorExtractor_create(16,False)
         self.debugResults=([rospy.Publisher("stereo/debug/matching",Float32,queue_size=1),
                             rospy.Publisher("stereo/debug/detection",Float32,queue_size=1),
                             rospy.Publisher("stereo/time/detection",Float32,queue_size=1),
@@ -613,9 +613,14 @@ class stereoDetector:
         if(fullDebug):
             self.debugResults.append(rospy.Publisher("stereo/debug/vizMatches",Image,queue_size=1))
     def resetDetection(self,req):
-        self.bestThresh=req.threshold
+        
         self.setPoint=req.setPoint
-        return controlDetectionResponse()
+
+        res=controlDetectionResponse()
+        res.newSetPoint=self.setPoint
+        res.previousThreshold=self.bestThresh
+        self.bestThresh=req.threshold
+        return res
     def updateFeature(self,data,arg):
         print("img",time.time())
         if(arg=="l"):
@@ -642,9 +647,9 @@ class stereoDetector:
 
         detectTime=time.time()
         coarse=[]
-        initial=np.arange(-2,2)+self.bestThresh
+        initial=np.arange(-2,3)+self.bestThresh
         initial=[s for s in initial if s>=3]    ##minimum of 3 for threshold
-
+        print(initial)
         for i in initial:
             self.detector.setThreshold(i)
             l.append(self.detector.detect(lROI))
@@ -655,7 +660,7 @@ class stereoDetector:
         ind=coarse.index(best)
         self.bestThresh=initial[ind]
         self.detector.setThreshold(self.bestThresh)
-				r=self.detector.detect(rROi)
+        r=self.detector.detect(rROI)
 				
 
 
@@ -690,7 +695,7 @@ class stereoDetector:
                 
             img3=np.hstack((copy.deepcopy(lROI),copy.deepcopy(rROI)))
             img3=cv2.drawMatches(lROI,lKP,rROI,rKP,matches,img3, flags=2)
-            self.debugResults[3].publish(self.cvb.cv2_to_imgmsg(img3))
+            self.debugResults[4].publish(self.cvb.cv2_to_imgmsg(img3))
         packedL=np.zeros((len(goodLdesc),16),dtype=np.uint8)
 
         packedR=np.zeros((len(goodRdesc),16),dtype=np.uint8)
