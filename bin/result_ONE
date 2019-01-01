@@ -14,8 +14,8 @@ sty.use("seaborn")
 from front_end.analysis import getTopic
 
 
-inFolder="/home/ryan/recording"
-bagFiles=["i7_3000.bag","i7_5000.bag","i7_7000.bag","jetson_3000.bag","jetson_5000.bag","jetson_7000.bag"]
+inFolder="/home/ryan/recording/i7/BRIEF"
+bagFiles=["750.bag","1500.bag","3000.bag","5000.bag"]#,"jetson_5000.bag","jetson_7000.bag"]
 
 
 for rosbag in bagFiles:

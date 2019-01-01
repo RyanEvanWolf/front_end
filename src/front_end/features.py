@@ -586,9 +586,43 @@ def getFeatureSummary(pickledReference):
 ###################################################################
 ####live features
 
+class gridDetector:
+    def __init__(self):
+        self.row=6
+        self.col=6
+        self.updateSetPoint(3000)
+        self.Thresholds=10*np.ones((self.row,self.col),dtype=np.uint8)
+        self.detector=cv2.FastFeatureDetector_create()
+        self.detector.setType(cv2.FAST_FEATURE_DETECTOR_TYPE_7_12)
+        self.detector.setNonmaxSuppression(True)
 
-
-
+    def updateSetPoint(self,setPoint):
+        self.bucketSetpoint=int(setPoint/float(self.row*self.col))
+        self.setPoint=setPoint
+    def updateThreshold(self,threshold):
+        self.Thresholds=threshold*np.ones((self.row,self.col),dtype=np.uint8)
+    def detect(self,roiIMG,update=True):
+        imgWidth=int(roiIMG.shape[1]/self.col)                        
+        imgHeight=int(roiIMG.shape[0]/self.row)
+        overallDetections=[]
+        for row in range(self.row):
+            for col in range(self.col):
+                xOffset=col*imgWidth
+                yOffset=row*imgHeight
+                miniIMG=roiIMG[yOffset:yOffset+imgHeight,xOffset:xOffset+imgWidth]
+                self.detector.setThreshold(self.Thresholds[row,col])
+                detections=self.detector.detect(miniIMG)
+                for d in detections:
+                    d.pt=(d.pt[0]+xOffset,d.pt[1]+yOffset)
+                overallDetections=overallDetections+detections
+                if(update):
+                    error=len(detections)-self.bucketSetpoint
+                    if(abs(error)>0.2*self.bucketSetpoint):
+                        if(error>0):
+                            self.Thresholds[row,col]=np.clip(self.Thresholds[row,col]+1 ,4,80)   
+                        else:
+                            self.Thresholds[row,col]=np.clip(self.Thresholds[row,col]-1 ,4,80)  
+        return overallDetections
 class stereoDetector:
     def __init__(self,fullDebug=False):
         self.fullDebug=fullDebug
@@ -598,28 +632,26 @@ class stereoDetector:
         self.cvb=CvBridge()
         self.sub=[rospy.Subscriber(self.topic[0],Image,self.updateFeature,"l"),rospy.Subscriber(self.topic[1],Image,self.updateFeature,"r")]
         self.outPub=rospy.Publisher("stereo/Features",stereoFeatures,queue_size=10)
-
-        self.bestThresh=10
-        self.setPoint=3000
-        self.detector=cv2.FastFeatureDetector_create()
-        self.detector.setType(cv2.FAST_FEATURE_DETECTOR_TYPE_7_12)
-        self.detector.setNonmaxSuppression(True)
+        self.detector=gridDetector()
         self.descr=cv2.xfeatures2d.BriefDescriptorExtractor_create(16,False)
-        self.debugResults=([rospy.Publisher("stereo/debug/matching",Float32,queue_size=1),
+
+        self.bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
+
+        self.debugResults=([rospy.Publisher("stereo/debug/matches",Float32,queue_size=1),
                             rospy.Publisher("stereo/debug/detection",Float32,queue_size=1),
                             rospy.Publisher("stereo/time/detection",Float32,queue_size=1),
-                            rospy.Publisher("stereo/time/matching",Float32,queue_size=1)])
+                            rospy.Publisher("stereo/time/description",Float32,queue_size=1),
+                            rospy.Publisher("stereo/time/matches",Float32,queue_size=1)])
         self.controlDetection=rospy.Service("stereo/control/detection",controlDetection,self.resetDetection)                  
         if(fullDebug):
-            self.debugResults.append(rospy.Publisher("stereo/debug/vizMatches",Image,queue_size=1))
+            self.debugResults.append(rospy.Publisher("stereo/image/matches",Image,queue_size=1))
+            self.debugResults.append(rospy.Publisher("stereo/image/detection",Image,queue_size=1))
     def resetDetection(self,req):
         
-        self.setPoint=req.setPoint
-
+        self.detector.updateSetPoint(req.setPoint)
+        self.detector.updateThreshold(req.threshold)
         res=controlDetectionResponse()
-        res.newSetPoint=self.setPoint
-        res.previousThreshold=self.bestThresh
-        self.bestThresh=req.threshold
+        res.newSetPoint=self.detector.setPoint
         return res
     def updateFeature(self,data,arg):
         print("img",time.time())
@@ -637,93 +669,132 @@ class stereoDetector:
     def compute(self,limg,rimg):
         ####
         #ROi
+        debugData=Float32()
         roi=ROIfrmMsg(self.kSettings["lInfo"].roi)
         x,y,w,h=roi[0],roi[1],roi[2],roi[3]
         lROI=limg[y:h+1,x:w+1]
         rROI=rimg[y:h+1,x:w+1]
         a=time.time()
         l=[]
-        
-
         detectTime=time.time()
-        coarse=[]
-        initial=np.arange(-2,3)+self.bestThresh
-        initial=[s for s in initial if s>=3]    ##minimum of 3 for threshold
-        print(initial)
-        for i in initial:
-            self.detector.setThreshold(i)
-            l.append(self.detector.detect(lROI))
-            #r.append(self.detector.detect(rROI))
-            coarse.append(abs(self.setPoint-len(l[-1])))
-        best=min(coarse)
-        worst=max(coarse)
-        ind=coarse.index(best)
-        self.bestThresh=initial[ind]
-        self.detector.setThreshold(self.bestThresh)
-        r=self.detector.detect(rROI)
-				
-
-
-        lKP,lDesc=self.descr.compute(lROI,l[ind])
-        rKP,rDesc=self.descr.compute(rROI,r)
+        lKP=self.detector.detect(lROI)
+        rKP=self.detector.detect(rROI,update=False)
         detectTime=time.time()-detectTime
 
+        debugData.data=detectTime
+        self.debugResults[2].publish(debugData)
 
+        debugData.data=len(lKP)
+        self.debugResults[1].publish(debugData)
+
+        computeTime=time.time()
+        lKP,lDesc=self.descr.compute(lROI,lKP)
+        rKP,rDesc=self.descr.compute(rROI,rKP)
+        computeTime=time.time()-computeTime
+
+        debugData.data=computeTime
+        self.debugResults[3].publish(debugData)        
         # create BFMatcher object
+
         matchTime=time.time()
-        bf = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=True)
-        
         # Match descriptors.
-        matches = bf.match(lDesc,rDesc)
+        matches = self.bf.match(lDesc,rDesc)
         goodMatches=[]
         goodLdesc=[]
         goodRdesc=[]
         goodMatches=stereoFeatures()
+        inlierMatches=[]
+        outlierMatches=[]
+
         for m in matches:
             vDist=lKP[m.queryIdx].pt[1]-rKP[m.trainIdx].pt[1]
             if(abs(vDist)<=1):
                goodMatches.leftFeatures.append(cv2ros_KP(lKP[m.queryIdx]))
                goodMatches.rightFeatures.append(cv2ros_KP(rKP[m.trainIdx]))
                goodMatches.matchScore.append(m.distance)
-               goodLdesc.append(lDesc[m.queryIdx,:].reshape(1,16))
-               goodRdesc.append(rDesc[m.trainIdx,:].reshape(1,16))
-               #print(cv2.norm(goodLdesc[-1],goodRdesc[-1],cv2.NORM_HAMMING),goodMatches.matchScore[-1])
+               inlierMatches.append(m)
+            else:
+               outlierMatches.append(m)
+               #goodLdesc.append(lDesc[m.queryIdx,:].reshape(1,16))
+               #goodRdesc.append(rDesc[m.trainIdx,:].reshape(1,16))
         matchTime= time.time()-matchTime
-        #####
-        ###pack the descriptors into the message
-        if(self.fullDebug):
-                
-            img3=np.hstack((copy.deepcopy(lROI),copy.deepcopy(rROI)))
-            img3=cv2.drawMatches(lROI,lKP,rROI,rKP,matches,img3, flags=2)
-            self.debugResults[4].publish(self.cvb.cv2_to_imgmsg(img3))
-        packedL=np.zeros((len(goodLdesc),16),dtype=np.uint8)
 
-        packedR=np.zeros((len(goodRdesc),16),dtype=np.uint8)
-        for i in range(0,len(goodLdesc)):
-            packedL[i,:]=copy.deepcopy(goodLdesc[i])
-            packedR[i,:]=copy.deepcopy(goodRdesc[i])
-        goodMatches.leftDescr=self.cvb.cv2_to_imgmsg(packedL)
-        goodMatches.rightDescr=self.cvb.cv2_to_imgmsg(packedR)
-        #####
-        ##debug float values
-        debugData=Float32()
-        debugData.data=len(l[ind])
-        self.debugResults[1].publish(debugData)
-
-
+        debugData.data=matchTime
+        self.debugResults[4].publish(debugData)
 
         debugData.data=len(goodMatches.leftFeatures)
         self.debugResults[0].publish(debugData)
 
-        debugData.data=detectTime
 
-        self.debugResults[2].publish(debugData)
+        # abcd=cv2.cvtColor(lROI,cv2.COLOR_GRAY2RGB)
+        # im_with_keypoints = cv2.drawKeypoints(lROI,lKP, np.array([]), (0,0,255), cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+        # cv2.imshow("a",im_with_keypoints)
+        # print(len(lKP))
+        # cv2.waitKey(1)
+        # detectTime=time.time()
+        # coarse=[]
+        # initial=np.arange(-2,3)+self.bestThresh
+        # initial=[s for s in initial if s>=3]    ##minimum of 3 for threshold
+        # print(initial)
+        # for i in initial:
+        #     self.detector.setThreshold(i)
+        #     l.append(self.detector.detect(lROI))
+        #     #r.append(self.detector.detect(rROI))
+        #     coarse.append(abs(self.setPoint-len(l[-1])))
+        # best=min(coarse)
+        # worst=max(coarse)
+        # ind=coarse.index(best)
+        # self.bestThresh=initial[ind]
+        # self.detector.setThreshold(self.bestThresh)
+        # r=self.detector.detect(rROI)
+				
 
-        debugData.data=matchTime
 
-        self.debugResults[3].publish(debugData)
+        # lKP,lDesc=self.descr.compute(lROI,l[ind])
+        # rKP,rDesc=self.descr.compute(rROI,r)
+        # detectTime=time.time()-detectTime
 
-        self.outPub.publish(goodMatches)
+
+        
+        # #####
+        # ###pack the descriptors into the message
+        if(self.fullDebug):
+            abcd=cv2.cvtColor(lROI,cv2.COLOR_GRAY2RGB)
+            im_with_keypoints = cv2.drawKeypoints(lROI,lKP, np.array([]), (255,0,20), cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)   
+
+            self.debugResults[6].publish(self.cvb.cv2_to_imgmsg(im_with_keypoints))
+            img3=np.hstack((copy.deepcopy(lROI),copy.deepcopy(rROI)))
+            cv2.drawKeypoints(lROI,lKP,img3,(150,200,0))
+            img3=cv2.drawMatches(lROI,lKP,rROI,rKP,inlierMatches,img3,(0,255,0) ,flags=2)
+            self.debugResults[5].publish(self.cvb.cv2_to_imgmsg(img3))
+        # # packedL=np.zeros((len(goodLdesc),16),dtype=np.uint8)
+
+        # # packedR=np.zeros((len(goodRdesc),16),dtype=np.uint8)
+        # # for i in range(0,len(goodLdesc)):
+        # #     packedL[i,:]=copy.deepcopy(goodLdesc[i])
+        # #     packedR[i,:]=copy.deepcopy(goodRdesc[i])
+        # # goodMatches.leftDescr=self.cvb.cv2_to_imgmsg(packedL)
+        # # goodMatches.rightDescr=self.cvb.cv2_to_imgmsg(packedR)
+        # #####
+        # ##debug float values
+        # debugData=Float32()
+        # debugData.data=len(l[ind])
+        # self.debugResults[1].publish(debugData)
+
+
+
+        # debugData.data=len(goodMatches.leftFeatures)
+        # self.debugResults[0].publish(debugData)
+
+        # debugData.data=detectTime
+
+        # self.debugResults[2].publish(debugData)
+
+        # debugData.data=matchTime
+
+        # self.debugResults[3].publish(debugData)
+
+        #self.outPub.publish(goodMatches)
         print("published @ ",time.time())
 
 
