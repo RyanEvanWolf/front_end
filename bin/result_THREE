@@ -13,10 +13,35 @@ sty.use("seaborn")
 
 from front_end.analysis import getTopic
 
+import numpy as np
+
+processor="i7"
+features=["BRIEF_16","BRIEF_64","SURF"]
+colours=[(0,0.4,1,0.4),(0,1,0,0.4),(1,0,0,0.4)]
 
 
-inFolder="/home/ryan/recording/i7/BRIEF"
-bagFiles=["750.bag","1500.bag","3000.bag","5000.bag"]#,"jetson_5000.bag","jetson_7000.bag"]
-for rosbag in bagFiles:
-    plt.plot(getTopic(inFolder+"/"+rosbag,"/stereo/debug/matches"))
+for descriptor in range(len(features)):
+    inDir="/home/ryan/recording/"+processor+"/"+features[descriptor]
+    files=os.listdir(inDir)
+    for f in range(len(files)):
+        data=getTopic(inDir+"/"+files[f],"/stereo/debug/matches")
+        time=np.arange(0,len(data))/float(len(data))
+        if(f==0):
+            plt.plot(time,data,linewidth=2,color=colours[descriptor],label=features[descriptor])
+            plt.legend()
+        else:
+            plt.plot(time,data,linewidth=2,color=colours[descriptor])
+    print(features[descriptor],files)
+
+plt.xlabel("Normalized Frame Number")
+plt.ylabel("Total Matches")
+plt.legend()
+# inFolder="/home/ryan/recording/i7/BRIEF"
+# bagFiles=["750.bag","1500.bag","3000.bag","5000.bag"]#,"jetson_5000.bag","jetson_7000.bag"]
+
+
+# for rosbag in bagFiles:
+#     plt.plot(getTopic(inFolder+"/"+rosbag,"/stereo/debug/detection"),linewidth=0.7)#getTopic(inFolder+"/"+rosbag,"/stereo/debug/detection"))
 plt.show()
+
+

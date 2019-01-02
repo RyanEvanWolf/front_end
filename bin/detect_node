@@ -33,7 +33,7 @@ bumble.descr=cv2.xfeatures2d.BriefDescriptorExtractor_create(16,False)
 # bumble.descr=cv2.xfeatures2d.SURF_create()
 # bumble.descr.setExtended(True)
 # bumble.descr.setUpright(True)
-
+# bumble.bf = cv2.BFMatcher( crossCheck=True)##NORM_L2
 
 
 # bumble.descr.setExtended(False)

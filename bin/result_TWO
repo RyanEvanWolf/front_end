@@ -15,16 +15,38 @@ from front_end.analysis import getTopic
 import numpy as np
 
 
+
+
 inFolder="/home/ryan/recording/i7/BRIEF"
 bagFiles=["750.bag","1500.bag","3000.bag","5000.bag"]#,"jetson_5000.bag","jetson_7000.bag"]
 
-for rosbag in bagFiles:
 
 
-    time1=getTopic(inFolder+"/"+rosbag,"/stereo/time/detection")
-    time2=np.array(getTopic(inFolder+"/"+rosbag,"/stereo/time/matches"))+np.array(time1)
-    time=np.array(getTopic(inFolder+"/"+rosbag,"/stereo/time/description"))+np.array(time2)    
-    feat=getTopic(inFolder+"/"+rosbag,"/stereo/debug/detection")
+processor="i7"
+features=["BRIEF_16","BRIEF_64","SURF"]
+colours=[(0,0.4,1,0.4),(0,1,0,0.4),(1,0,0,0.4)]
 
-    plt.scatter(np.array(time)*1000,feat)#getTopic(inFolder+"/"+rosbag,"/stereo/debug/detection"))
+fig1,(ax1)=plt.subplots(1,1)
+
+ax1.set_xlabel("Detection Processing Time (ms)")
+ax1.set_ylabel("Total Detections")
+for descriptor in range(len(features)):
+    inDir="/home/ryan/recording/"+processor+"/"+features[descriptor]
+    files=os.listdir(inDir)
+    for f in range(len(files)):
+        print(inDir+"/"+files[f])
+        data=getTopic(inDir+"/"+files[f],"/stereo/debug/detection")
+        time=np.array(getTopic(inDir+"/"+files[f],"/stereo/time/matches"))
+        time2=np.array(getTopic(inDir+"/"+files[f],"/stereo/time/description"))
+        time3=time+time2
+        if(f==0):
+            ax1.scatter(np.array(time3)*1000,data,s=6,color=colours[descriptor],label=features[descriptor])
+            ax1.legend()
+        else:
+            ax1.scatter(np.array(time3)*1000,data,s=6,color=colours[descriptor])
+
+
+
+
 plt.show()
+
