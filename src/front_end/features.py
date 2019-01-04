@@ -588,8 +588,8 @@ def getFeatureSummary(pickledReference):
 
 class gridDetector:
     def __init__(self):
-        self.row=6
-        self.col=6
+        self.row=2
+        self.col=3
         self.updateSetPoint(3000)
         self.Thresholds=10*np.ones((self.row,self.col),dtype=np.uint8)
         self.detector=cv2.FastFeatureDetector_create()
@@ -632,6 +632,7 @@ class stereoDetector:
         self.cvb=CvBridge()
         self.sub=[rospy.Subscriber(self.topic[0],Image,self.updateFeature,"l"),rospy.Subscriber(self.topic[1],Image,self.updateFeature,"r")]
         self.outPub=rospy.Publisher("stereo/Features",stereoFeatures,queue_size=10)
+        self.lDetector,self.rDetector=gridDetector(),gridDetector()
         self.detector=gridDetector()
         self.descr=cv2.xfeatures2d.BriefDescriptorExtractor_create(16,False)
 
@@ -648,10 +649,13 @@ class stereoDetector:
             self.debugResults.append(rospy.Publisher("stereo/image/detection",Image,queue_size=1))
     def resetDetection(self,req):
         
-        self.detector.updateSetPoint(req.setPoint)
-        self.detector.updateThreshold(req.threshold)
+        self.lDetector.updateSetPoint(req.setPoint)
+        self.lDetector.updateThreshold(req.threshold)
+        
+        self.rDetector.updateSetPoint(req.setPoint)
+        self.rDetector.updateThreshold(req.threshold)
         res=controlDetectionResponse()
-        res.newSetPoint=self.detector.setPoint
+        res.newSetPoint=self.lDetector.setPoint
         return res
     def updateFeature(self,data,arg):
         print("img",time.time())
@@ -677,8 +681,8 @@ class stereoDetector:
         a=time.time()
         l=[]
         detectTime=time.time()
-        lKP=self.detector.detect(lROI)
-        rKP=self.detector.detect(rROI,update=False)
+        lKP=self.lDetector.detect(lROI)
+        rKP=self.rDetector.detect(rROI)
         detectTime=time.time()-detectTime
 
         debugData.data=detectTime
