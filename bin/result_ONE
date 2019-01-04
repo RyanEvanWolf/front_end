@@ -14,22 +14,28 @@ sty.use("seaborn")
 from front_end.analysis import getTopic
 
 
-processor="i7"
-features=["BRIEF_16"]#,"BRIEF_64","SURF"]
+processor=["i7","jetson"]
+features=["BRIEF_16","BRIEF_64","SURF"]
 colours=[(0,0.4,1,0.8),(0,1,0,0.8),(1,0,0,0.8),(1,0,1,0.8)]
 
-for descriptor in range(len(features)):
-    inDir="/home/ryan/recording/"+processor+"/"+features[descriptor]
-    files=os.listdir(inDir)
-    for f in range(len(files)):
-        data=getTopic(inDir+"/"+files[f],"/stereo/debug/detection")
-        time=np.arange(0,len(data))/float(len(data))
-        plt.plot(time,data,linewidth=0.7,color=colours[f],label=files[f][:files[f].index(".bag")])
-    print(files)
 
-plt.xlabel("Normalized Frame Number")
-plt.ylabel("Total Detections")
-plt.legend()
+for p in processor:
+    fig,ax=plt.subplots(1,1,squeeze=True)
+    fig.suptitle(p)
+    ax.set_xlabel("Normalized Frame Number")
+    ax.set_ylabel("Total Detections")
+    for descriptor in range(len(features)):
+        inDir="/home/ryan/recording/"+p+"/"+features[descriptor]
+        files=os.listdir(inDir)
+        for f in range(len(files)):
+            data=getTopic(inDir+"/"+files[f],"/stereo/debug/detection")
+            time=np.arange(0,len(data))/float(len(data))
+            ax.plot(time,data,linewidth=0.7,color=colours[f],label=files[f][:files[f].index(".bag")])
+        print(files)
+    ax.legend()
+# plt.xlabel("Normalized Frame Number")
+# plt.ylabel("Total Detections")
+# plt.legend()
 # inFolder="/home/ryan/recording/i7/BRIEF"
 # bagFiles=["750.bag","1500.bag","3000.bag","5000.bag"]#,"jetson_5000.bag","jetson_7000.bag"]
 

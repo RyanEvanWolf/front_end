@@ -664,7 +664,6 @@ class stereoDetector:
         self.debugResults=([rospy.Publisher("stereo/debug/matches",Float32,queue_size=1),
                             rospy.Publisher("stereo/debug/detection",Float32,queue_size=1),
                             rospy.Publisher("stereo/time/detection",Float32,queue_size=1),
-                            rospy.Publisher("stereo/time/description",Float32,queue_size=1),
                             rospy.Publisher("stereo/time/matches",Float32,queue_size=1)])
         self.controlDetection=rospy.Service("stereo/control/detection",controlDetection,self.resetDetection)                  
         if(fullDebug):
@@ -713,13 +712,6 @@ class stereoDetector:
         computeTime=time.time()
         lKP,lDesc=self.descr.compute(limg,lKP)
         rKP,rDesc=self.descr.compute(rimg,rKP)
-        computeTime=time.time()-computeTime
-
-        debugData.data=computeTime
-        self.debugResults[3].publish(debugData)        
-        # create BFMatcher object
-
-        matchTime=time.time()
         # Match descriptors.
         matches = self.bf.match(lDesc,rDesc)
         goodMatches=[]
@@ -741,12 +733,12 @@ class stereoDetector:
                outlierMatches.append(m)
                #goodLdesc.append(lDesc[m.queryIdx,:].reshape(1,16))
                #goodRdesc.append(rDesc[m.trainIdx,:].reshape(1,16))
-        matchTime= time.time()-matchTime
+        computeTime= time.time()-computeTime
 
         debugData.data=len(goodMatches.leftFeatures)
         self.debugResults[0].publish(debugData)
-        debugData.data=matchTime
-        self.debugResults[4].publish(debugData)
+        debugData.data=computeTime
+        self.debugResults[3].publish(debugData)
         
         # #####
         # ###pack the descriptors into the message
@@ -754,11 +746,11 @@ class stereoDetector:
             abcd=cv2.cvtColor(limg,cv2.COLOR_GRAY2RGB)
             im_with_keypoints = cv2.drawKeypoints(limg,lKP, np.array([]), (255,0,20), cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)   
 
-            self.debugResults[6].publish(self.cvb.cv2_to_imgmsg(im_with_keypoints))
+            self.debugResults[5].publish(self.cvb.cv2_to_imgmsg(im_with_keypoints))
             img3=np.hstack((copy.deepcopy(limg),copy.deepcopy(rimg)))
             cv2.drawKeypoints(limg,lKP,img3,(150,200,0))
             img3=cv2.drawMatches(limg,lKP,rimg,rKP,inlierMatches,img3,(0,255,0) ,flags=2)
-            self.debugResults[5].publish(self.cvb.cv2_to_imgmsg(img3))
+            self.debugResults[4].publish(self.cvb.cv2_to_imgmsg(img3))
         # packedL=np.zeros((len(goodLdesc),16),dtype=np.uint8)
 
         # packedR=np.zeros((len(goodRdesc),16),dtype=np.uint8)
