@@ -25,7 +25,7 @@ bumble = stereoDetector(True)
 bumble.setPoint=1000
 ######################
 ####BRIEF
-#bumble.descr=cv2.xfeatures2d.BriefDescriptorExtractor_create(16,False)
+bumble.descr=cv2.xfeatures2d.BriefDescriptorExtractor_create(16,False)
 #bumble.descr=cv2.xfeatures2d.BriefDescriptorExtractor_create(64,False)
 ###################
 #####SURF
@@ -42,7 +42,7 @@ bumble.setPoint=1000
 ##############
 ###FREAK
 ##############
-bumble.descr=cv2.xfeatures2d.FREAK_create()
+#bumble.descr=cv2.xfeatures2d.FREAK_create()
 
 
 ############

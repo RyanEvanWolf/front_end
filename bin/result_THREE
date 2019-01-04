@@ -16,7 +16,7 @@ from front_end.analysis import getTopic
 import numpy as np
 
 processor="i7"
-features=["BRIEF_16","BRIEF_64","SURF"]
+features=["BRIEF_16"]#,"BRIEF_64","SURF"]
 colours=[(0,0.4,1,0.4),(0,1,0,0.4),(1,0,0,0.4)]
 
 

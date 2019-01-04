@@ -77,7 +77,7 @@ cv::Rect lroi;
 
 
 ros::Publisher debugFeatures,debugMatches;
-ros::Publisher debugTimeFeatures,debugTimeMatches,debugTimeDescriptor;
+ros::Publisher debugTimeFeatures,debugTimeMatches;
 ros::ServiceServer controlServer;
 
 
@@ -159,7 +159,6 @@ int main(int argc,char *argv[])
   debugMatches=n.advertise<std_msgs::Float32>("stereo/debug/matches",2);
 	debugTimeFeatures=n.advertise<std_msgs::Float32>("stereo/time/detection",2);
 	debugTimeMatches=n.advertise<std_msgs::Float32>("stereo/time/matches",2);
-    debugTimeDescriptor=n.advertise<std_msgs::Float32>("stereo/time/description",2);
 	boost::thread stereoThread(stereoMatch);//boost::bind(&StereoCamera::processStereo,this));
 
 	std::cout<<"Spinning"<<std::endl;
@@ -227,7 +226,7 @@ int clip(int inValue,int min,int max)
 
 void stereoMatch()
 {
-	cv::namedWindow("out",cv::WINDOW_NORMAL);
+	//cv::namedWindow("out",cv::WINDOW_NORMAL);
 	cv::Mat currentLeft,currentRight;
     cv::Mat currentROIl,currentROIr;
 	cv::Mat lDescriptor,rDescriptor;
@@ -268,7 +267,8 @@ void stereoMatch()
 		rightImages.front().copyTo(currentRight);
 		rightImages.pop();		
 		lockRf.unlock();	
-        
+        ///////////////////
+        //adaptive fast detection
         currentROIl=currentLeft(lroi);
         currentROIr=currentRight(lroi);
         
@@ -358,11 +358,8 @@ void stereoMatch()
         gettimeofday(&tv1, NULL);
 		extractor.compute(currentLeft,leftKP,lDescriptor);
 		extractor.compute(currentRight,rightKP,rDescriptor);
-        gettimeofday(&tv2, NULL);
-		float descTime=((float)(tv2.tv_usec - tv1.tv_usec) / 1000000)+((float)(tv2.tv_sec - tv1.tv_sec));
-		//////////////////
+        /////////////////
 		//matching
-		gettimeofday(&tv1, NULL);
 		std::vector<cv::DMatch> initialMatches;		
 		m.match(lDescriptor,rDescriptor,initialMatches);
 
@@ -394,16 +391,14 @@ void stereoMatch()
 		debugOutMsg.data=MatchSeconds;
 		debugTimeMatches.publish(debugOutMsg);
 
-		debugOutMsg.data=descTime;
-		debugTimeDescriptor.publish(debugOutMsg);
+      
         
-        
-		cv::Mat outImg;
-        cv::drawMatches(currentLeft,leftKP,currentRight,rightKP,goodMatch,outImg);
+		//cv::Mat outImg;
+        //cv::drawMatches(currentLeft,leftKP,currentRight,rightKP,goodMatch,outImg);
 	//	cv::drawKeypoints(currentLeft,leftKP,currentLeft);// const Scalar& color=Scalar::all(-1), int flags=DrawMatchesFlags::DEFAULT )
 //~ 
-		cv::imshow("out",outImg);
-		cv::waitKey(1);
+		//cv::imshow("out",outImg);
+		//cv::waitKey(1);
 	}
 
 }
