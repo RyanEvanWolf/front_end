@@ -14,32 +14,82 @@ sty.use("seaborn")
 from front_end.analysis import getTopic
 
 
-processor=["i7","jetson"]
-features=["BRIEF_16","BRIEF_64","SURF"]
-colours=[(0,0.4,1,0.8),(0,1,0,0.8),(1,0,0,0.8),(1,0,1,0.8)]
 
+
+processor=["i7","jetson"]
+features=["BRIEF_16","BRIEF_64","SURF","SURF_EXTENDED","FREAK","ORB_10","ORB_70"]#,"BRIEF_64",
+
+colours=[(0.6,0.4,1,0.7),(0,1,0,0.7),(1,1,0,0.7),(0.1,0.7,0.6),(0.1,0.4,0.2),(0.1,0.7,0.6),(0.3,0.9,.1)]
+i7Color=[(0.3,0.4,1,0.7),(0,1,0.8,0.7),(1,1,0.3,0.7),(0.8,0,0.5),(0.1,0.4,0.2),(0.1,0.7,0.6),(0.8,1,.9)]
+
+
+    # for descriptor in range(len(features)):
+    #     inDir="/home/ryan/recording/"+p+"/"+features[descriptor]
+    #     files=os.listdir(inDir)
+    #     for f in range(len(files)):
+    #         print(inDir+"/"+files[f])
+    #         data=getTopic(inDir+"/"+files[f],"/stereo/debug/detection")
+    #         time=np.array(getTopic(inDir+"/"+files[f],"/stereo/time/detection"))
+    #         if(p=="i7"):
+    #             inC=i7Color[descriptor]
+    #         else:
+    #             inC=colours[descriptor]
+    #         if(f==0):
+    #             ax2.scatter(np.array(time)*1000,data,s=6,color=inC,label=p+"_"+features[descriptor])
+    #             ax2.legend()
+    #         else:
+    #             ax2.scatter(np.array(time)*1000,data,s=6,color=inC)
+###################
+###number of tracks
+##################
+fig,ax=plt.subplots(1,1,squeeze=True)
+fig.suptitle("Grid Detector Results on $A_3^{Slow}$")
+ax.set_xlabel("Normalized Frame Number")
+ax.set_ylabel("Total Detections")
+
+labels=[]
+
+
+for descriptor in range(1):#len(features)):
+    inDir="/home/ryan/recording/"+processor[0]+"/"+features[descriptor]
+    files=os.listdir(inDir)
+    for f in range(len(files)):
+        data=getTopic(inDir+"/"+files[f],"/stereo/debug/detection")
+        time=np.arange(0,len(data))/float(len(data))
+        if(files[f][:files[f].index(".bag")] in labels):
+            ax.plot(time,data,linewidth=1.2,color=colours[f])
+        else:
+            labels.append(files[f][:files[f].index(".bag")])
+            ax.plot(time,data,linewidth=1.2,color=colours[f],label=files[f][:files[f].index(".bag")])
+    print(files)
+ax.legend()
+
+fig2,(ax2)=plt.subplots(1,1,squeeze=True)
+fig2.suptitle("Total Detections vs Processing Time on $A_{3}^{Slow}$")
+ax2.set_xlabel("Detection Processing Time (ms)")
+ax2.set_ylabel("Total Detections")
+ax2.set_xlim(0,500)
+
+ladded=[]
 
 for p in processor:
-    fig,ax=plt.subplots(1,1,squeeze=True)
-    fig.suptitle(p)
-    ax.set_xlabel("Normalized Frame Number")
-    ax.set_ylabel("Total Detections")
     for descriptor in range(len(features)):
         inDir="/home/ryan/recording/"+p+"/"+features[descriptor]
         files=os.listdir(inDir)
         for f in range(len(files)):
+            print(inDir+"/"+files[f])
             data=getTopic(inDir+"/"+files[f],"/stereo/debug/detection")
-            time=np.arange(0,len(data))/float(len(data))
-            ax.plot(time,data,linewidth=0.7,color=colours[f],label=files[f][:files[f].index(".bag")])
-        print(files)
-    ax.legend()
-# plt.xlabel("Normalized Frame Number")
-# plt.ylabel("Total Detections")
-# plt.legend()
-# inFolder="/home/ryan/recording/i7/BRIEF"
-# bagFiles=["750.bag","1500.bag","3000.bag","5000.bag"]#,"jetson_5000.bag","jetson_7000.bag"]
+            time=np.array(getTopic(inDir+"/"+files[f],"/stereo/time/detection"))
+            if(p=="i7"):
+                inC=i7Color[0]
+            else:
+                inC=colours[1]
+            if((len(ladded)<2) and (p not in ladded)):
+                ax2.scatter(np.array(time)*1000,data,s=6,color=inC,label=p)
+                ladded.append(p)
+                ax2.legend()
+            else:
+                ax2.scatter(np.array(time)*1000,data,s=6,color=inC)
 
-
-# for rosbag in bagFiles:
-#     plt.plot(getTopic(inFolder+"/"+rosbag,"/stereo/debug/detection"),linewidth=0.7)#getTopic(inFolder+"/"+rosbag,"/stereo/debug/detection"))
+plt.tight_layout()
 plt.show()
