@@ -12,69 +12,71 @@ import statistics
 sty.use("seaborn")
 
 from front_end.analysis import getTopic
+import matplotlib.patches as mpatches
+
+import matplotlib as mpl
+label_size = 18
+mpl.rcParams['xtick.labelsize'] = label_size 
+mpl.rcParams['ytick.labelsize'] = label_size 
 
 
-
-
+outfile="/home/ryan/outImages/detection"
 processor=["i7","jetson"]
 features=["BRIEF_16","BRIEF_64","SURF","SURF_EXTENDED","FREAK","ORB_10","ORB_70"]#,"BRIEF_64",
-
-colours=[(0.6,0.4,1,0.7),(0,1,0,0.7),(1,1,0,0.7),(0.1,0.7,0.6),(0.1,0.4,0.2),(0.1,0.7,0.6),(0.3,0.9,.1)]
+colours=[(0.6,0.4,1,0.7),(0,1,0,0.7),(1,1,0,0.7),(1,0.6,0,0.7),(0.1,0.4,1,.7),(0.2,0.7,0.6,0.7),(1,0,0,0.7)]
 i7Color=[(0.3,0.4,1,0.7),(0,1,0.8,0.7),(1,1,0.3,0.7),(0.8,0,0.5),(0.1,0.4,0.2),(0.1,0.7,0.6),(0.8,1,.9)]
 
-
-    # for descriptor in range(len(features)):
-    #     inDir="/home/ryan/recording/"+p+"/"+features[descriptor]
-    #     files=os.listdir(inDir)
-    #     for f in range(len(files)):
-    #         print(inDir+"/"+files[f])
-    #         data=getTopic(inDir+"/"+files[f],"/stereo/debug/detection")
-    #         time=np.array(getTopic(inDir+"/"+files[f],"/stereo/time/detection"))
-    #         if(p=="i7"):
-    #             inC=i7Color[descriptor]
-    #         else:
-    #             inC=colours[descriptor]
-    #         if(f==0):
-    #             ax2.scatter(np.array(time)*1000,data,s=6,color=inC,label=p+"_"+features[descriptor])
-    #             ax2.legend()
-    #         else:
-    #             ax2.scatter(np.array(time)*1000,data,s=6,color=inC)
 ###################
 ###number of tracks
 ##################
-fig,ax=plt.subplots(1,1,squeeze=True)
-fig.suptitle("Grid Detector Results on $A_3^{Slow}$")
-ax.set_xlabel("Normalized Frame Number")
-ax.set_ylabel("Total Detections")
+# fig,ax=plt.subplots(1,1,squeeze=True)
+# fig.suptitle("Grid Detector Results on $A_3^{Slow}$")
+# ax.set_xlabel("Normalized Frame Number")
+# ax.set_ylabel("Total Detections")
 
-labels=[]
+# labels=[]
 
 
-for descriptor in range(1):#len(features)):
-    inDir="/home/ryan/recording/"+processor[0]+"/"+features[descriptor]
-    files=os.listdir(inDir)
-    for f in range(len(files)):
-        data=getTopic(inDir+"/"+files[f],"/stereo/debug/detection")
-        time=np.arange(0,len(data))/float(len(data))
-        if(files[f][:files[f].index(".bag")] in labels):
-            ax.plot(time,data,linewidth=1.2,color=colours[f])
-        else:
-            labels.append(files[f][:files[f].index(".bag")])
-            ax.plot(time,data,linewidth=1.2,color=colours[f],label=files[f][:files[f].index(".bag")])
-    print(files)
-ax.legend()
+# for descriptor in range(len(features)):
+#     inDir="/home/ryan/recording/"+processor[0]+"/"+features[descriptor]
+#     files=os.listdir(inDir)
+#     for f in range(len(files)):
+#         data=getTopic(inDir+"/"+files[f],"/stereo/debug/detection")
+#         time=np.arange(0,len(data))/float(len(data))
+#         if(files[f][:files[f].index(".bag")] in labels):
+#             ax.plot(time,data,linewidth=1.2,color=colours[f])
+#         else:
+#             labels.append(files[f][:files[f].index(".bag")])
+#             ax.plot(time,data,linewidth=1.2,color=colours[f],label=files[f][:files[f].index(".bag")])
+#     print(files)
+# ax.legend()
+
+
+###########
+###proc Time
+##########
+
+
+noisePatches=[mpatches.Patch(color=i7Color[0],label="i7"),
+               mpatches.Patch(color=colours[1],label="Jetson TK1")]
+#(0.5,0.7,0.6),(0.1,0.4,1),(0.2,0.7,0.
 
 fig2,(ax2)=plt.subplots(1,1,squeeze=True)
-fig2.suptitle("Total Detections vs Processing Time on $A_{3}^{Slow}$")
-ax2.set_xlabel("Detection Processing Time (ms)")
-ax2.set_ylabel("Total Detections")
+# fig2.suptitle("Total Detections vs Processing Time on $A_{3}^{Slow}$")
+# ax2.set_xlabel("Detection Processing Time (ms)")
+# ax2.set_ylabel("Total Detections")
+
+ax2.set_xticks(np.arange(0,60)*1000/15.0)
+
 ax2.set_xlim(0,500)
 
+
+ax2.grid(c=(0,0,0,0.2),linestyle='-',linewidth=0.2)
 ladded=[]
 
 for p in processor:
     for descriptor in range(len(features)):
-        inDir="/home/ryan/recording/"+p+"/"+features[descriptor]
+        inDir="/home/ryan/recording/matchingOriginal/"+p+"/"+features[descriptor]
         files=os.listdir(inDir)
         for f in range(len(files)):
             print(inDir+"/"+files[f])
@@ -84,12 +86,8 @@ for p in processor:
                 inC=i7Color[0]
             else:
                 inC=colours[1]
-            if((len(ladded)<2) and (p not in ladded)):
-                ax2.scatter(np.array(time)*1000,data,s=6,color=inC,label=p)
-                ladded.append(p)
-                ax2.legend()
-            else:
-                ax2.scatter(np.array(time)*1000,data,s=6,color=inC)
-
-plt.tight_layout()
-plt.show()
+            ax2.scatter(np.array(time)*1000,data,s=6,color=inC)
+ax2.legend(handles=noisePatches,fontsize=16)
+fig2.savefig(outfile+"/timing.png",bbox_inches='tight')
+# plt.tight_layout()
+# plt.show()

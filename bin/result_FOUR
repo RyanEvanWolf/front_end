@@ -1,0 +1,73 @@
+#!/usr/bin/env python
+
+
+import rospy
+
+import matplotlib.pyplot as plt
+
+import matplotlib.style as sty
+import numpy as np
+import os
+import statistics
+sty.use("seaborn")
+import matplotlib.patches as mpatches
+from front_end.analysis import getTopic
+
+import matplotlib as mpl
+label_size = 18
+mpl.rcParams['xtick.labelsize'] = label_size 
+mpl.rcParams['ytick.labelsize'] = label_size 
+outFolder="/home/ryan/outImages/detection"
+loops=["A_1","A_2","A_3"]#,"A_12","A_13","A_14"]
+
+noisePatches=[mpatches.Patch(color=(1,0,0,0.7), label=r'$Fast$'),
+                mpatches.Patch(color=(0,0.3,.6,0.7), label=r'$Slow$')]
+
+
+# processor=["i7","jetson"]
+# features=["BRIEF_16","BRIEF_64","SURF","SURF_EXTENDED","FREAK","ORB_10","ORB_70"]#,"BRIEF_64",
+# colours=[(0.6,0.4,1,0.7),(0,1,0,0.7),(1,1,0,0.7),(1,0.6,0,0.7),(0.1,0.4,1,.7),(0.2,0.7,0.6,0.7),(1,0,0,0.7)]
+# i7Color=[(0.3,0.4,1,0.7),(0,1,0.8,0.7),(1,1,0.3,0.7),(0.8,0,0.5),(0.1,0.4,0.2),(0.1,0.7,0.6),(0.8,1,.9)]
+
+###################
+###number of tracks
+##################
+fig,ax=plt.subplots(1,1)
+# fig.suptitle("Grid Detector Results on $A$")
+# ax.set_xlabel("Normalized Frame Number")
+# ax.set_ylabel("Total Detections")
+
+labels=[]
+ax.grid(c=(0,0,0,0.2),linestyle='-',linewidth=0.2)
+
+for loop in range(len(loops)):
+    inDir="/home/ryan/recording/detection/"+loops[loop]
+    files=os.listdir(inDir)
+    for f in range(len(files)):
+        data=getTopic(inDir+"/"+files[f],"/stereo/debug/detection")
+        time=np.arange(0,len(data))/float(len(data))
+        if(files[f][:files[f].index(".bag")] in labels):
+            ax.plot(time,data,linewidth=1.2,color=(0,0.3,.6,0.7))#,color=colours[f])
+        else:
+            #labels.append(files[f][:files[f].index(".bag")])
+            ax.plot(time,data,linewidth=1.2,color=(0,0.3,.6,0.7))#,color=colours[f],label=files[f][:files[f].index(".bag")])
+    print(files)
+loops=["A_12","A_13","A_14"]
+for loop in range(len(loops)):
+    inDir="/home/ryan/recording/detection/"+loops[loop]
+    files=os.listdir(inDir)
+    for f in range(len(files)):
+        data=getTopic(inDir+"/"+files[f],"/stereo/debug/detection")
+        time=np.arange(0,len(data))/float(len(data))
+        if(files[f][:files[f].index(".bag")] in labels):
+            ax.plot(time,data,linewidth=1.2,color=(1,0,0,0.7))#,color=colours[f])
+        else:
+            #labels.append(files[f][:files[f].index(".bag")])
+            ax.plot(time,data,linewidth=1.2,color=(1,0,0,0.7))#,color=colours[f],label=files[f][:files[f].index(".bag")])
+    print(files)
+ax.legend(handles=noisePatches,loc="upper center",fontsize=20)
+ax.axhline(3000,c=(0,0,0),linestyle="--")
+ax.axhline(1000,c=(0,0,0),linestyle="--")
+ax.axhline(5000,c=(0,0,0),linestyle="--")
+
+fig.savefig(outFolder+"/det.png",bbox_inches='tight')

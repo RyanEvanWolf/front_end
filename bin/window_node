@@ -11,19 +11,19 @@ rospy.init_node("window_node")
 # b = stereoWindow()
 
 b= liveGraph()
-
+b.G.descriptorLength=32
 print("started",b.displayName)
 
 
-while(not rospy.is_shutdown() and (b.nPoses<300)):
+while(not rospy.is_shutdown()):
     b.updateMatches()
     time.sleep(0.1)
 
-b.graphDeltaMotion()
-b.publishPoses()
-# b.publishGlobalPoints()
+# b.graphDeltaMotion()
+# #b.publishPoses()
+# # b.publishGlobalPoints()
 
-plt.show()
+# plt.show()
 
 # # s1=rospy.Service("window_node/windowMatching",windowMatching,tracker.update)
 rospy.spin()

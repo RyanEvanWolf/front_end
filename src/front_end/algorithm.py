@@ -1134,7 +1134,7 @@ class liveGraph(slidingGraph):
             ##synchronize the messages, wait for both left and right images
             ## and the features messages to be available before processing
         if(self.q[0].qsize()>0 and self.q[1].qsize()>0 and self.q[2].qsize()>0):
-            currentPoseID=self.newPoseVertex()
+            currentPoseID=self.G.newPoseVertex()
             self.lImages.append((copy.deepcopy(self.q[0].get()),currentPoseID))
             self.rImages.append((copy.deepcopy(self.q[1].get()),currentPoseID))
             if(len(self.lImages)>self.nWindow):
@@ -1144,25 +1144,19 @@ class liveGraph(slidingGraph):
             lfeat=unpackKP(currentFeat.leftFeatures)
             rfeat=unpackKP(currentFeat.rightFeatures)
             currentLDesc=self.cvb.imgmsg_to_cv2(currentFeat.leftDescr)
+            print(currentLDesc.shape)
             currentRDesc=self.cvb.imgmsg_to_cv2(currentFeat.rightDescr)
-
-            #            lROI=self.lImages[-1][0][self.roiY:self.roiH+1,self.roiX:self.roiW+1]
-            #rROI=self.rImages[-1][0][self.roiY:self.roiH+1,self.roiX:self.roiW+1]  
-
             if(self.initialized):
                 ################
                 ##match features
                 #################
                 
 
-                prevPoseID=self.getPoseVertices()[-2]
+                prevPoseID=self.G.getPoseVertices()[-2]
 
                 print("MatchState",prevPoseID,currentPoseID)
-                activeIDs=self.getLandmarksVisibleAT(prevPoseID)
-                prevLDesc,prevRDesc=self.getDescriptors(prevPoseID)
-                #print(prevLDesc.shape,prevRDesc.shape,currentLDesc.shape,currentRDesc.shape)
-
-
+                activeIDs=self.G.getLandmarksVisibleAT(prevPoseID)
+                prevLDesc,prevRDesc=self.G.getDescriptors(prevPoseID)
                 matchesLeft = self.bf.match(currentLDesc,prevLDesc)###qyery, training
                 matchesRight = self.bf.match(currentRDesc,prevRDesc)
 
@@ -1195,11 +1189,11 @@ class liveGraph(slidingGraph):
                                             currentLDesc[currentIndex,:],currentRDesc[currentIndex,:])
                         TrackCount+=1
                     else:
-                        landmarkID=self.newLandmarkVertex() 
+                        landmarkID=self.G.newLandmarkVertex() 
                         self.createStereoEdge(currentPoseID,landmarkID,lfeat[currentIndex],rfeat[currentIndex],
                                             currentLDesc[currentIndex,:],currentRDesc[currentIndex,:])
                         newFeature+=1
-                self.svdRANSAC(prevPoseID,currentPoseID)
+                self.G.svdRANSAC(prevPoseID,currentPoseID)
 
                 oldImage=copy.deepcopy(self.lImages[-2][0])
                 newImage=copy.deepcopy(self.lImages[-1][0])
@@ -1210,9 +1204,9 @@ class liveGraph(slidingGraph):
                 #     self.plotLandmark(ancd,k,[prevPoseID,currentPoseID])
                 # self.trackPub.publish(self.cvb.cv2_to_imgmsg(ancd))
                 
-                # print("Tracks=",TrackCount)
-                # print("newFeature=",newFeature)
-                # print("overall",len(lfeat))
+                print("Tracks=",TrackCount)
+                print("newFeature=",newFeature)
+                print("overall",len(lfeat))
 
 
             else:
@@ -1220,21 +1214,21 @@ class liveGraph(slidingGraph):
                 ###initialize the graph
                 for i in range(len(lfeat)):
                     M=np.zeros((3,1))
-                    M[0,0]=lfeat[i].pt[0]+self.roiX
-                    M[1,0]=lfeat[i].pt[1]+self.roiY
-                    M[2,0]=rfeat[i].pt[0]+self.roiX
+                    M[0,0]=lfeat[i].pt[0]
+                    M[1,0]=lfeat[i].pt[1]
+                    M[2,0]=rfeat[i].pt[0]
 
                     dispVect=np.ones((4,1),dtype=np.float64)
-                    disparity=M[0,0]-M[2,0]#lFeat.pt[0]-rFeat.pt[0]
-                    dispVect[0,0]=M[0,0]#lFeat.pt[0]
-                    dispVect[1,0]=M[1,0]#lFeat.pt[1]
+                    disparity=M[0,0]-M[2,0]
+                    dispVect[0,0]=M[0,0]
+                    dispVect[1,0]=M[1,0]
                     dispVect[2,0]=disparity
 
-                    xPred=self.kSettings['Q'].dot(dispVect)
+                    xPred=self.G.kSettings['Q'].dot(dispVect)
                     xPred/=xPred[3,0]
                     if(xPred[2,0]>0):
-                        landmarkID=self.newLandmarkVertex()
-                        self.add_edge(currentPoseID,landmarkID,
+                        landmarkID=self.G.newLandmarkVertex()
+                        self.G.add_edge(currentPoseID,landmarkID,
                                       M=M,Dl=currentLDesc[i,:],
                                       Dr=currentRDesc[i,:],X=xPred)
                 self.initialized=True
@@ -1242,27 +1236,19 @@ class liveGraph(slidingGraph):
             self.publishLocalPoints(currentPoseID)
     def createStereoEdge(self,poseID,landmarkID,lFeat,rFeat,lDesc,rDesc):
         M=np.zeros((3,1))
-        M[0,0]=lFeat.pt[0]+self.roiX
-        M[1,0]=lFeat.pt[1]+self.roiY
-        M[2,0]=rFeat.pt[0]+self.roiX
+        M[0,0]=lFeat.pt[0]
+        M[1,0]=lFeat.pt[1]
+        M[2,0]=rFeat.pt[0]
 
         dispVect=np.ones((4,1),dtype=np.float64)
         disparity=M[0,0]-M[2,0]#lFeat.pt[0]-rFeat.pt[0]
         dispVect[0,0]=M[0,0]#lFeat.pt[0]
         dispVect[1,0]=M[1,0]#lFeat.pt[1]
         dispVect[2,0]=disparity
-        xPred=self.kSettings['Q'].dot(dispVect)
+        xPred=self.G.kSettings['Q'].dot(dispVect)
         xPred/=xPred[3,0]
         if(xPred[2,0]>0):
-            self.add_edge(poseID,landmarkID,M=M,Dl=lDesc,Dr=rDesc,X=xPred)
-    def getDescriptors(self,poseID):
-        activeLandmarks=self.getLandmarksVisibleAT(poseID)
-        lDesc=np.zeros((len(activeLandmarks),16),np.uint8)
-        rDesc=np.zeros((len(activeLandmarks),16),np.uint8)
-        for i in range(0,len(activeLandmarks)):
-            lDesc[i,:]=copy.deepcopy(self.edges[poseID,activeLandmarks[i]]["Dl"].reshape(16))
-            rDesc[i,:]=copy.deepcopy(self.edges[poseID,activeLandmarks[i]]["Dr"].reshape(16))
-        return lDesc,rDesc
+            self.G.add_edge(poseID,landmarkID,M=M,Dl=lDesc,Dr=rDesc,X=xPred)
 
 
 

@@ -14,45 +14,90 @@ sty.use("seaborn")
 from front_end.analysis import getTopic
 import numpy as np
 
-
+import matplotlib.patches as mpatches
 
 
 inFolder="/home/ryan/recording/i7/BRIEF"
+outFolder="/home/ryan/outImages/detection"
 bagFiles=["750.bag","1500.bag","3000.bag","5000.bag"]#,"jetson_5000.bag","jetson_7000.bag"]
 
 
 
-
+noisePatches=[mpatches.Patch(color=(0.1,0,0.8,0.4), label=r'$Slow$'),
+                mpatches.Patch(color=(0.8,0,0.1,0.4), label=r'$Fast$')]
 processor=["i7","jetson"]
 features=["BRIEF_16","BRIEF_64","SURF","SURF_EXTENDED","FREAK","ORB_10","ORB_70"]#,"BRIEF_64",
-colours=[(0.6,0.4,1,0.7),(0,1,0,0.7),(1,1,0,0.7),(0.5,0.7,0.6),(0.1,0.4,1),(0.2,0.7,0.6),(1,0,0)]
+colours=[(0.6,0.4,1,0.7),(0,1,0,0.7),(1,1,0,0.7),(1,0.6,0,0.7),(0.1,0.4,1,.7),(0.2,0.7,0.6,0.7),(1,0,0,0.7)]
+
+noisePatches=[]
+for i in range(len(features)):
+    noisePatches.append(mpatches.Patch(color=colours[i],label=features[i]))
+#(0.5,0.7,0.6),(0.1,0.4,1),(0.2,0.7,0.6),(1,0,0)]
+
+import matplotlib as mpl
+label_size = 18
+mpl.rcParams['xtick.labelsize'] = label_size 
+mpl.rcParams['ytick.labelsize'] = label_size 
 
 
-for p in processor:
-    fig1,(ax1)=plt.subplots(1,1,squeeze=True)
-    fig1.suptitle(p)
-    ax1.set_xlabel("Descriptor and Matching Processing Time (ms)")
-    ax1.set_ylabel("Total Detections")
-    ax1.set_xlim(0,1000)
-    for descriptor in range(len(features)):
-        inDir="/home/ryan/recording/"+p+"/"+features[descriptor]
-        files=os.listdir(inDir)
-        for f in range(len(files)):
-            print(inDir+"/"+files[f])
-            data=getTopic(inDir+"/"+files[f],"/stereo/debug/detection")
-            time=np.array(getTopic(inDir+"/"+files[f],"/stereo/time/matches"))
-            #time2=np.array(getTopic(inDir+"/"+files[f],"/stereo/time/description"))
-            #time3=time+time2
-            inC=colours[descriptor]
-            if(f==0):
-                ax1.scatter(np.array(time)*1000,data,s=6,color=inC,label=features[descriptor])
-                ax1.legend()
-            else:
-                ax1.scatter(np.array(time)*1000,data,s=6,color=inC)
+################
+###i7
+p=processor[0]
 
-plt.tight_layout()
+fig1,(ax1)=plt.subplots(1,1,squeeze=True)
+# if(p=="jetson"):
+#     fig1.suptitle(r"Jetson TK1 $\mathcal{D}$ and Matching Processing Time",fontsize=25)
+# else:
+#     fig1.suptitle(r"i7 $\mathcal{D}$ and Matching Processing Time",fontsize=25)
+# ax1.set_xlabel("Descriptor and Matching Processing Time (ms)",fontsize=22)
+# ax1.set_ylabel("Total Detections",fontsize=22)
+ax1.set_xticks(np.arange(0,30)*1000/15.0)
+ax1.set_xlim(0,500)
+ax1.grid(c=(0,0,0,0.2),linestyle='-',linewidth=0.2)
+for descriptor in range(len(features)):
+    inDir="/home/ryan/recording/A3/"+p+"/"+features[descriptor]
+    files=os.listdir(inDir)
+    for f in range(len(files)):
+        print(inDir+"/"+files[f])
+        data=getTopic(inDir+"/"+files[f],"/stereo/debug/detection")
+        time=np.array(getTopic(inDir+"/"+files[f],"/stereo/time/matches"))
+        #time2=np.array(getTopic(inDir+"/"+files[f],"/stereo/time/description"))
+        #time3=time+time2
+        inC=colours[descriptor]
+        ax1.scatter(np.array(time)*1000,data,s=6,color=inC)
+
+
+ax1.legend(handles=noisePatches,fontsize=16,loc='upper left')
+ax1.grid(c=(0,0,0,0.2),linestyle='-',linewidth=0.2)
+fig1.savefig(outFolder+"/match"+p+".png",bbox_inches='tight')
 
 
 
-plt.show()
+p=processor[1]
 
+fig2,(ax2)=plt.subplots(1,1,squeeze=True)
+# if(p=="jetson"):
+#     fig2.suptitle(r"Jetson TK1 $\mathcal{D}$ and Matching Processing Time",fontsize=25)
+# else:
+#     fig2.suptitle(r"i7 $\mathcal{D}$ and Matching Processing Time",fontsize=25)
+# ax2.set_xlabel("Descriptor and Matching Processing Time (ms)",fontsize=22)
+# ax2.set_ylabel("Total Detections",fontsize=22)
+ax2.set_xticks(np.arange(0,30)*1000/15.0)
+ax2.set_xlim(0,500)
+ax2.grid(c=(0,0,0,0.2),linestyle='-',linewidth=0.2)
+for descriptor in range(len(features)):
+    inDir="/home/ryan/recording/A3/"+p+"/"+features[descriptor]
+    files=os.listdir(inDir)
+    for f in range(len(files)):
+        print(inDir+"/"+files[f])
+        data=getTopic(inDir+"/"+files[f],"/stereo/debug/detection")
+        time=np.array(getTopic(inDir+"/"+files[f],"/stereo/time/matches"))
+        #time2=np.array(getTopic(inDir+"/"+files[f],"/stereo/time/description"))
+        #time3=time+time2
+        inC=colours[descriptor]
+        ax2.scatter(np.array(time)*1000,data,s=6,color=inC)
+ax2.grid(c=(0,0,0,0.2),linestyle='-',linewidth=0.2)
+
+#
+
+fig2.savefig(outFolder+"/match"+p+".png",bbox_inches='tight')

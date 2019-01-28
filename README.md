@@ -20,3 +20,11 @@ rosrun front_end extractPCL
 "--gaussian",default=True,type=bool
 
 currently has a hard coded file directory in which to search for simulated motion files
+
+------------------------------------------
+args = FAST threshold, Detector setpoint
+rosservice call stereo/control/detection 15 5000
+
+
+
+roslaunch front_end recordStereo.xml prefixName:=3000 descriptor:=SURF_EXTENDED platformName:=i7

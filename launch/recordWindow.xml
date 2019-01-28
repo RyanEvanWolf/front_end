@@ -1,0 +1,9 @@
+<launch>
+  <arg name="platformName" default="i7"/>
+  <arg name="descriptor" default="BRIEF"/>
+  <arg name="RecordingFolder" default="/home/ryan/recording"/>
+  <arg name="prefixName" default="window_recording"/>
+  <node name="window_record" type="record" pkg="rosbag" args="-O $(arg RecordingFolder)/$(arg prefixName) /stereo/image/matches /stereo/image/detection /live/debug/Tracks"/>
+</launch>
+	
+

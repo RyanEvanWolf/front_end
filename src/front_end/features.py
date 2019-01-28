@@ -599,8 +599,6 @@ class gridDetector:
         self.y=None
         self.w=None
         self.h=None
-        self.gridWidth=int(768/self.col)  
-        self.gridWidth=int(10/self.col) 
         self.winSize=(5,5)
         self.zeroZone=(-1,-1)
     def updateSetPoint(self,setPoint):
@@ -612,7 +610,8 @@ class gridDetector:
         roiIMG=rectifiedImg[self.y:self.h+1,self.x:self.w+1]
         imgWidth=int(self.w/self.col)                        
         imgHeight=int(self.h/self.row)
-        overallDetections=[]
+        Detections=[]
+        bottomDetections=[]
         for row in range(self.row):
             for col in range(self.col):
                 xOffset=col*imgWidth
@@ -620,20 +619,27 @@ class gridDetector:
                 miniIMG=roiIMG[yOffset:yOffset+imgHeight,xOffset:xOffset+imgWidth]
                 self.detector.setThreshold(self.Thresholds[row,col])
                 detections=self.detector.detect(miniIMG)
+                
                 for d in detections:
                     d.pt=(d.pt[0]+xOffset+self.x,d.pt[1]+yOffset+self.y)
-                overallDetections=overallDetections+detections
-                error=len(detections)-self.bucketSetpoint
-                if(abs(error)>0.2*self.bucketSetpoint):
+                Detections=Detections+detections
+                if(row==1):
+                    error=len(detections)-2*self.bucketSetpoint
+                    hysteresis=0.2*2*self.bucketSetpoint
+                else:
+                    error=len(detections)-0.5*self.bucketSetpoint
+                    hysteresis=0.2*0.5*self.bucketSetpoint
+                if(abs(error)>hysteresis):
                     if(error>0):
-                        self.Thresholds[row,col]=np.clip(self.Thresholds[row,col]+1 ,4,80)   
+                        self.Thresholds[row,col]=np.clip(self.Thresholds[row,col]+1 ,6,80)   #3
                     else:
-                        self.Thresholds[row,col]=np.clip(self.Thresholds[row,col]-1 ,4,80) 
-        for k in overallDetections:
+                        self.Thresholds[row,col]=np.clip(self.Thresholds[row,col]-1 ,6,80) #3
+        for k in Detections:
             refinement=np.float32([k.pt])
             cv2.cornerSubPix(rectifiedImg,refinement, self.winSize, self.zeroZone, (cv2.TERM_CRITERIA_EPS | cv2.TERM_CRITERIA_COUNT,40, 0.001))
             k.pt=(refinement[0,0],refinement[0,1])
-        return overallDetections
+        return Detections
+
 class stereoDetector:
     def __init__(self,fullDebug=False):
         self.fullDebug=fullDebug
@@ -656,6 +662,8 @@ class stereoDetector:
         self.rDetector.y=roi[1]
         self.rDetector.w=roi[2]
         self.rDetector.h=roi[3]
+
+        self.centreROI=y+int(h/2.0)
 
         self.descr=cv2.xfeatures2d.BriefDescriptorExtractor_create(16,False)
 
@@ -713,26 +721,23 @@ class stereoDetector:
         lKP,lDesc=self.descr.compute(limg,lKP)
         rKP,rDesc=self.descr.compute(rimg,rKP)
         # Match descriptors.
-        matches = self.bf.match(lDesc,rDesc)
+        matches =self.bf.match(lDesc,rDesc)
         goodMatches=[]
         goodLdesc=[]
         goodRdesc=[]
         goodMatches=stereoFeatures()
-        inlierMatches=[]
-        outlierMatches=[]
-        er=[]
+        inlierTopMatches=[]
+        inlierBottomMatches=[]
         for m in matches:
             vDist=lKP[m.queryIdx].pt[1]-rKP[m.trainIdx].pt[1]
             if(abs(vDist)<=0.7):
                goodMatches.leftFeatures.append(cv2ros_KP(lKP[m.queryIdx]))
                goodMatches.rightFeatures.append(cv2ros_KP(rKP[m.trainIdx]))
                goodMatches.matchScore.append(m.distance)
-               inlierMatches.append(m)
-               er.append(vDist)
-            else:
-               outlierMatches.append(m)
-               #goodLdesc.append(lDesc[m.queryIdx,:].reshape(1,16))
-               #goodRdesc.append(rDesc[m.trainIdx,:].reshape(1,16))
+               inlierTopMatches.append(m)
+               #print(lDesc[m.queryIdx,:].shape)
+               goodLdesc.append(lDesc[m.queryIdx,:])#.reshape(1,16))
+               goodRdesc.append(rDesc[m.trainIdx,:])#.reshape(1,16))
         computeTime= time.time()-computeTime
 
         debugData.data=len(goodMatches.leftFeatures)
@@ -740,6 +745,8 @@ class stereoDetector:
         debugData.data=computeTime
         self.debugResults[3].publish(debugData)
         
+
+
         # #####
         # ###pack the descriptors into the message
         if(self.fullDebug):
@@ -748,17 +755,24 @@ class stereoDetector:
 
             self.debugResults[5].publish(self.cvb.cv2_to_imgmsg(im_with_keypoints))
             img3=np.hstack((copy.deepcopy(limg),copy.deepcopy(rimg)))
-            cv2.drawKeypoints(limg,lKP,img3,(150,200,0))
-            img3=cv2.drawMatches(limg,lKP,rimg,rKP,inlierMatches,img3,(0,255,0) ,flags=2)
+            #cv2.drawKeypoints(limg,lKP,img3,(150,200,0))
+            img3=cv2.drawMatches(limg,lKP,rimg,rKP,inlierTopMatches,img3,(0,255,0) ,flags=2)
             self.debugResults[4].publish(self.cvb.cv2_to_imgmsg(img3))
-        # packedL=np.zeros((len(goodLdesc),16),dtype=np.uint8)
-
-        # packedR=np.zeros((len(goodRdesc),16),dtype=np.uint8)
-        # for i in range(0,len(goodLdesc)):
-        #     packedL[i,:]=copy.deepcopy(goodLdesc[i])
-        #     packedR[i,:]=copy.deepcopy(goodRdesc[i])
-        # goodMatches.leftDescr=self.cvb.cv2_to_imgmsg(packedL)
-        # goodMatches.rightDescr=self.cvb.cv2_to_imgmsg(packedR)
+        
+        
+        descriptorUnitType=goodLdesc[0].dtype
+        descriptorLength=goodLdesc[0].shape[0]
+        print(descriptorUnitType,descriptorLength)       
+        
+        
+        
+        packedL=np.zeros((len(goodLdesc),descriptorLength),dtype=descriptorUnitType)
+        packedR=np.zeros((len(goodRdesc),descriptorLength),dtype=descriptorUnitType)
+        for i in range(0,len(goodLdesc)):
+            packedL[i,:]=copy.deepcopy(goodLdesc[i])
+            packedR[i,:]=copy.deepcopy(goodRdesc[i])
+        goodMatches.leftDescr=self.cvb.cv2_to_imgmsg(packedL)
+        goodMatches.rightDescr=self.cvb.cv2_to_imgmsg(packedR)
 
         self.outPub.publish(goodMatches)
         print("published @ ",time.time())
