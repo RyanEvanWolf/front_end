@@ -50,7 +50,7 @@ for descriptor in range(len(features)):
 plt.legend(handles=noisePatches,fontsize=14)
 
 
-plt.savefig(outFolder+"/stereo.png",bbox_inches='tight')
+plt.savefig(outFolder+"/stereo.png",bbox_inches='tight',dpi=200)
 # inFolder="/home/ryan/recording/i7/BRIEF"
 # bagFiles=["750.bag","1500.bag","3000.bag","5000.bag"]#,"jetson_5000.bag","jetson_7000.bag"]
 

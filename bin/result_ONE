@@ -88,6 +88,4 @@ for p in processor:
                 inC=colours[1]
             ax2.scatter(np.array(time)*1000,data,s=6,color=inC)
 ax2.legend(handles=noisePatches,fontsize=16)
-fig2.savefig(outfile+"/timing.png",bbox_inches='tight')
-# plt.tight_layout()
-# plt.show()
+fig2.savefig(outfile+"/timing.png",bbox_inches='tight',dpi=200)

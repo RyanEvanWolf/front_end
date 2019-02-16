@@ -69,7 +69,7 @@ for descriptor in range(len(features)):
 
 ax1.legend(handles=noisePatches,fontsize=16,loc='upper left')
 ax1.grid(c=(0,0,0,0.2),linestyle='-',linewidth=0.2)
-fig1.savefig(outFolder+"/match"+p+".png",bbox_inches='tight')
+fig1.savefig(outFolder+"/match"+p+".png",bbox_inches='tight',dpi=200)
 
 
 
@@ -100,4 +100,4 @@ ax2.grid(c=(0,0,0,0.2),linestyle='-',linewidth=0.2)
 
 #
 
-fig2.savefig(outFolder+"/match"+p+".png",bbox_inches='tight')
+fig2.savefig(outFolder+"/match"+p+".png",bbox_inches='tight',dpi=200)

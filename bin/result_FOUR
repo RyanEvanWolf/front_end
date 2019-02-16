@@ -70,4 +70,4 @@ ax.axhline(3000,c=(0,0,0),linestyle="--")
 ax.axhline(1000,c=(0,0,0),linestyle="--")
 ax.axhline(5000,c=(0,0,0),linestyle="--")
 
-fig.savefig(outFolder+"/det.png",bbox_inches='tight')
+fig.savefig(outFolder+"/det.png",bbox_inches='tight',dpi=200)
